@@ -59,6 +59,7 @@ const Lobby = {
             this.panel.querySelector('.busy').hidden = view.panel === 'menu';
             this.panel.querySelector('.busy-text').innerHTML = view.busyText || '';
             this.panel.querySelector('.notice').textContent = view.notice || '';
+            this.panel.querySelector('.server').textContent = `연결 방식: 서버 경유 · 서버: ${serverHostLabel()}`;
         }
         if (view.bar) {
             this.bar.querySelector('.bar-text').textContent = view.bar;
@@ -71,7 +72,7 @@ const Lobby = {
             const me = Net.slot === 0 ? 'P1 (빨강)' : 'P2 (파랑)';
             const ping = Net.pingMs === null ? '' : ` · 핑 ${Net.pingMs}ms`;
             const warn = Net.desynced ? ' · ⚠ 두 기기 화면이 어긋났어요. 나갔다가 다시 들어와 주세요' : '';
-            return { bar: `온라인 · 방 ${Net.code} · 나: ${me}${ping}${warn}`, warn: Net.desynced };
+            return { bar: `온라인 · 방 ${Net.code} · 나: ${me} · ${Net.connectionLabel()}${ping}${warn}`, warn: Net.desynced };
         }
         if (Net.status === 'connecting') {
             return { panel: 'busy', busyText: '서버에 연결하는 중...<br><small>서버가 잠들어 있으면 1분쯤 걸릴 수 있어요</small>' };

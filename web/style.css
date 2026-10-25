@@ -129,6 +129,12 @@ body {
     color: #ffd700;
 }
 
+#lobby .server {
+    margin-top: 0.3em;
+    font-size: 0.75em;
+    color: #777;
+}
+
 #lobby .notice {
     margin-top: 0.6em;
     color: #ff8080;
