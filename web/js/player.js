@@ -97,7 +97,7 @@ class Player {
             this.damagePopups.push({
                 value: Math.round(finalDamage),
                 time: this.hitFlashTime,
-                offsetX: Math.floor(Math.random() * 29) - 14,
+                offsetX: Math.floor(gameRandom() * 29) - 14,
             });
 
             // 맞으면 아주 잠깐 느려짐 (타격감). 이미 더 강한 슬로우가 있으면 그걸 유지
@@ -139,6 +139,12 @@ class Player {
     update(dtSec, input, attacks, walls) {
         this.input = input;
         for (const hook of this.preUpdateHooks) hook(dtSec, input, attacks, walls);
+
+        // 충전형 스킬(무투가·DIO)의 충전 갱신. 원본은 화면을 그릴 때마다 갱신했는데,
+        // 그리기는 기기마다 횟수가 달라서 온라인에서 결과가 어긋날 수 있으니 게임 틱마다 갱신한다.
+        for (const skill of this.abilities) {
+            if (skill && skill.updateCharges) skill.updateCharges();
+        }
 
         // 궁극기 자동 충전
         this.ultGauge = Math.min(100.0, this.ultGauge + this.ultChargeRate * dtSec);

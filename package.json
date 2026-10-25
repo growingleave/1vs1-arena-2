@@ -1,0 +1,14 @@
+{
+  "name": "1vs1-arena-2",
+  "private": true,
+  "description": "1vs1 Arena 웹 버전 온라인 대전 서버",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -20,6 +20,23 @@ const Time = {
     now: 0,
 };
 
+// 게임 안에서 쓰는 무작위 값. Math.random 대신 이걸 쓴다.
+// 온라인 대전에서는 두 기기가 같은 씨앗(seed)으로 시작해서 똑같은 순서로 똑같은 값이 나오게 한다.
+// (그래야 두 기기가 같은 입력으로 계산한 결과가 완전히 같아진다)
+let _rngState = (Date.now() ^ 0x9e3779b9) >>> 0;
+
+function seedRandom(seed) {
+    _rngState = seed >>> 0;
+}
+
+function gameRandom() { // 0 이상 1 미만 (mulberry32)
+    _rngState = (_rngState + 0x6D2B79F5) >>> 0;
+    let t = _rngState;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
 // 색 문자열(#rrggbb)에 투명도를 붙인 rgba() 문자열을 만든다 (alpha: 0~1)
 function withAlpha(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16);
