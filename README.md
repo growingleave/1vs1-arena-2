@@ -31,6 +31,8 @@ pygame 버전을 순수 HTML/JavaScript(Canvas)로 조금씩 옮기고 있습니
 
 ## 온라인 대전 (다른 기기끼리)
 
+- 플레이 주소: https://arena-1vs1.onrender.com (또는 GitHub Pages의 `/web/`)
+
 시작 화면에서 **방 만들기**를 누르면 4글자 방 코드가 나옵니다. 다른 기기에서 그 코드를 입력하고 **방 들어가기**를 누르면 대전이 시작됩니다.
 
 - 온라인 조작 (P1/P2 모두 같은 키): 이동 WASD 또는 방향키 · 평타 G · 스킬 H, J · 궁극기 Y · 준비 SPACE
@@ -43,7 +45,7 @@ pygame 버전을 순수 HTML/JavaScript(Canvas)로 조금씩 옮기고 있습니
 1. https://render.com 에 GitHub 계정으로 가입합니다.
 2. 대시보드에서 **New → Blueprint**를 고르고 이 저장소를 선택합니다. `render.yaml` 설정대로 싱가포르 지역 무료 서버가 만들어집니다.
 3. 배포가 끝나면 `https://(서비스 이름).onrender.com` 주소가 생깁니다. **이 주소로 들어가면 바로 온라인 대전을 할 수 있습니다.**
-4. GitHub Pages 주소(`/web/`)에서도 온라인 대전을 하려면 `web/js/net.js`의 `ONLINE_SERVER_URL`에 `wss://(서비스 이름).onrender.com`을 적습니다.
+4. GitHub Pages 주소(`/web/`)나 크롬북에서 `web/index.html`을 직접 열었을 때는 `web/js/net.js`의 `ONLINE_SERVER_URL`(지금은 `wss://arena-1vs1.onrender.com`)로 접속합니다.
 
 무료 서버는 15분 동안 아무도 접속하지 않으면 잠들고, 다시 깨어나는 데 1분쯤 걸립니다. 행사 전에 미리 한 번 접속해 두세요.
 

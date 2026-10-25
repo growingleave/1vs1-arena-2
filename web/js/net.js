@@ -5,9 +5,11 @@
 // 3. 서버는 1초에 60번 "이번 틱의 두 사람 입력"을 보내고, 두 기기는 그 입력대로 한 틱씩 똑같이 계산한다.
 //    (내 키보드 입력도 바로 쓰지 않고, 서버를 거쳐 돌아온 것으로만 게임에 반영한다)
 
-// 서버 주소. 게임을 서버 주소(예: https://arena-1vs1.onrender.com)로 열면 비워둬도 자동으로 찾는다.
-// GitHub Pages 주소로 열 때도 온라인 대전을 하려면, Render에 배포한 뒤 여기에 wss:// 주소를 적는다.
-const ONLINE_SERVER_URL = '';
+// 온라인 대전 서버 주소 (Render에 배포한 서버).
+// - 게임을 서버 주소(https://arena-1vs1.onrender.com)로 열면 그 서버에 바로 접속한다.
+// - GitHub Pages 주소로 열거나, 크롬북에서 index.html 파일을 직접 열면 이 주소로 접속한다.
+// - 주소 뒤에 ?server=ws://... 를 붙이면 다른 서버로 접속할 수 있다 (내 컴퓨터에서 시험할 때 등).
+const ONLINE_SERVER_URL = 'wss://arena-1vs1.onrender.com';
 
 // 온라인에서 내가 쓰는 키 (P1/P2 상관없이 같은 키로 조작한다)
 const ONLINE_LOCAL_KEYS = {
@@ -33,13 +35,12 @@ const CHECKSUM_INTERVAL = 60; // 1초마다 두 기기의 게임 상태를 비�
 function resolveServerUrl() {
     const param = new URLSearchParams(location.search).get('server');
     if (param) return param;
-    if (ONLINE_SERVER_URL) return ONLINE_SERVER_URL;
-    // 게임을 서버에서 직접 열었다면 같은 주소로 접속
+    // 게임을 서버에서 직접 열었다면(Render 주소, 내 컴퓨터의 localhost 등) 같은 주소로 접속
     const isWebPage = location.protocol === 'http:' || location.protocol === 'https:';
     if (isWebPage && !location.hostname.endsWith('github.io')) {
         return `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
     }
-    return '';
+    return ONLINE_SERVER_URL;
 }
 
 // 게임 상태 요약값 (두 기기가 같은지 비교용)
