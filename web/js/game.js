@@ -233,6 +233,7 @@ class Game {
     renderTitle(ctx) {
         clearScreen(ctx, COLOR_BG);
         drawText(ctx, '1v1 TOP-DOWN ARENA', WIDTH / 2, HEIGHT / 2 - 100, 40, COLOR_WHITE, { bold: true, align: 'center' });
+        drawText(ctx, '웹 버전 (JavaScript)', WIDTH / 2, HEIGHT / 2 - 50, 18, COLOR_GOLD, { bold: true, align: 'center' });
         drawText(ctx, `[1] ${CONTROL_SCHEMES.laptop.label}`, WIDTH / 2, HEIGHT / 2, 24, COLOR_WHITE, { bold: true, align: 'center' });
         drawText(ctx, `[2] ${CONTROL_SCHEMES.chromebook.label}`, WIDTH / 2, HEIGHT / 2 + 40, 24, COLOR_WHITE, { bold: true, align: 'center' });
         if (Math.floor(Time.now / 500) % 2 === 0) {

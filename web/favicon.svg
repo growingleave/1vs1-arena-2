@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#141419"/>
+  <!-- P1(빨강)과 P2(파랑)의 칼이 교차하는 모양 -->
+  <g stroke-linecap="round">
+    <line x1="14" y1="14" x2="50" y2="50" stroke="#e63c3c" stroke-width="7"/>
+    <line x1="50" y1="14" x2="14" y2="50" stroke="#3c78e6" stroke-width="7"/>
+    <line x1="40" y1="52" x2="52" y2="40" stroke="#ffd700" stroke-width="5"/>
+    <line x1="12" y1="40" x2="24" y2="52" stroke="#ffd700" stroke-width="5"/>
+  </g>
+</svg>
