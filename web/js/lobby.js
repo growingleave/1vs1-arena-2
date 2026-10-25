@@ -59,7 +59,9 @@ const Lobby = {
             this.panel.querySelector('.busy').hidden = view.panel === 'menu';
             this.panel.querySelector('.busy-text').innerHTML = view.busyText || '';
             this.panel.querySelector('.notice').textContent = view.notice || '';
-            this.panel.querySelector('.server').textContent = `연결 방식: 서버 경유 · 서버: ${serverHostLabel()}`;
+            this.panel.querySelector('.server').textContent = p2pAllowed()
+                ? `연결 방식: 기기끼리 직접 연결 시도 → 안 되면 서버 경유 · 서버: ${serverHostLabel()}`
+                : `연결 방식: 서버 경유 · 서버: ${serverHostLabel()}`;
         }
         if (view.bar) {
             this.bar.querySelector('.bar-text').textContent = view.bar;
@@ -73,6 +75,9 @@ const Lobby = {
             const ping = Net.pingMs === null ? '' : ` · 핑 ${Net.pingMs}ms`;
             const warn = Net.desynced ? ' · ⚠ 두 기기 화면이 어긋났어요. 나갔다가 다시 들어와 주세요' : '';
             return { bar: `온라인 · 방 ${Net.code} · 나: ${me} · ${Net.connectionLabel()}${ping}${warn}`, warn: Net.desynced };
+        }
+        if (Net.status === 'linking') {
+            return { panel: 'busy', busyText: '상대와 연결하는 중...<br><small>같은 와이파이면 기기끼리 직접 연결하고, 안 되면 서버를 거쳐 연결해요 (최대 5초)</small>' };
         }
         if (Net.status === 'connecting') {
             return { panel: 'busy', busyText: '서버에 연결하는 중...<br><small>서버가 잠들어 있으면 1분쯤 걸릴 수 있어요</small>' };

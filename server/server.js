@@ -3,7 +3,9 @@
 // 하는 일
 // 1. web/ 폴더의 게임 파일을 그대로 보여준다 (이 서버 주소로 접속하면 바로 플레이 가능)
 // 2. 방 만들기 / 방 코드로 들어가기
-// 3. 1초에 60번, "이번 틱에 두 사람이 누르고 있는 키"를 모아서 두 사람에게 똑같이 보낸다
+// 3. 두 명이 모이면 먼저 기기끼리 직접 연결(WebRTC)을 시도하도록 연결 정보를 전달해 준다.
+//    - 직접 연결 성공: 방을 만든 기기가 틱을 만들어 상대에게 보낸다. 서버는 상태 비교와 나가기 알림만 한다.
+//    - 직접 연결 실패: 서버가 1초에 60번 "이번 틱에 두 사람이 누르고 있는 키"를 모아서 두 사람에게 보낸다.
 //
 // 서버는 게임을 직접 계산하지 않는다. 두 기기가 같은 입력을 받아 똑같이 계산하므로
 // 서버는 아주 가볍고, 주고받는 데이터도 작다.
@@ -19,6 +21,7 @@ const { WebSocketServer } = require('ws');
 const PORT = Number(process.env.PORT) || 3000;
 const WEB_ROOT = path.join(__dirname, '..', 'web');
 const TICK_MS = 1000 / 60;
+const PEER_TIMEOUT_MS = 10000; // 방장이 연결 결과를 이 시간 안에 안 알려주면 서버 경유로 시작
 
 // 방 코드에 헷갈리는 글자(I, O, 0, 1 등)는 쓰지 않는다
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -99,6 +102,8 @@ function createRoom(ws) {
         held: [new Set(), new Set()],  // 자리별로 지금 누르고 있는 키
         downs: [[], []],               // 자리별로 이번 틱에 새로 누른 키
         started: false,
+        mode: null,                    // 'p2p'(기기끼리 직접) 또는 'relay'(서버 경유)
+        peerTimer: null,
         startTime: 0,
         frame: 0,
         checksums: new Map(),          // frame -> [자리0 값, 자리1 값]
@@ -124,20 +129,34 @@ function joinRoom(ws, rawCode) {
     room.players[1] = ws;
     ws.room = room;
     ws.slot = 1;
-    startRoom(room);
+
+    // 먼저 기기끼리 직접 연결을 시도하게 한다. 방장(자리 0)이 결과를 알려주면 시작
+    room.players.forEach((p, slot) => send(p, { t: 'peer', slot }));
+    room.peerTimer = setTimeout(() => startRoom(room, 'relay'), PEER_TIMEOUT_MS);
 }
 
-function startRoom(room) {
+function startRoom(room, mode) {
+    if (room.started || !rooms.has(room.code)) return;
+    clearTimeout(room.peerTimer);
     room.started = true;
+    room.mode = mode;
     room.frame = 0;
     room.startTime = performance.now();
     const seed = crypto.randomInt(0x7fffffff);
-    room.players.forEach((ws, slot) => send(ws, { t: 'start', code: room.code, slot, seed }));
-    console.log(`[방 ${room.code}] 대전 시작`);
+    room.players.forEach((ws, slot) => send(ws, { t: 'start', code: room.code, slot, seed, mode }));
+    console.log(`[방 ${room.code}] 대전 시작 (${mode === 'p2p' ? '기기끼리 직접 연결' : '서버 경유'})`);
+}
+
+// 직접 연결에 필요한 정보(WebRTC offer/answer/ICE 후보)를 상대에게 그대로 전달
+function relaySignal(ws, msg) {
+    const room = ws.room;
+    if (!room || room.started) return;
+    send(room.players[1 - ws.slot], { t: 'signal', data: msg.data });
 }
 
 function closeRoom(room, leaver) {
     if (!rooms.has(room.code)) return;
+    clearTimeout(room.peerTimer);
     rooms.delete(room.code);
     for (const ws of room.players) {
         if (ws && ws !== leaver) {
@@ -150,7 +169,7 @@ function closeRoom(room, leaver) {
 
 function handleInput(ws, msg) {
     const room = ws.room;
-    if (!room || !room.started) return;
+    if (!room || !room.started || room.mode !== 'relay') return;
     const allowed = ALLOWED_CODES[ws.slot];
     if (Array.isArray(msg.held)) {
         room.held[ws.slot] = new Set(msg.held.filter(c => allowed.has(c)));
@@ -185,7 +204,7 @@ function handleChecksum(ws, msg) {
 function pumpRooms() {
     const now = performance.now();
     for (const room of rooms.values()) {
-        if (!room.started) continue;
+        if (!room.started || room.mode !== 'relay') continue;
         const due = Math.floor((now - room.startTime) / TICK_MS);
         while (room.frame < due) {
             const held = [...room.held[0], ...room.held[1]];
@@ -221,6 +240,8 @@ wss.on('connection', (ws) => {
         if (msg.t === 'in') handleInput(ws, msg);
         else if (msg.t === 'ping') send(ws, { t: 'pong', c: msg.c });
         else if (msg.t === 'sum') handleChecksum(ws, msg);
+        else if (msg.t === 'signal') relaySignal(ws, msg);
+        else if (msg.t === 'mode' && ws.room && ws.slot === 0) startRoom(ws.room, msg.mode === 'p2p' ? 'p2p' : 'relay');
         else if (msg.t === 'create' && !ws.room) createRoom(ws);
         else if (msg.t === 'join' && !ws.room) joinRoom(ws, msg.code);
         else if (msg.t === 'leave' && ws.room) {
