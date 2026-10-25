@@ -43,6 +43,15 @@ function resolveServerUrl() {
     return ONLINE_SERVER_URL;
 }
 
+// 화면에 보여줄 서버 이름 (예: arena-1vs1.onrender.com)
+function serverHostLabel() {
+    try {
+        return new URL(resolveServerUrl()).host;
+    } catch {
+        return '없음';
+    }
+}
+
 // 게임 상태 요약값 (두 기기가 같은지 비교용)
 function gameChecksum(game) {
     const parts = [Math.round(Time.now), game.state, game.attacks.length];
@@ -61,6 +70,7 @@ const Net = {
     ws: null,
     code: '',
     slot: -1,
+    mode: 'relay',       // 연결 방식. 지금은 서버 경유('relay')만 있다
     frames: [],          // 서버에서 받았지만 아직 계산하지 않은 틱들
     frameCount: 0,       // 지금까지 계산한 틱 수
     pingMs: null,
@@ -72,6 +82,11 @@ const Net = {
     pingTimer: null,
     onStart: null,       // (seed) => void
     onEnd: null,         // (message) => void : 상대가 나가거나 연결이 끊겼을 때
+
+    // 화면 아래 표시줄에 쓰는 연결 방식 설명
+    connectionLabel() {
+        return this.mode === 'p2p' ? '직접 연결' : `서버 경유 (${serverHostLabel()})`;
+    },
 
     isOnline() {
         return this.status === 'playing';
@@ -161,6 +176,7 @@ const Net = {
             this.status = 'playing';
             this.code = msg.code;
             this.slot = msg.slot;
+            this.mode = msg.mode || 'relay';
             this.frames = [];
             this.frameCount = 0;
             if (this.onStart) this.onStart(msg.seed);
