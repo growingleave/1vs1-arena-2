@@ -72,6 +72,15 @@ class Rect {
         else if (this.y + this.h > area.y + area.h) this.y = area.y + area.h - this.h;
     }
 
+    copy() {
+        return new Rect(this.x, this.y, this.w, this.h);
+    }
+
+    // 점 (px, py)가 사각형 안에 있는지 (pygame collidepoint)
+    collidepoint(px, py) {
+        return px >= this.x && px < this.x + this.w && py >= this.y && py < this.y + this.h;
+    }
+
     // 가운데는 그대로 두고 크기만 키운 새 사각형 (pygame inflate)
     inflate(dw, dh) {
         return new Rect(this.x - Math.floor(dw / 2), this.y - Math.floor(dh / 2), this.w + dw, this.h + dh);

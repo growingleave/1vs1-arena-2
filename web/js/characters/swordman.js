@@ -25,7 +25,6 @@ class SwordmanSlashAttack {
         this.ownerY = this.owner.rect.centery;
     }
 
-    expireNow() { this.startTime = Time.now - this.duration; }
 
     isExpired() { return Time.now - this.startTime >= this.duration; }
 
@@ -86,7 +85,6 @@ class SwordmanProjectileAttack {
         this.posY += this.direction[1] * this.speed * timeScale;
     }
 
-    expireNow() { this.createdTime = Time.now - this.lifespan; }
 
     isExpired() {
         const outOfBounds = this.posX < -100 || this.posX > 1380 || this.posY < -100 || this.posY > 820;
@@ -144,7 +142,6 @@ class SwordmanDashAttack {
         this.rect.setCenter(this.owner.rect.centerx, this.owner.rect.centery);
     }
 
-    expireNow() { this.startTime = Time.now - this.duration; }
 
     isExpired() {
         const expired = Time.now - this.startTime >= this.duration;
@@ -201,7 +198,6 @@ class SwordmanUltDashAttack {
         this.posY = this.owner.rect.centery;
     }
 
-    expireNow() { this.startTime = Time.now - this.duration; }
 
     isExpired() {
         const expired = Time.now - this.startTime >= this.duration;

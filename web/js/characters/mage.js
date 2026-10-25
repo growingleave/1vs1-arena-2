@@ -47,7 +47,6 @@ class MageEnergyPulse {
         this.positions.push([this.posX, this.posY]);
     }
 
-    expireNow() { this.createdTime = Time.now - this.lifespan; }
 
     isExpired() {
         const outOfBounds = this.posX < -100 || this.posX > 1380 || this.posY < -100 || this.posY > 820;
@@ -196,7 +195,6 @@ class SniperUltManager {
         this.expired = true;
     }
 
-    expireNow() {}
 
     isExpired() { return this.expired; }
 

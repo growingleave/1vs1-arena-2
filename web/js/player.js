@@ -36,6 +36,11 @@ class Player {
         this.dotMargin = 8;
         this.hidden = false;         // true면 화면에 그리지 않음 (마법사 궁극기 중)
 
+        // 추가 동작 목록 (원본에서 player.update/draw를 덮어쓰던 부분).
+        // 캐릭터 자신의 동작뿐 아니라, 상대가 붙인 효과(해커의 해킹 게이지 등)도 여기에 들어간다.
+        this.preUpdateHooks = []; // (dtSec, input, attacks, walls) => void : 기본 update 전에 실행
+        this.postDrawHooks = [];  // (ctx) => void : 기본 draw 뒤에 실행 (숨김 상태여도 실행)
+
         // 상태 이상
         this.speedMultiplier = 1.0;
         this.statusEffects = {};
@@ -111,6 +116,7 @@ class Player {
     getStatusText() {
         const texts = [];
         if ((this.slashEnhanceCount || 0) > 0) texts.push(`강화: ${this.slashEnhanceCount}`);
+        if ((this.assassinCharge || 0) > 0) texts.push(`차지: ${this.assassinCharge}`);
 
         if (this.stunned) {
             texts.push('기절');
@@ -132,6 +138,7 @@ class Player {
     // dtSec: 이번 틱의 길이(초). 게임은 1/60초 고정 틱으로 돌아간다.
     update(dtSec, input, attacks, walls) {
         this.input = input;
+        for (const hook of this.preUpdateHooks) hook(dtSec, input, attacks, walls);
 
         // 궁극기 자동 충전
         this.ultGauge = Math.min(100.0, this.ultGauge + this.ultChargeRate * dtSec);
@@ -202,7 +209,7 @@ class Player {
             const ability = this.abilities[idx];
             if (!ability || !input.skills[idx]) continue;
             if (this.silenced) continue;
-            if (this.bound && ability.keywords.includes('dash')) continue;
+            if (this.bound && (ability.keywords || []).includes('dash')) continue;
 
             if (idx === 3) { // 궁극기
                 if (this.ultGauge >= 100.0 && ability.canUse()) {
@@ -216,7 +223,11 @@ class Player {
     }
 
     draw(ctx) {
-        if (this.hidden) return;
+        if (!this.hidden) this.drawBody(ctx);
+        for (const hook of this.postDrawHooks) hook(ctx);
+    }
+
+    drawBody(ctx) {
         const r = this.rect;
 
         // 캐스팅 중 금색 테두리

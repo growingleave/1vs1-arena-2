@@ -85,11 +85,12 @@ function updateStatusEffects(target, dtSec) {
 
     let hasMaxSlow = false;
 
-    for (const key of Object.keys(target.statusEffects)) {
-        const eff = target.statusEffects[key];
+    // 원본처럼 시작할 때의 목록 복사본으로 돈다. 도중에 효과가 지워지거나(샌즈 회피 등) 새로 걸려도 안전하다
+    const expiredKeys = [];
+    for (const [key, eff] of Object.entries(target.statusEffects)) {
         eff.duration -= dtSec;
         if (eff.duration <= 0) {
-            delete target.statusEffects[key];
+            expiredKeys.push(key);
             continue;
         }
 
@@ -128,6 +129,8 @@ function updateStatusEffects(target, dtSec) {
             }
         }
     }
+
+    for (const key of expiredKeys) delete target.statusEffects[key];
 
     // 슬로우 100 이상이면 이동 불가
     if (hasMaxSlow || target.speedMultiplier <= 0.0) {
