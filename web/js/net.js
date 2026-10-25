@@ -92,6 +92,8 @@ const Net = {
     frameCount: 0,       // 지금까지 계산한 틱 수
     pingMs: null,
     desynced: false,
+    lastFrameAt: 0,      // 마지막으로 틱이 도착한 시각
+    gapSamples: [],      // 최근 2초 동안의 [도착 시각, 바로 전 틱과의 간격]
     lastError: '',
     physicalHeld: new Set(),
     lastSentHeld: '',
@@ -108,6 +110,7 @@ const Net = {
     peerTimer: null,
     // 방장 기기가 틱을 만들 때 쓰는 값
     hostTimer: null,
+    hostWorker: null,
     hostStart: 0,
     hostFrame: 0,
     hostHeld: [new Set(), new Set()],
@@ -188,6 +191,8 @@ const Net = {
         this.frameCount = 0;
         this.pingMs = null;
         this.desynced = false;
+        this.lastFrameAt = 0;
+        this.gapSamples = [];
         this.physicalHeld.clear();
         this.lastSentHeld = '';
         this.pendingDowns = [];
@@ -237,7 +242,7 @@ const Net = {
             if (this.onStart) this.onStart(msg.seed);
             if (this.mode === 'p2p' && this.slot === 0) this.startHostPump();
         } else if (msg.t === 'f') {
-            this.frames.push(msg);
+            this.receiveFrame(msg);
         } else if (msg.t === 'pong') {
             this.pingMs = Math.round(performance.now() - msg.c);
         } else if (msg.t === 'desync') {
@@ -346,13 +351,31 @@ const Net = {
         this.pendingCandidates = [];
     },
 
+    // 다른 기기(서버 또는 방장)에서 만든 틱이 도착했을 때. 도착 간격을 기록해서 끊김을 보여준다
+    receiveFrame(frame) {
+        const now = performance.now();
+        if (this.lastFrameAt) this.gapSamples.push([now, now - this.lastFrameAt]);
+        this.lastFrameAt = now;
+        while (this.gapSamples.length && now - this.gapSamples[0][0] > 2000) this.gapSamples.shift();
+        this.frames.push(frame);
+    },
+
+    // 최근 2초 동안 틱이 가장 늦게 도착한 간격(ms). 정상이면 20ms 안팎, 크면 화면이 버벅인다
+    // 방장 기기는 틱을 직접 만들어서 해당 없음(null)
+    maxFrameGapMs() {
+        if (this.mode === 'p2p' && this.slot === 0) return null;
+        let max = 0;
+        for (const [, gap] of this.gapSamples) if (gap > max) max = gap;
+        return Math.round(max);
+    },
+
     sendPeer(msg) {
         if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify(msg));
     },
 
     handlePeerMessage(msg) {
         if (msg.t === 'f') {
-            this.frames.push(msg);                       // 방장이 보낸 틱 (상대 기기)
+            this.receiveFrame(msg);                      // 방장이 보낸 틱 (상대 기기)
         } else if (msg.t === 'in' && this.slot === 0) {  // 상대가 보낸 입력 (방장 기기)
             if (Array.isArray(msg.held)) this.hostHeld[1] = new Set(msg.held.filter(c => GUEST_ALLOWED_KEYS.has(c)));
             if (Array.isArray(msg.down)) for (const c of msg.down) if (GUEST_ALLOWED_KEYS.has(c)) this.hostDowns[1].push(c);
@@ -364,15 +387,35 @@ const Net = {
     },
 
     // 방장 기기: 서버 대신 1초에 60번 틱을 만들어 내 게임에 넣고 상대에게 보낸다
+    // 틱 시계는 웹 워커에서 돌린다. 크롬은 뒤로 간 창(다른 창을 클릭했거나 최소화)의 타이머를
+    // 크게 늦추는데, 그러면 방장이 틱을 몰아서 보내게 되어 상대 화면이 버벅인다. 워커 타이머는 거의 늦추지 않는다.
     startHostPump() {
         this.hostStart = performance.now();
         this.hostFrame = 0;
         this.hostHeld = [new Set(), new Set()];
         this.hostDowns = [[], []];
-        this.hostTimer = setInterval(() => this.pumpHost(), 4);
+        try {
+            const source = 'setInterval(() => postMessage(0), 4);';
+            const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+            this.hostWorker = new Worker(url);
+            URL.revokeObjectURL(url);
+            this.hostWorker.onmessage = () => this.pumpHost();
+            this.hostWorker.onerror = () => this.useTimerPump();
+        } catch (e) {
+            this.useTimerPump();
+        }
+    },
+
+    // 워커를 못 쓰는 환경이면 일반 타이머로
+    useTimerPump() {
+        if (this.hostWorker) this.hostWorker.terminate();
+        this.hostWorker = null;
+        if (!this.hostTimer) this.hostTimer = setInterval(() => this.pumpHost(), 4);
     },
 
     stopHostPump() {
+        if (this.hostWorker) this.hostWorker.terminate();
+        this.hostWorker = null;
         clearInterval(this.hostTimer);
         this.hostTimer = null;
     },
