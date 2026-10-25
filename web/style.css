@@ -3,6 +3,7 @@ html, body {
     height: 100%;
     background: #000;
     overflow: hidden;
+    font-family: "Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
 body {
@@ -12,8 +13,152 @@ body {
 }
 
 /* 1280x720으로 그린 화면을 비율을 유지한 채 창 크기에 맞춘다 (남는 곳은 검은 띠) */
-#game {
+#stage {
+    position: relative;
     width: min(100vw, calc(100vh * 16 / 9));
     height: min(100vh, calc(100vw * 9 / 16));
+    /* 화면 크기에 맞춰 메뉴 글자 크기도 같이 줄어들게 (1280px일 때 16px) */
+    font-size: calc(min(100vw, calc(100vh * 16 / 9)) / 80);
+}
+
+#game {
+    width: 100%;
+    height: 100%;
     display: block;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+/* ---------- 시작 화면 온라인 메뉴 ---------- */
+#lobby {
+    position: absolute;
+    left: 50%;
+    bottom: 2.5%;
+    transform: translateX(-50%);
+    width: 62%;
+    padding: 1.1em 1.4em;
+    box-sizing: border-box;
+    background: rgba(35, 35, 45, 0.95);
+    border: 2px solid #ffd700;
+    border-radius: 0.8em;
+    color: #fff;
+    text-align: center;
+}
+
+#lobby .title {
+    font-size: 1.4em;
+    font-weight: bold;
+    margin-bottom: 0.7em;
+}
+
+#lobby .title small {
+    font-size: 0.65em;
+    color: #aaa;
+    font-weight: normal;
+}
+
+#lobby .row {
+    display: flex;
+    gap: 0.6em;
+    justify-content: center;
+    align-items: center;
+}
+
+#lobby .or {
+    color: #aaa;
+}
+
+#lobby .keys {
+    margin-top: 0.8em;
+    font-size: 0.85em;
+    color: #aaa;
+}
+
+#lobby button,
+#online-bar button {
+    font: inherit;
+    font-weight: bold;
+    padding: 0.45em 1.1em;
+    border: none;
+    border-radius: 0.4em;
+    background: #ffd700;
+    color: #141419;
+    cursor: pointer;
+}
+
+#lobby button:hover,
+#online-bar button:hover {
+    background: #ffe55c;
+}
+
+#room-code {
+    font: inherit;
+    font-weight: bold;
+    width: 6em;
+    padding: 0.4em 0.6em;
+    border: 2px solid #64646e;
+    border-radius: 0.4em;
+    background: #141419;
+    color: #fff;
+    text-align: center;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+#room-code:focus {
+    outline: none;
+    border-color: #ffd700;
+}
+
+#lobby .busy-text {
+    font-size: 1.2em;
+    line-height: 1.6;
+    margin-bottom: 0.7em;
+}
+
+#lobby .busy-text small {
+    font-size: 0.7em;
+    color: #aaa;
+}
+
+#lobby .code {
+    font-size: 2em;
+    letter-spacing: 0.25em;
+    color: #ffd700;
+}
+
+#lobby .notice {
+    margin-top: 0.6em;
+    color: #ff8080;
+    min-height: 1.2em;
+}
+
+/* ---------- 온라인 대전 중 상태 표시줄 ---------- */
+#online-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 0.5em;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.8em;
+    align-items: center;
+    padding: 0.3em 0.4em 0.3em 1em;
+    background: rgba(20, 20, 25, 0.85);
+    border: 1px solid #64646e;
+    border-radius: 2em;
+    color: #ddd;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+#online-bar.warn {
+    border-color: #e63c3c;
+    color: #ff8080;
+}
+
+#online-bar button {
+    padding: 0.2em 0.9em;
+    border-radius: 2em;
 }

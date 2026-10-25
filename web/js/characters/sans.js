@@ -304,7 +304,7 @@ function applySans(player) {
     const baseTakeDamage = player.takeDamage.bind(player);
     player.takeDamage = (rawDamage) => {
         if (rawDamage <= 0) return 0.0;
-        if (Math.random() < 0.2) {
+        if (gameRandom() < 0.2) {
             player.dodgeTextTimer = Time.now;
             player.lastDodgeTime = Time.now;
             delete player.statusEffects.slow;

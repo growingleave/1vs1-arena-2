@@ -8,7 +8,34 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <canvas id="game" width="1280" height="720"></canvas>
+    <div id="stage">
+        <canvas id="game" width="1280" height="720"></canvas>
+
+        <!-- 시작 화면의 온라인 메뉴 -->
+        <div id="lobby" hidden>
+            <div class="menu">
+                <div class="title">온라인 대전 <small>(다른 기기와 함께)</small></div>
+                <div class="row">
+                    <button id="btn-create" type="button">방 만들기</button>
+                    <span class="or">또는</span>
+                    <input id="room-code" type="text" placeholder="방 코드" maxlength="4" autocomplete="off" spellcheck="false">
+                    <button id="btn-join" type="button">방 들어가기</button>
+                </div>
+                <div class="keys">온라인 조작: 이동 WASD 또는 방향키 · 평타 G · 스킬 H, J · 궁극기 Y · 준비 SPACE</div>
+            </div>
+            <div class="busy" hidden>
+                <div class="busy-text"></div>
+                <button id="btn-cancel" type="button">취소</button>
+            </div>
+            <div class="notice"></div>
+        </div>
+
+        <!-- 온라인 대전 중 상태 표시줄 -->
+        <div id="online-bar" hidden>
+            <span class="bar-text"></span>
+            <button id="btn-leave" type="button">나가기</button>
+        </div>
+    </div>
 
     <!-- 순서가 중요하다: 아래 파일이 위 파일의 기능을 가져다 쓴다 -->
     <script src="js/core.js"></script>
@@ -30,6 +57,8 @@
     <script src="js/characters/index.js"></script>
     <script src="js/input.js"></script>
     <script src="js/game.js"></script>
+    <script src="js/net.js"></script>
+    <script src="js/lobby.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

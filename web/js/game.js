@@ -98,7 +98,7 @@ class Game {
                 this.startBattle();
             }
         } else if (this.state === 'GAMEOVER') {
-            if (code === 'Space') {
+            if (code === 'Space' || code === 'Enter' || code === 'NumpadEnter') {
                 this.enterLoadout();
                 this.state = 'LOADOUT';
             }
@@ -406,7 +406,7 @@ class Game {
     renderGameOver(ctx) {
         clearScreen(ctx, COLOR_BG);
         drawText(ctx, this.winnerText, WIDTH / 2, 260, 40, COLOR_WHITE, { bold: true, align: 'center' });
-        drawText(ctx, 'Press SPACE to Restart', WIDTH / 2, 340, 24, COLOR_GRAY, { bold: true, align: 'center' });
+        drawText(ctx, 'Press SPACE / ENTER to Restart', WIDTH / 2, 340, 24, COLOR_GRAY, { bold: true, align: 'center' });
     }
 }
 
@@ -483,7 +483,6 @@ function drawSkillIconWithClock(ctx, x, y, size, skill, label, color) {
         border(COLOR_GREEN);
         drawText(ctx, `${Math.max(0.1, left / 1000).toFixed(1)}s`, cx, cy - 4, 11, COLOR_WHITE, { bold: true, align: 'center' });
     } else if (skill.cooldownType === 'charges') {
-        if (skill.updateCharges) skill.updateCharges();
         if (skill.currentCharges < skill.maxCharges) {
             const progress = Math.min(1.0, (Time.now - skill.lastChargeTime) / skill.chargeCooldown);
             ctx.fillStyle = `rgba(0, 0, 0, ${(150 / 255) * (1 - progress)})`;

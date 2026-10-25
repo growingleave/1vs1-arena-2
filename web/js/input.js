@@ -54,17 +54,37 @@ const GAME_KEYS = new Set([
     'Quote', 'Slash', 'Semicolon', 'Tab',
 ]);
 
+// 방 코드 입력칸처럼 글자를 치는 곳에서는 게임 키로 쓰지 않는다
+function isTypingTarget(e) {
+    const tag = e.target && e.target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA';
+}
+
+// 온라인 대전 중에는 내 키보드가 게임에 바로 들어가지 않고 서버로 간다 (net.js).
+// 서버가 두 사람의 입력을 모아 돌려준 것으로만 게임이 진행된다.
 window.addEventListener('keydown', (e) => {
+    if (isTypingTarget(e)) return;
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
+    if (Net.isOnline()) {
+        Net.onLocalKeyDown(e.code);
+        return;
+    }
     pressedKeys.add(e.code);
     tappedKeys.add(e.code);
     keyDownQueue.push(e.code);
 });
 
 window.addEventListener('keyup', (e) => {
+    if (Net.isOnline()) {
+        Net.onLocalKeyUp(e.code);
+        return;
+    }
     pressedKeys.delete(e.code);
 });
 
 // 창 밖으로 포커스가 나가면 키가 눌린 채로 남지 않게 모두 뗀다
-window.addEventListener('blur', () => pressedKeys.clear());
+window.addEventListener('blur', () => {
+    if (Net.isOnline()) Net.releaseAllLocalKeys();
+    else pressedKeys.clear();
+});

@@ -52,11 +52,11 @@ function transformLocalPoints(posX, posY, angleDeg, localPts) {
 }
 
 function randomUniform(min, max) {
-    return min + Math.random() * (max - min);
+    return min + gameRandom() * (max - min);
 }
 
 function randomInt(min, max) { // min 이상 max 이하 정수 (파이썬 random.randint와 같음)
-    return min + Math.floor(Math.random() * (max - min + 1));
+    return min + Math.floor(gameRandom() * (max - min + 1));
 }
 
 function drawCircle(ctx, x, y, radius, fill, stroke, lineWidth = 1) {
