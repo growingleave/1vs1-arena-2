@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>1v1 Arena (웹 버전)</title>
+    <link rel="icon" href="../favicon.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="game" width="1280" height="720"></canvas>
+
+    <!-- 순서가 중요하다: 아래 파일이 위 파일의 기능을 가져다 쓴다 -->
+    <script src="js/core.js"></script>
+    <script src="js/status.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/characters/common.js"></script>
+    <script src="js/characters/swordman.js"></script>
+    <script src="js/characters/mage.js"></script>
+    <script src="js/characters/index.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

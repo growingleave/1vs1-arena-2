@@ -1,0 +1,19 @@
+html, body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 1280x720으로 그린 화면을 비율을 유지한 채 창 크기에 맞춘다 (남는 곳은 검은 띠) */
+#game {
+    width: min(100vw, calc(100vh * 16 / 9));
+    height: min(100vh, calc(100vw * 9 / 16));
+    display: block;
+}
