@@ -50,28 +50,35 @@ function moveEntityWithWalls(entity, totalDx, totalDy, walls) {
     entity.rect.clampIp(ARENA_RECT);
 }
 
-// 벽에 부딪힌 공격은 남은 시간을 0으로 만들어 바로 사라지게 한다
+// 벽에 부딪힌 공격은 남은 시간을 0으로 만들어 바로 사라지게 한다.
+// 원본(wall.py)과 똑같이, 공격이 가진 시간 값(startTime/duration 또는 createdTime/lifespan)을 보고 처리한다.
+function _expireBy(attack, timeKey, lengthKey) {
+    if (attack[timeKey] === undefined || attack[lengthKey] === undefined) return false;
+    attack[timeKey] = Time.now - attack[lengthKey];
+    return true;
+}
+
 function handleAttackWallCollisions(attacks, walls) {
     for (const attack of attacks) {
         if (attack.canPenetrateWalls) continue;
 
         for (const wall of walls) {
-            let hit = false;
             if (attack.isDash) {
-                hit = attack.owner && attack.owner.rect.colliderect(wall.rect);
+                if (attack.owner && attack.owner.rect.colliderect(wall.rect) &&
+                    _expireBy(attack, 'startTime', 'duration')) break;
             } else if (attack.rect) {
-                hit = attack.rect.colliderect(wall.rect);
+                if (attack.rect.colliderect(wall.rect) && _expireBy(attack, 'startTime', 'duration')) break;
             } else if (attack.getPolygonPoints) {
-                hit = checkPolygonCollision(attack.getPolygonPoints(), wall.rect);
-            }
-
-            if (hit) {
-                attack.expireNow();
-                break;
+                if (checkPolygonCollision(attack.getPolygonPoints(), wall.rect) &&
+                    (_expireBy(attack, 'createdTime', 'lifespan') || _expireBy(attack, 'startTime', 'duration'))) break;
             }
         }
     }
 }
+
+// 지금 전투(또는 연습장)에서 쓰는 벽 목록. 일부 스킬이 벽 위치를 직접 확인할 때 쓴다.
+// (원본의 sys.modules['__main__'].walls 역할) game.js가 매 틱 갱신한다.
+let CURRENT_WALLS = [];
 
 // ------------------------------------------
 // 회복 / 궁극기 구슬

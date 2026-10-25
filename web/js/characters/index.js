@@ -1,7 +1,16 @@
-// 캐릭터 목록. 새 캐릭터를 옮기면 여기에 추가한다.
+// 캐릭터 목록 (원본 character_manager.py와 같은 순서). 새 캐릭터를 옮기면 여기와 index.html에 추가한다.
 const CHARACTER_REGISTRY = [
     SWORDMAN_CHARACTER_DATA,
     MAGE_CHARACTER_DATA,
+    FIGHTER_CHARACTER_DATA,
+    ACCELERATOR_CHARACTER_DATA,
+    DEMOLITIONIST_CHARACTER_DATA,
+    HACKER_CHARACTER_DATA,
+    ASSASSIN_CHARACTER_DATA,
+    GRINDER_CHARACTER_DATA,
+    DIO_CHARACTER_DATA,
+    SANS_CHARACTER_DATA,
+    ARCHER_CHARACTER_DATA,
 ];
 
 function getCharacterData(index) {

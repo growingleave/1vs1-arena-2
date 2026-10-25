@@ -111,6 +111,7 @@ class Game {
     // ------------------------------------------
     step(dtSec, p1Input, p2Input) {
         Time.now += dtSec * 1000;
+        CURRENT_WALLS = this.walls;
 
         if (this.state === 'LOADOUT') this.stepLoadout(dtSec, p1Input, p2Input);
         else if (this.state === 'VERSUS') this.stepVersus();
@@ -445,7 +446,8 @@ function drawSkillIcons(ctx, player, x, y) {
     }
 }
 
-// 쿨타임을 시계 바늘로 보여주는 아이콘
+// 쿨타임을 시계 바늘로 보여주는 아이콘.
+// 버프 지속 중이면 초록색 + 남은 시간, 충전형 스킬이면 남은 개수를 보여준다.
 function drawSkillIconWithClock(ctx, x, y, size, skill, label, color) {
     ctx.fillStyle = '#1e1e23';
     ctx.fillRect(x, y, size, size);
@@ -456,9 +458,11 @@ function drawSkillIconWithClock(ctx, x, y, size, skill, label, color) {
     const cx = x + size / 2;
     const cy = y + size / 2;
     const radius = size / 2 - 4;
-    const elapsed = Time.now - skill.lastUsed;
-    const progress = skill.cooldown > 0 ? Math.min(1.0, elapsed / skill.cooldown) : 1.0;
-
+    const border = (c) => {
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+    };
     const hand = (angleRad, handColor) => {
         ctx.strokeStyle = handColor;
         ctx.lineWidth = 2;
@@ -472,15 +476,34 @@ function drawSkillIconWithClock(ctx, x, y, size, skill, label, color) {
         ctx.fill();
     };
 
-    if (progress < 1.0) {
-        hand((-90 + progress * 360) * Math.PI / 180, '#ffc832');
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.47)';
+    if (skill.buffEndTime !== undefined && Time.now < skill.buffEndTime) {
+        const left = skill.buffEndTime - Time.now;
+        ctx.fillStyle = 'rgba(50, 220, 100, 0.4)';
         ctx.fillRect(x, y, size, size);
-    } else {
-        hand(-Math.PI / 2, color);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+        border(COLOR_GREEN);
+        drawText(ctx, `${Math.max(0.1, left / 1000).toFixed(1)}s`, cx, cy - 4, 11, COLOR_WHITE, { bold: true, align: 'center' });
+    } else if (skill.cooldownType === 'charges') {
+        if (skill.updateCharges) skill.updateCharges();
+        if (skill.currentCharges < skill.maxCharges) {
+            const progress = Math.min(1.0, (Time.now - skill.lastChargeTime) / skill.chargeCooldown);
+            ctx.fillStyle = `rgba(0, 0, 0, ${(150 / 255) * (1 - progress)})`;
+            ctx.fillRect(x, y, size, size);
+            border(COLOR_GRAY);
+        } else {
+            border(color);
+        }
+        drawText(ctx, String(skill.currentCharges), cx, cy, 24, skill.currentCharges === skill.maxCharges ? COLOR_GOLD : COLOR_WHITE,
+                 { bold: true, align: 'center', baseline: 'middle' });
+    } else if (skill.cooldown !== undefined && skill.lastUsed !== undefined) {
+        const progress = skill.cooldown > 0 ? Math.min(1.0, (Time.now - skill.lastUsed) / skill.cooldown) : 1.0;
+        if (progress < 1.0) {
+            hand((-90 + progress * 360) * Math.PI / 180, '#ffc832');
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.47)';
+            ctx.fillRect(x, y, size, size);
+        } else {
+            hand(-Math.PI / 2, color);
+            border(color);
+        }
     }
 
     drawText(ctx, label, x + 3, y + 2, 11, '#dcdcdc', { bold: true });

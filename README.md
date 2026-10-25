@@ -10,8 +10,8 @@ pygame 버전을 순수 HTML/JavaScript(Canvas)로 조금씩 옮기고 있습니
 
 - 플레이: https://growingleave.github.io/1vs1-arena-2/web/ (main 브랜치에 합쳐진 뒤)
 - 크롬북에서 바로 열기: `web/index.html` 파일을 더블클릭
-- 지금까지 옮긴 것: 검사, 마법사 / 클래식 아레나 맵 / 캐릭터 선택(연습장) → VS 화면 → 맵 선택 → 전투 → 결과
-- 아직 안 옮긴 것: 나머지 9개 캐릭터, 용암 구덩이·설원 맵, 조이스틱(조이콘)
+- 지금까지 옮긴 것: 캐릭터 11개 전부 / 클래식 아레나 맵 / 캐릭터 선택(연습장) → VS 화면 → 맵 선택 → 전투 → 결과
+- 아직 안 옮긴 것: 용암 구덩이·설원 맵, 조이스틱(조이콘)
 
 `web/` 폴더 구조:
 
@@ -20,7 +20,7 @@ pygame 버전을 순수 HTML/JavaScript(Canvas)로 조금씩 옮기고 있습니
 - `js/status.js`: 상태이상 (`status_effects.py`)
 - `js/world.js`: 벽, 구슬, 맵 (`wall.py`, `pickup.py`, `map.py`)
 - `js/player.js`: 플레이어 (`player.py`)
-- `js/characters/`: 캐릭터별 스킬 (`abilities/`). 새 캐릭터는 파일을 만들고 `index.js`와 `index.html`에 추가합니다.
+- `js/characters/`: 캐릭터별 스킬 (`abilities/`). `common.js`는 캐릭터들이 같이 쓰는 도구입니다. 새 캐릭터는 파일을 만들고 `index.js`와 `index.html`에 추가합니다.
 - `js/input.js`: 키보드 입력
 - `js/game.js`: 화면 흐름과 전투 진행 (`main.py`)
 - `js/main.js`: 1/60초 고정 틱 게임 루프
