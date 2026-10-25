@@ -16,15 +16,16 @@
 const ONLINE_SERVER_URL = 'wss://arena-1vs1.onrender.com';
 
 // 온라인에서 내가 쓰는 키 (P1/P2 상관없이 같은 키로 조작한다)
+// 이동: 방향키 / 평타 Q · 스킬 1 W · 스킬 2 E · 궁극기 R / 준비·확정: SPACE 또는 ENTER
 const ONLINE_LOCAL_KEYS = {
-    up: ['KeyW', 'ArrowUp'],
-    down: ['KeyS', 'ArrowDown'],
-    left: ['KeyA', 'ArrowLeft'],
-    right: ['KeyD', 'ArrowRight'],
-    s0: ['KeyG'],
-    s1: ['KeyH'],
-    s2: ['KeyJ'],
-    s3: ['KeyY'],
+    up: ['ArrowUp'],
+    down: ['ArrowDown'],
+    left: ['ArrowLeft'],
+    right: ['ArrowRight'],
+    s0: ['KeyQ'],
+    s1: ['KeyW'],
+    s2: ['KeyE'],
+    s3: ['KeyR'],
     ready: ['Space', 'Enter'],
 };
 
