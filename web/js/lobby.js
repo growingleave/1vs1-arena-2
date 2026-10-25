@@ -73,8 +73,11 @@ const Lobby = {
         if (Net.status === 'playing') {
             const me = Net.slot === 0 ? 'P1 (빨강)' : 'P2 (파랑)';
             const ping = Net.pingMs === null ? '' : ` · 핑 ${Net.pingMs}ms`;
+            // 틱 끊김: 정상이면 20ms 안팎. 크게 튀면 틱을 만드는 쪽(방장 창이나 서버)이 늦어지고 있다는 뜻
+            const gap = Net.maxFrameGapMs();
+            const gapText = gap === null ? '' : ` · 틱 끊김 ${Math.round(gap / 10) * 10}ms`;
             const warn = Net.desynced ? ' · ⚠ 두 기기 화면이 어긋났어요. 나갔다가 다시 들어와 주세요' : '';
-            return { bar: `온라인 · 방 ${Net.code} · 나: ${me} · ${Net.connectionLabel()}${ping}${warn}`, warn: Net.desynced };
+            return { bar: `온라인 · 방 ${Net.code} · 나: ${me} · ${Net.connectionLabel()}${ping}${gapText}${warn}`, warn: Net.desynced };
         }
         if (Net.status === 'linking') {
             return { panel: 'busy', busyText: '상대와 연결하는 중...<br><small>같은 와이파이면 기기끼리 직접 연결하고, 안 되면 서버를 거쳐 연결해요 (최대 5초)</small>' };
