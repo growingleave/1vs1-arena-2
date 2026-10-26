@@ -171,9 +171,14 @@ class Pickup {
 }
 
 // ------------------------------------------
-// 맵 (좌표는 1280x720 기준)
-// 지금은 클래식 아레나만 옮겼다. 용암 구덩이/설원은 다음 단계에서 추가한다.
+// 맵 (map.py를 옮김, 좌표는 1280x720 기준)
+// 맵마다 buildWalls / buildPickups, 필요하면 buildHazards(고정 지형) / buildEvents(반복 이벤트)를 둔다.
+// 지형 클래스는 terrain.js에 있다.
 // ------------------------------------------
+function coloredWalls(color, list) {
+    return list.map(([x, y, w, h]) => new Wall(x, y, w, h, color));
+}
+
 const MAPS = [
     {
         name: '클래식 아레나',
@@ -209,5 +214,68 @@ const MAPS = [
             new Pickup(320, 550, 'ult'),
             new Pickup(1080, 520, 'heal'),
         ],
+    },
+    {
+        name: '용암 구덩이',
+        bgColor: '#230e0c',
+        buildWalls: () => coloredWalls('#3c231e', [ // 그을린 화산암
+            // 모서리 바위
+            [100, 100, 160, 40], [1020, 100, 160, 40], [100, 580, 160, 40], [1020, 580, 160, 40],
+            // 좌우 측면 통로 엄폐 바위
+            [40, 320, 40, 80], [1200, 320, 40, 80],
+            // 상/하단 중앙 진입로 엄폐 바위
+            [600, 40, 80, 30], [600, 650, 80, 30],
+            // 가운데 용암 구덩이를 둘러싼 바위 무더기 (완전히 막지 않고 우회로를 남김)
+            [430, 170, 50, 50], [480, 220, 50, 50],
+            [800, 170, 50, 50], [750, 220, 50, 50],
+            [430, 500, 50, 50], [480, 450, 50, 50],
+            [800, 500, 50, 50], [750, 450, 50, 50],
+        ]),
+        buildPickups: () => [
+            new Pickup(150, 150, 'heal'),
+            new Pickup(1130, 150, 'ult'),
+            new Pickup(150, 570, 'ult'),
+            new Pickup(1130, 570, 'heal'),
+        ],
+        buildHazards: () => [new LavaPit(640, 360, 90, 4)],
+        // 화면 가장자리와 가운데 용암 구덩이 근처는 피해서 떨어진다
+        buildEvents: () => [new LavaFallEvent(new Rect(140, 140, 1280 - 280, 720 - 280), {
+            radius: 70, tickDamage: 4, intervalRange: [2.0, 4.0], warningDuration: 1.3, activeDuration: 6.0,
+            avoidZones: [[640, 360, 170]], dropsPerWave: 2,
+        })],
+    },
+    {
+        name: '설원',
+        bgColor: '#121a26',
+        buildWalls: () => coloredWalls('#b4cddc', [ // 옅은 청빙색
+            // 모서리 얼음 무더기
+            [80, 80, 160, 50], [80, 80, 50, 160],
+            [1040, 80, 160, 50], [1150, 80, 50, 160],
+            [80, 590, 160, 50], [80, 480, 50, 160],
+            [1040, 590, 160, 50], [1150, 480, 50, 160],
+            // 가운데 얼음 기둥 2개 (사이는 뚫려 있다)
+            [520, 310, 40, 100], [720, 310, 40, 100],
+            // 좌우 측면 얼음벽
+            [40, 310, 40, 100], [1200, 310, 40, 100],
+            // 상/하단 중앙 진입로 엄폐 얼음
+            [600, 40, 80, 30], [600, 650, 80, 30],
+        ]),
+        buildPickups: () => [
+            new Pickup(200, 360, 'heal'),
+            new Pickup(1080, 360, 'ult'),
+            new Pickup(640, 140, 'ult'),
+            new Pickup(640, 580, 'heal'),
+        ],
+        // 가운데 두 기둥 바깥쪽에 세로로 긴 큰 빙판 (밟으면 미끄러진다, 피해 없음)
+        buildHazards: () => [
+            new IcePatch(new Rect(280, 120, 240, 480), 0.05),
+            new IcePatch(new Rect(760, 120, 240, 480), 0.05),
+        ],
+        // 화톳불: 네 모서리 빈 공간 + 가운데
+        buildEvents: () => [new BlizzardEvent(
+            [[200, 200], [1080, 200], [200, 520], [1080, 520], [640, 360]],
+            { safeRadius: 130, stormTickDamage: 6, stormSlowPower: 35, intervalRange: [10.0, 15.0],
+              announceDuration: 2.5, prepareDuration: 4.0, stormDuration: 7.0 },
+        )],
     },
 ];

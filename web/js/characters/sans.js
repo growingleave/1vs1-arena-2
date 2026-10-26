@@ -247,15 +247,21 @@ class SansSkill2 extends Skill {
 }
 
 // ==========================================
-// [궁극기] 메가 가스터 블래스터: 3초 동안 0.1초마다 피해를 주는 거대 빔. 쏘는 동안 무적이지만 못 움직인다
+// [궁극기] 메가 가스터 블래스터: 1초 동안 기를 모은 뒤(범위 경고 표시), 3초 동안 0.1초마다 피해를 주는 거대 빔.
+// 기 모으는 동안과 쏘는 동안 모두 무적이지만 움직일 수 없다.
+// (원본은 주석에 '1초 경고'라고 되어 있지만 값이 1ms라 경고 없이 바로 나갔다. 상대가 피할 수 있게 1초로 고침)
 // ==========================================
+const SANS_ULT_WINDUP_MS = 1000;
+const SANS_ULT_FIRE_MS = 3000;
+
 class SansMegaLaserBeam extends SansLaser {
     constructor(owner, direction) {
-        super(owner, direction, { damageMult: 0.5, delay: 1, activeDuration: 3000, width: 400, length: 1500 });
+        super(owner, direction, { damageMult: 0.5, delay: SANS_ULT_WINDUP_MS, activeDuration: SANS_ULT_FIRE_MS, width: 400, length: 1500 });
         this.interval = 100;
         this.lastDamageTick = 0;
-        silence(owner, 3.6);
-        slow(owner, 3.6, 100);
+        const lockSec = (SANS_ULT_WINDUP_MS + SANS_ULT_FIRE_MS) / 1000 + 0.6;
+        silence(owner, lockSec);
+        slow(owner, lockSec, 100);
     }
 
     update() {
@@ -270,11 +276,45 @@ class SansMegaLaserBeam extends SansLaser {
     draw(ctx) {
         const pts = this.getPolygonPoints();
         if (this.isWarning()) {
-            drawPolygon(ctx, pts, `rgba(100, 200, 255, ${60 / 255})`, `rgba(100, 200, 255, ${200 / 255})`, 3);
+            this.drawWarning(ctx, pts);
         } else {
             const flash = Math.floor(Time.now / 60) % 2 === 0;
             fillPolygon(ctx, pts, flash ? `rgba(100, 200, 255, ${220 / 255})` : `rgba(140, 230, 255, ${240 / 255})`);
             fillPolygon(ctx, this.corePoints(), COLOR_WHITE);
+        }
+    }
+
+    // 기 모으는 동안의 경고: 쏠 때가 가까울수록 범위가 진해지고 빠르게 깜빡인다
+    drawWarning(ctx, pts) {
+        const progress = Math.min(1, (Time.now - this.createdTime) / this.delay); // 0 → 1
+        const blinkSpeed = 0.012 + 0.03 * progress;
+        const blink = (Math.sin((Time.now - this.createdTime) * blinkSpeed) + 1) / 2;
+
+        // 1. 빔이 나갈 범위
+        fillPolygon(ctx, pts, `rgba(100, 200, 255, ${0.08 + 0.22 * progress})`);
+        ctx.save();
+        ctx.setLineDash([18, 12]);
+        ctx.lineDashOffset = -(Time.now - this.createdTime) * 0.1;
+        drawPolygon(ctx, pts, 'rgba(0, 0, 0, 0)', `rgba(255, 90, 90, ${0.5 + 0.5 * blink})`, 3 + 2 * progress);
+        ctx.restore();
+
+        // 2. 가운데 경고선 (쏠 방향으로 점점 그어진다)
+        const hl = this.length / 2;
+        const sx = this.posX - this.dirVec[0] * hl;
+        const sy = this.posY - this.dirVec[1] * hl;
+        drawLine(ctx, sx, sy, sx + this.dirVec[0] * this.length * progress, sy + this.dirVec[1] * this.length * progress,
+                 `rgba(255, 255, 255, ${0.4 + 0.5 * blink})`, 2);
+
+        // 3. 샌즈 앞에 에너지가 모이는 원
+        const mx = this.owner.rect.centerx + this.dirVec[0] * 40;
+        const my = this.owner.rect.centery + this.dirVec[1] * 40;
+        drawCircle(ctx, mx, my, 10 + 40 * progress, `rgba(140, 230, 255, ${0.25 + 0.35 * progress})`);
+        drawCircle(ctx, mx, my, 4 + 16 * progress, `rgba(255, 255, 255, ${0.6 + 0.4 * blink})`);
+
+        // 4. 머리 위 느낌표
+        if (blink > 0.35) {
+            drawText(ctx, '!', this.owner.rect.centerx, this.owner.rect.top - 40, 44, 'rgb(255, 90, 90)',
+                     { bold: true, align: 'center', baseline: 'middle' });
         }
     }
 }
@@ -346,7 +386,7 @@ function applySans(player) {
 const SANS_CHARACTER_DATA = {
     id: 'SANS',
     name: '샌즈',
-    desc: '평타: 뼈다귀를 던집니다(14, 슬로우 50% 0.4초), 스킬 1: 에너지 블라스트를 쏩니다(33), 0.4초간 속박, 스킬 2: 뼈다귀 벽을 던져 대미지를 주고 상대를 넉백 시킵니다(9), 1.5초간 이동 불가, 궁극기: 기를 모아 큰 에너지 블라스트를 쏴 주변 지형을 삭제시킵니다(11X30), 특성: 30% 확률로 공격을 회피하고 상태이상을 정화합니다',
+    desc: '평타: 뼈다귀를 던집니다(14, 슬로우 50% 0.4초), 스킬 1: 에너지 블라스트를 쏩니다(33), 0.4초간 속박, 스킬 2: 뼈다귀 벽을 던져 대미지를 주고 상대를 넉백 시킵니다(9), 1.5초간 이동 불가, 궁극기: 1초간 기를 모은 뒤(경고 표시) 큰 에너지 블라스트를 쏴 주변 지형을 삭제시킵니다(11X30), 특성: 30% 확률로 공격을 회피하고 상태이상을 정화합니다',
     apply: applySans,
     thumbnail: SANS_IMAGE,
 };
