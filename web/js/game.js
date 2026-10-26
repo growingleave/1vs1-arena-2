@@ -40,6 +40,9 @@ class Game {
 
         this.walls = this.loadoutWalls;
         this.pickups = [];
+        this.hazards = [];     // 고정 지형 (용암 구덩이, 빙판)
+        this.mapEvents = [];   // 반복 이벤트 (낙하 용암, 눈보라)
+        this.previewCache = { idx: -1, hazards: [], events: [] }; // 맵 선택 미리보기용 (그림 전용)
         this.battleBgColor = COLOR_BG;
         this.attacks = [];
         this.winnerText = '';
@@ -67,6 +70,8 @@ class Game {
         const map = MAPS[this.selectedMapIdx];
         this.walls = map.buildWalls();
         this.pickups = map.buildPickups();
+        this.hazards = map.buildHazards ? map.buildHazards() : [];
+        this.mapEvents = map.buildEvents ? map.buildEvents() : [];
         this.battleBgColor = map.bgColor || COLOR_BG;
         this.attacks = [];
         this.state = 'BATTLE';
@@ -209,6 +214,21 @@ class Game {
             pickup.update();
             if (pickup.collidesWithPlayer(p1)) pickup.collect(p1);
             else if (pickup.collidesWithPlayer(p2)) pickup.collect(p2);
+        }
+
+        // 빙판처럼 이동에 영향을 주는 지형은 매 틱 다시 판정하므로 기본값으로 되돌려 두고,
+        // 지형이 이번 틱에 다시 걸어준다 (다음 틱 이동 계산에서 쓰인다)
+        for (const p of [p1, p2]) {
+            p.onIce = false;
+            p.iceFriction = 1.0;
+        }
+        for (const hazard of this.hazards) {
+            hazard.update(dtSec);
+            hazard.applyDamage([p1, p2], dtSec);
+        }
+        for (const ev of this.mapEvents) {
+            ev.update(dtSec);
+            ev.applyDamage([p1, p2], dtSec);
         }
 
         if (p1.hp <= 0 || p2.hp <= 0) {
@@ -363,6 +383,17 @@ class Game {
         ctx.fillStyle = map.bgColor || '#0a0a0e';
         ctx.fillRect(px, py, pw, ph);
 
+        // 지형 미리보기: 고른 맵이 바뀔 때만 새로 만든다 (그림 전용이라 게임 결과와 무관)
+        if (this.previewCache.idx !== this.selectedMapIdx) {
+            this.previewCache = {
+                idx: this.selectedMapIdx,
+                hazards: map.buildHazards ? map.buildHazards() : [],
+                events: map.buildEvents ? map.buildEvents() : [],
+            };
+        }
+        for (const hazard of this.previewCache.hazards) hazard.drawPreview(ctx, px, py, scale);
+        for (const ev of this.previewCache.events) ev.drawPreview(ctx, px, py, scale);
+
         for (const wall of map.buildWalls()) {
             ctx.fillStyle = wall.color;
             ctx.fillRect(px + wall.rect.x * scale, py + wall.rect.y * scale, wall.rect.w * scale, wall.rect.h * scale);
@@ -378,7 +409,7 @@ class Game {
         ctx.lineWidth = 3;
         ctx.strokeRect(px + 1.5, py + 1.5, pw - 3, ph - 3);
 
-        drawText(ctx, '방향키(A/D): 맵 변경    SPACE / ENTER: 전투 시작', WIDTH / 2, py - 40, 24, COLOR_WHITE, { bold: true, align: 'center' });
+        drawText(ctx, '방향키: 맵 변경    SPACE / ENTER: 전투 시작', WIDTH / 2, py - 40, 24, COLOR_WHITE, { bold: true, align: 'center' });
         drawText(ctx, map.name, WIDTH / 2, py + ph + 14, 24, COLOR_GOLD, { bold: true, align: 'center' });
         drawText(ctx, `${this.selectedMapIdx + 1} / ${MAPS.length}`, WIDTH / 2, py + ph + 46, 16, COLOR_GRAY, { align: 'center' });
     }
@@ -386,6 +417,8 @@ class Game {
     renderBattle(ctx) {
         clearScreen(ctx, this.battleBgColor);
 
+        for (const hazard of this.hazards) hazard.draw(ctx);
+        for (const ev of this.mapEvents) ev.draw(ctx);
         for (const wall of this.walls) wall.draw(ctx);
         for (const pickup of this.pickups) pickup.draw(ctx);
         this.player1.draw(ctx);
@@ -401,6 +434,9 @@ class Game {
         drawText(ctx, `P2 HP: ${Math.trunc(Math.max(0, p2.hp))}/${Math.trunc(p2.maxHp)}`, WIDTH - 160, 15, 16, p2.color);
         p2.getStatusText().forEach((t, i) => drawText(ctx, t, WIDTH - 270, 15 + i * 20, 16, '#ffff64'));
         drawSkillIcons(ctx, p2, WIDTH - 160, 42);
+
+        // 경고 배너처럼 모든 것 위에 그릴 것
+        for (const ev of this.mapEvents) if (ev.drawOverlay) ev.drawOverlay(ctx);
     }
 
     renderGameOver(ctx) {
