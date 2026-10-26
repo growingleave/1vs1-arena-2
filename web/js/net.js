@@ -39,6 +39,18 @@ const CHECKSUM_INTERVAL = 60; // 1초마다 두 기기의 게임 상태를 비�
 const P2P_TIMEOUT_MS = 5000;  // 이 시간 안에 직접 연결이 안 되면 서버 경유로 시작
 const NET_TICK_MS = 1000 / 60;
 
+// 와이파이에서는 데이터가 가끔 사라진다. "순서대로 빠짐없이" 보내는 통로는 하나가 사라지면
+// 다시 받을 때까지 뒤의 틱이 전부 기다려서(수백 ms 멈춤) 버벅인다.
+// 그래서 직접 연결에서는 틱과 입력을 "빠르지만 사라질 수 있는 통로"로 보내고, 사라져도 괜찮게 만든다.
+const FRAME_REDUNDANCY = 8;       // 틱을 보낼 때마다 직전 틱 8개를 같이 보낸다 (하나쯤 사라져도 다음에 들어 있음)
+const HOST_HISTORY = 600;         // 방장이 다시 보내 주려고 기억해 두는 틱 수 (10초)
+const NACK_AFTER_MS = 60;         // 빠진 틱이 이 시간 넘게 안 오면 방장에게 다시 보내 달라고 한다
+const GUEST_INPUT_RESEND_MS = 33; // 상대 기기는 입력을 이 간격으로 계속 다시 보낸다 (사라져도 곧 다시 도착)
+
+// 받는 쪽 틱 여유분: 도착 간격이 들쭉날쭉하면 틱을 몇 개 모아 뒀다가 일정하게 쓴다 (그만큼 조작이 늦어짐)
+const BUFFER_MIN = 1;
+const BUFFER_MAX = 6;
+
 // 직접 연결용 공개 STUN 서버 (서로 다른 네트워크일 때 내 공인 주소를 알아내는 데 쓴다. 같은 와이파이면 없어도 됨)
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -105,7 +117,9 @@ const Net = {
 
     // 직접 연결(WebRTC)
     pc: null,
-    dc: null,
+    dc: null,            // 확실한 통로 (순서대로, 빠짐없이): 다시 보내기, 핑
+    fast: null,          // 빠른 통로 (사라질 수 있음, 순서 무관): 틱, 입력
+    openChannels: 0,
     pendingCandidates: [],
     modeDecided: false,
     peerTimer: null,
@@ -116,6 +130,19 @@ const Net = {
     hostFrame: 0,
     hostHeld: [new Set(), new Set()],
     hostDowns: [[], []],
+    hostHistory: new Map(),   // 틱 번호 → 틱 (다시 보내기용)
+    hostGuestDownId: 0,       // 상대가 새로 누른 키 중 마지막으로 받은 번호
+    hostGuestInputSeq: 0,     // 상대 입력 묶음 중 마지막으로 받은 번호 (늦게 도착한 옛날 것은 버림)
+    // 상대 기기(P2)가 쓰는 값
+    expectedFrame: 0,         // 다음에 게임에 넣을 틱 번호
+    pendingFrames: new Map(), // 순서보다 먼저 도착한 틱
+    missingSince: 0,
+    lastNackAt: 0,
+    guestDownSeq: 0,
+    guestUnackedDowns: [],    // [번호, 키] 방장이 받았다고 알려줄 때까지 계속 다시 보낸다
+    guestInputSeq: 0,
+    guestInputTimer: null,
+    buffering: true,          // 틱을 여유분만큼 모으는 중
 
     isOnline() {
         return this.status === 'playing';
@@ -194,6 +221,7 @@ const Net = {
         this.desynced = false;
         this.lastFrameAt = 0;
         this.gapSamples = [];
+        this.buffering = true;
         this.physicalHeld.clear();
         this.lastSentHeld = '';
         this.pendingDowns = [];
@@ -225,6 +253,8 @@ const Net = {
             this.status = 'linking';
             this.slot = msg.slot;
             this.frames = [];
+            this.expectedFrame = 0;
+            this.pendingFrames = new Map();
             this.startPeer();
         } else if (msg.t === 'signal') {
             this.handleSignal(msg.data);
@@ -242,6 +272,7 @@ const Net = {
             }
             if (this.onStart) this.onStart(msg.seed);
             if (this.mode === 'p2p' && this.slot === 0) this.startHostPump();
+            if (this.mode === 'p2p' && this.slot === 1) this.startGuestInput();
         } else if (msg.t === 'f') {
             this.receiveFrame(msg);
         } else if (msg.t === 'pong') {
@@ -268,6 +299,7 @@ const Net = {
     startPeer() {
         this.modeDecided = false;
         this.pendingCandidates = [];
+        this.openChannels = 0;
         if (!p2pAllowed()) {
             if (this.slot === 0) this.decideMode('relay');
             return;
@@ -280,8 +312,9 @@ const Net = {
         };
 
         if (this.slot === 0) {
-            // 방장: 데이터 통로를 만들고 연결 요청(offer)을 보낸다
+            // 방장: 데이터 통로 2개를 만들고 연결 요청(offer)을 보낸다
             this.setupChannel(pc.createDataChannel('game', { ordered: true }));
+            this.setupChannel(pc.createDataChannel('fast', { ordered: false, maxRetransmits: 0 }));
             pc.createOffer()
                 .then((offer) => pc.setLocalDescription(offer))
                 .then(() => this.send({ t: 'signal', data: { sdp: pc.localDescription.toJSON() } }))
@@ -315,13 +348,15 @@ const Net = {
     },
 
     setupChannel(dc) {
-        this.dc = dc;
+        if (dc.label === 'fast') this.fast = dc;
+        else this.dc = dc;
         dc.onopen = () => {
-            if (this.slot === 0) this.decideMode('p2p');
+            this.openChannels += 1;
+            if (this.slot === 0 && this.openChannels >= 2) this.decideMode('p2p');
         };
         dc.onmessage = (ev) => this.handlePeerMessage(JSON.parse(ev.data));
         dc.onclose = () => {
-            if (this.dc === dc && this.status === 'playing' && this.mode === 'p2p') {
+            if ((this.dc === dc || this.fast === dc) && this.status === 'playing' && this.mode === 'p2p') {
                 this.endMatch('상대 기기와 직접 연결이 끊겼어요.');
             }
         };
@@ -339,15 +374,19 @@ const Net = {
     closePeer() {
         clearTimeout(this.peerTimer);
         this.peerTimer = null;
-        if (this.dc) {
-            this.dc.onclose = null;
-            this.dc.onmessage = null;
-            try { this.dc.close(); } catch (e) { /* 이미 닫힘 */ }
+        clearInterval(this.guestInputTimer);
+        this.guestInputTimer = null;
+        for (const ch of [this.dc, this.fast]) {
+            if (!ch) continue;
+            ch.onclose = null;
+            ch.onmessage = null;
+            try { ch.close(); } catch (e) { /* 이미 닫힘 */ }
         }
         if (this.pc) {
             try { this.pc.close(); } catch (e) { /* 이미 닫힘 */ }
         }
         this.dc = null;
+        this.fast = null;
         this.pc = null;
         this.pendingCandidates = [];
     },
@@ -359,6 +398,41 @@ const Net = {
         this.lastFrameAt = now;
         while (this.gapSamples.length && now - this.gapSamples[0][0] > 2000) this.gapSamples.shift();
         this.frames.push(frame);
+    },
+
+    // 직접 연결에서 받은 틱: 순서가 뒤바뀌거나 중복되거나 빠질 수 있으니 번호 순서대로 정리해서 넣는다
+    acceptFrame(frame) {
+        if (frame.f < this.expectedFrame || this.pendingFrames.has(frame.f)) return; // 이미 받은 틱
+        this.pendingFrames.set(frame.f, frame);
+        while (this.pendingFrames.has(this.expectedFrame)) {
+            this.receiveFrame(this.pendingFrames.get(this.expectedFrame));
+            this.pendingFrames.delete(this.expectedFrame);
+            this.expectedFrame += 1;
+        }
+        this.checkMissingFrames();
+    },
+
+    // 중간 틱이 계속 안 오면(연달아 여러 개 사라짐) 그 틱부터 다시 보내 달라고 한다
+    checkMissingFrames() {
+        if (this.pendingFrames.size === 0) {
+            this.missingSince = 0;
+            return;
+        }
+        const now = performance.now();
+        if (!this.missingSince) this.missingSince = now;
+        if (now - this.missingSince > NACK_AFTER_MS && now - this.lastNackAt > NACK_AFTER_MS) {
+            this.lastNackAt = now;
+            this.sendPeer({ t: 'nack', from: this.expectedFrame });
+        }
+    },
+
+    // 틱 여유분(몇 틱 모아 둘지). 최근 2초 동안의 도착 간격 중 늦은 쪽(상위 10%)을 버틸 만큼 모은다.
+    // 방장 기기는 틱을 직접 만들어서 여유분이 필요 없다(0)
+    bufferTarget() {
+        if (this.mode === 'p2p' && this.slot === 0) return 0;
+        const gaps = this.gapSamples.map(([, g]) => g).sort((a, b) => a - b);
+        const p90 = gaps.length ? gaps[Math.floor(gaps.length * 0.9)] : NET_TICK_MS;
+        return Math.max(BUFFER_MIN, Math.min(BUFFER_MAX, Math.ceil(p90 / NET_TICK_MS)));
     },
 
     // 최근 2초 동안 틱이 가장 늦게 도착한 간격(ms). 정상이면 20ms 안팎, 크면 화면이 버벅인다
@@ -374,12 +448,30 @@ const Net = {
         if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify(msg));
     },
 
+    // 빠른 통로로 보내기 (아직 안 열렸으면 확실한 통로로)
+    sendFast(msg) {
+        if (this.fast && this.fast.readyState === 'open') this.fast.send(JSON.stringify(msg));
+        else this.sendPeer(msg);
+    },
+
     handlePeerMessage(msg) {
-        if (msg.t === 'f') {
-            this.receiveFrame(msg);                      // 방장이 보낸 틱 (상대 기기)
-        } else if (msg.t === 'in' && this.slot === 0) {  // 상대가 보낸 입력 (방장 기기)
+        if (msg.t === 'fs') {                            // 방장이 보낸 틱 묶음 (상대 기기)
+            // 방장이 받았다고 알려준 키는 더 이상 다시 보내지 않는다
+            this.guestUnackedDowns = this.guestUnackedDowns.filter(([id]) => id > msg.a);
+            for (const frame of msg.fr) this.acceptFrame(frame);
+        } else if (msg.t === 'in2' && this.slot === 0) { // 상대가 보낸 입력 (방장 기기)
+            if (msg.s <= this.hostGuestInputSeq) return; // 늦게 도착한 옛날 입력
+            this.hostGuestInputSeq = msg.s;
             if (Array.isArray(msg.held)) this.hostHeld[1] = new Set(msg.held.filter(c => GUEST_ALLOWED_KEYS.has(c)));
-            if (Array.isArray(msg.down)) for (const c of msg.down) if (GUEST_ALLOWED_KEYS.has(c)) this.hostDowns[1].push(c);
+            if (Array.isArray(msg.dn)) {
+                for (const [id, code] of msg.dn) {
+                    if (id <= this.hostGuestDownId) continue; // 이미 넣은 키
+                    this.hostGuestDownId = id;
+                    if (GUEST_ALLOWED_KEYS.has(code)) this.hostDowns[1].push(code);
+                }
+            }
+        } else if (msg.t === 'nack' && this.slot === 0) { // 상대가 빠진 틱을 다시 보내 달라고 함
+            this.resendFrames(msg.from);
         } else if (msg.t === 'ping') {
             this.sendPeer({ t: 'pong', c: msg.c });
         } else if (msg.t === 'pong') {
@@ -395,6 +487,9 @@ const Net = {
         this.hostFrame = 0;
         this.hostHeld = [new Set(), new Set()];
         this.hostDowns = [[], []];
+        this.hostHistory = new Map();
+        this.hostGuestDownId = 0;
+        this.hostGuestInputSeq = 0;
         try {
             const source = 'setInterval(() => postMessage(0), 4);';
             const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
@@ -423,18 +518,54 @@ const Net = {
 
     pumpHost() {
         const due = Math.floor((performance.now() - this.hostStart) / NET_TICK_MS);
+        let made = false;
         while (this.hostFrame < due) {
             const frame = {
-                t: 'f',
                 f: this.hostFrame,
                 h: [...this.hostHeld[0], ...this.hostHeld[1]],
                 d: [...this.hostDowns[0], ...this.hostDowns[1]],
             };
             this.hostDowns = [[], []];
             this.frames.push(frame);
-            this.sendPeer(frame);
+            this.hostHistory.set(frame.f, frame);
+            this.hostHistory.delete(frame.f - HOST_HISTORY);
             this.hostFrame += 1;
+            made = true;
         }
+        if (made) {
+            // 새 틱과 직전 틱들을 한 묶음으로 (하나쯤 사라져도 다음 묶음에 들어 있다)
+            const recent = [];
+            for (let f = Math.max(0, this.hostFrame - FRAME_REDUNDANCY); f < this.hostFrame; f++) recent.push(this.hostHistory.get(f));
+            this.sendFast({ t: 'fs', a: this.hostGuestDownId, fr: recent });
+        }
+    },
+
+    // 빠진 틱을 확실한 통로로 다시 보낸다
+    resendFrames(from) {
+        const to = Math.min(this.hostFrame, from + 120);
+        for (let start = from; start < to; start += 30) {
+            const chunk = [];
+            for (let f = start; f < Math.min(to, start + 30); f++) {
+                const frame = this.hostHistory.get(f);
+                if (frame) chunk.push(frame);
+            }
+            if (chunk.length) this.sendPeer({ t: 'fs', a: this.hostGuestDownId, fr: chunk });
+        }
+    },
+
+    // 상대 기기: 입력을 조금씩 계속 다시 보낸다 (빠른 통로에서 사라져도 곧 다시 도착하게)
+    startGuestInput() {
+        this.guestDownSeq = 0;
+        this.guestUnackedDowns = [];
+        this.guestInputSeq = 0;
+        clearInterval(this.guestInputTimer);
+        this.guestInputTimer = setInterval(() => this.sendGuestInput(), GUEST_INPUT_RESEND_MS);
+    },
+
+    sendGuestInput() {
+        this.guestInputSeq += 1;
+        this.sendFast({ t: 'in2', s: this.guestInputSeq, held: this.lastSentHeld ? this.lastSentHeld.split(',') : [], dn: this.guestUnackedDowns });
+        this.checkMissingFrames();
     },
 
     // ------------------------------------------
@@ -483,7 +614,8 @@ const Net = {
             this.hostHeld[0] = held;           // 방장: 내 입력은 바로 다음 틱에 들어간다
             this.hostDowns[0].push(...downs);
         } else if (this.mode === 'p2p') {
-            this.sendPeer({ t: 'in', held: heldList, down: downs });
+            for (const code of downs) this.guestUnackedDowns.push([++this.guestDownSeq, code]);
+            this.sendGuestInput();
         } else {
             this.send({ t: 'in', held: heldList, down: downs });
         }
