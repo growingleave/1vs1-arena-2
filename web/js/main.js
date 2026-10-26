@@ -56,19 +56,34 @@ function stepLocal() {
 }
 
 function stepOnline() {
+    // 틱 여유분: 받은 틱이 떨어지면 잠깐 멈추고, 여유분만큼 다시 모일 때까지 기다린다.
+    // (도착이 들쭉날쭉해도 화면이 일정한 속도로 움직이게. 방장 기기는 여유분 0)
+    const target = Net.bufferTarget();
+    if (Net.buffering) {
+        if (Net.frames.length >= target) Net.buffering = false;
+        else {
+            accumulator = 0;
+            return;
+        }
+    }
+
     // 평소에는 1/60초마다 받은 틱을 하나씩 계산한다
     while (accumulator >= TICK_MS && Net.frames.length > 0) {
         Net.applyFrame(Net.frames.shift(), game, TICK_MS / 1000);
         accumulator -= TICK_MS;
     }
-    // 받은 틱이 없으면 기다린다 (그동안 시간을 쌓아두지 않는다)
-    if (Net.frames.length === 0) accumulator = Math.min(accumulator, TICK_MS);
+    if (Net.frames.length === 0) {
+        accumulator = Math.min(accumulator, TICK_MS); // 기다리는 동안 시간을 쌓아두지 않는다
+        if (target > 0) Net.buffering = true;
+    }
 
-    // 네트워크가 잠깐 막혔거나 탭을 내렸다 오면 틱이 밀린다 → 빠르게 따라잡기
-    let caughtUp = 0;
-    while (Net.frames.length > ONLINE_BUFFER_LIMIT && caughtUp < ONLINE_MAX_CATCH_UP) {
+    // 틱이 여유분보다 많이 쌓이면 따라잡는다: 조금 많으면 한 틱씩 더(부드럽게),
+    // 아주 많으면(탭을 내렸다 오는 등) 한꺼번에
+    const excess = Net.frames.length - (target + ONLINE_BUFFER_LIMIT);
+    let extra = excess > 60 ? Math.min(excess, ONLINE_MAX_CATCH_UP) : (excess > 0 ? 1 : 0);
+    while (extra > 0) {
         Net.applyFrame(Net.frames.shift(), game, TICK_MS / 1000);
-        caughtUp += 1;
+        extra -= 1;
     }
 }
 
