@@ -9,7 +9,7 @@ const ctx = canvas.getContext('2d');
 
 const TICK_MS = 1000 / 60;
 const MAX_TICKS_PER_FRAME = 5;   // 탭을 오래 비웠다가 돌아와도 한꺼번에 몰아서 진행하지 않게 (혼자 할 때)
-const ONLINE_BUFFER_LIMIT = 4;   // 온라인에서 받아둔 틱이 이보다 많이 쌓이면 빠르게 따라잡는다
+const ONLINE_CATCH_UP_MARGIN = 2; // 받아둔 틱이 (여유분 + 이 값)보다 많으면 따라잡는다
 const ONLINE_MAX_CATCH_UP = 300; // 한 번 그릴 때 따라잡는 최대 틱 수 (화면이 멈춘 것처럼 보이지 않게)
 
 let game = new Game();
@@ -56,30 +56,16 @@ function stepLocal() {
 }
 
 function stepOnline() {
-    // 틱 여유분: 받은 틱이 떨어지면 잠깐 멈추고, 여유분만큼 다시 모일 때까지 기다린다.
-    // (도착이 들쭉날쭉해도 화면이 일정한 속도로 움직이게. 방장 기기는 여유분 0)
-    const target = Net.bufferTarget();
-    if (Net.buffering) {
-        if (Net.frames.length >= target) Net.buffering = false;
-        else {
-            accumulator = 0;
-            return;
-        }
-    }
-
-    // 평소에는 1/60초마다 받은 틱을 하나씩 계산한다
+    // 1/60초마다 받은 틱을 하나씩 계산한다. 틱이 없으면 그냥 기다린다 (시간을 쌓아두지 않는다)
     while (accumulator >= TICK_MS && Net.frames.length > 0) {
         Net.applyFrame(Net.frames.shift(), game, TICK_MS / 1000);
         accumulator -= TICK_MS;
     }
-    if (Net.frames.length === 0) {
-        accumulator = Math.min(accumulator, TICK_MS); // 기다리는 동안 시간을 쌓아두지 않는다
-        if (target > 0) Net.buffering = true;
-    }
+    if (Net.frames.length === 0) accumulator = Math.min(accumulator, TICK_MS);
 
-    // 틱이 여유분보다 많이 쌓이면 따라잡는다: 조금 많으면 한 틱씩 더(부드럽게),
-    // 아주 많으면(탭을 내렸다 오는 등) 한꺼번에
-    const excess = Net.frames.length - (target + ONLINE_BUFFER_LIMIT);
+    // 밀려서 틱이 쌓이면 따라잡는다. 여유분(bufferTarget)만큼은 남겨 둬서 다음 들쭉날쭉함을 버틴다.
+    // 조금 많으면 한 틱씩 더(부드럽게), 아주 많으면(탭을 내렸다 오는 등) 한꺼번에
+    const excess = Net.frames.length - (Net.bufferTarget() + ONLINE_CATCH_UP_MARGIN);
     let extra = excess > 60 ? Math.min(excess, ONLINE_MAX_CATCH_UP) : (excess > 0 ? 1 : 0);
     while (extra > 0) {
         Net.applyFrame(Net.frames.shift(), game, TICK_MS / 1000);
@@ -87,14 +73,43 @@ function stepOnline() {
     }
 }
 
+// 성능 측정: 1초 동안 몇 번 그렸는지(FPS), 계산·그리기에 평균 몇 ms 걸렸는지. 화면 오른쪽 아래에 작게 표시
+const Perf = {
+    frames: 0, stepMs: 0, drawMs: 0, since: performance.now(),
+    fps: 0, avgStep: 0, avgDraw: 0,
+    add(stepMs, drawMs) {
+        this.frames += 1;
+        this.stepMs += stepMs;
+        this.drawMs += drawMs;
+        const now = performance.now();
+        if (now - this.since >= 1000) {
+            this.fps = Math.round(this.frames * 1000 / (now - this.since));
+            this.avgStep = this.stepMs / this.frames;
+            this.avgDraw = this.drawMs / this.frames;
+            this.frames = 0;
+            this.stepMs = 0;
+            this.drawMs = 0;
+            this.since = now;
+        }
+    },
+    draw(ctx) {
+        const text = `FPS ${this.fps} · 계산 ${this.avgStep.toFixed(1)}ms · 그리기 ${this.avgDraw.toFixed(1)}ms`;
+        drawText(ctx, text, WIDTH - 8, HEIGHT - 6, 12, 'rgba(160, 160, 170, 0.8)', { align: 'right', baseline: 'bottom' });
+    },
+};
+
 function frame(now) {
     accumulator += now - lastTime;
     lastTime = now;
 
+    const t0 = performance.now();
     if (Net.isOnline()) stepOnline();
     else stepLocal();
-
+    const t1 = performance.now();
     game.render(ctx);
+    const t2 = performance.now();
+    Perf.add(t1 - t0, t2 - t1);
+    Perf.draw(ctx);
     Lobby.update(game);
     requestAnimationFrame(frame);
 }

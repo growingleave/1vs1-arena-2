@@ -47,9 +47,18 @@ const HOST_HISTORY = 600;         // 방장이 다시 보내 주려고 기억해
 const NACK_AFTER_MS = 60;         // 빠진 틱이 이 시간 넘게 안 오면 방장에게 다시 보내 달라고 한다
 const GUEST_INPUT_RESEND_MS = 33; // 상대 기기는 입력을 이 간격으로 계속 다시 보낸다 (사라져도 곧 다시 도착)
 
-// 받는 쪽 틱 여유분: 도착 간격이 들쭉날쭉하면 틱을 몇 개 모아 뒀다가 일정하게 쓴다 (그만큼 조작이 늦어짐)
+// 받는 쪽 틱 여유분: 도착 간격이 들쭉날쭉할 때, 밀려 들어온 틱을 이만큼은 한꺼번에 따라잡지 않고 남겨 둔다.
+// (틱이 떨어졌다고 멈추고 기다리지는 않는다. 크롬북 2대 시험에서 멈춤→다시 모으기가 반복되며 오히려 버벅였다)
 const BUFFER_MIN = 1;
-const BUFFER_MAX = 6;
+const BUFFER_MAX = 3;
+
+// 비교 시험용 스위치 (주소 뒤에 붙인다. 두 기기 모두 같은 주소로 여는 것을 권장)
+//   ?buffer=off : 틱 여유분 없이 받는 대로 바로 진행
+//   ?fast=off   : 직접 연결에서 '빠른 통로'를 쓰지 않고 확실한 통로 하나만 사용
+//   ?p2p=off    : 직접 연결을 시도하지 않고 항상 서버 경유
+function urlSwitchOff(name) {
+    return new URLSearchParams(location.search).get(name) === 'off';
+}
 
 // 직접 연결용 공개 STUN 서버 (서로 다른 네트워크일 때 내 공인 주소를 알아내는 데 쓴다. 같은 와이파이면 없어도 됨)
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -58,7 +67,7 @@ const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 const GUEST_ALLOWED_KEYS = new Set(Object.values(SLOT_GAME_KEYS[1]));
 
 function p2pAllowed() {
-    return new URLSearchParams(location.search).get('p2p') !== 'off' && typeof RTCPeerConnection !== 'undefined';
+    return !urlSwitchOff('p2p') && typeof RTCPeerConnection !== 'undefined';
 }
 
 function resolveServerUrl() {
@@ -142,7 +151,6 @@ const Net = {
     guestUnackedDowns: [],    // [번호, 키] 방장이 받았다고 알려줄 때까지 계속 다시 보낸다
     guestInputSeq: 0,
     guestInputTimer: null,
-    buffering: true,          // 틱을 여유분만큼 모으는 중
 
     isOnline() {
         return this.status === 'playing';
@@ -221,7 +229,6 @@ const Net = {
         this.desynced = false;
         this.lastFrameAt = 0;
         this.gapSamples = [];
-        this.buffering = true;
         this.physicalHeld.clear();
         this.lastSentHeld = '';
         this.pendingDowns = [];
@@ -314,7 +321,7 @@ const Net = {
         if (this.slot === 0) {
             // 방장: 데이터 통로 2개를 만들고 연결 요청(offer)을 보낸다
             this.setupChannel(pc.createDataChannel('game', { ordered: true }));
-            this.setupChannel(pc.createDataChannel('fast', { ordered: false, maxRetransmits: 0 }));
+            if (!urlSwitchOff('fast')) this.setupChannel(pc.createDataChannel('fast', { ordered: false, maxRetransmits: 0 }));
             pc.createOffer()
                 .then((offer) => pc.setLocalDescription(offer))
                 .then(() => this.send({ t: 'signal', data: { sdp: pc.localDescription.toJSON() } }))
@@ -352,7 +359,8 @@ const Net = {
         else this.dc = dc;
         dc.onopen = () => {
             this.openChannels += 1;
-            if (this.slot === 0 && this.openChannels >= 2) this.decideMode('p2p');
+            const needed = urlSwitchOff('fast') ? 1 : 2;
+            if (this.slot === 0 && this.openChannels >= needed) this.decideMode('p2p');
         };
         dc.onmessage = (ev) => this.handlePeerMessage(JSON.parse(ev.data));
         dc.onclose = () => {
@@ -430,6 +438,7 @@ const Net = {
     // 방장 기기는 틱을 직접 만들어서 여유분이 필요 없다(0)
     bufferTarget() {
         if (this.mode === 'p2p' && this.slot === 0) return 0;
+        if (urlSwitchOff('buffer')) return 0;
         const gaps = this.gapSamples.map(([, g]) => g).sort((a, b) => a - b);
         const p90 = gaps.length ? gaps[Math.floor(gaps.length * 0.9)] : NET_TICK_MS;
         return Math.max(BUFFER_MIN, Math.min(BUFFER_MAX, Math.ceil(p90 / NET_TICK_MS)));
@@ -450,7 +459,7 @@ const Net = {
 
     // 빠른 통로로 보내기 (아직 안 열렸으면 확실한 통로로)
     sendFast(msg) {
-        if (this.fast && this.fast.readyState === 'open') this.fast.send(JSON.stringify(msg));
+        if (!urlSwitchOff('fast') && this.fast && this.fast.readyState === 'open') this.fast.send(JSON.stringify(msg));
         else this.sendPeer(msg);
     },
 
