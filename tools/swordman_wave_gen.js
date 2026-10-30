@@ -1,7 +1,7 @@
 // 검사 스킬 2 검기 이미지 생성 (미리 구워두는 용도라 무거워도 됨)
 // 진행 방향 = 오른쪽(+x). 흰색 그림 + 투명 배경으로 저장 (게임에서 색을 입힘)
 // 결과: wave_white.png (원본 800x1024), preview_*.png (확인용)
-// 게임용 web/assets/swordman_wave.png는 wave_white.png를 200x256으로 줄인 것
+// swordman_wave.png (1/4 축소본)를 web/assets/에 복사해서 쓴다. 크기·앞날 위치를 바꾸면 swordman.js의 SWORDMAN_WAVE_* 도 맞출 것
 // 실행: node tools/swordman_wave_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
 const fs = require('fs');
@@ -23,11 +23,11 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
 
     // ---------- 모양 ----------
     // 그림 크기: 세로(진행 방향과 수직) 1024, 가로 800. 판정 60x15 → 1px당 약 1/15
-    const W = 800, H = 1024, CY = H / 2;
+    const W = 900, H = 1024, CY = H / 2;
     const SPAN = 470;       // 위아래 끝까지 거리
-    const TIP_X = 300;      // 양 끝(뒤로 휘어진 끝) x
-    const DEPTH = 360;      // 앞으로 볼록한 정도 → 가운데 앞날 x = 660
-    const THICK = 150;      // 가운데 두께
+    const TIP_X = 280;      // 양 끝(뒤로 휘어진 끝) x
+    const DEPTH = 500;      // 앞으로 볼록한 정도 → 가운데 앞날 x = 780
+    const THICK = 300;      // 가운데 두께
     // t: -1(위 끝) ~ 1(아래 끝)
     const frontX = (t) => TIP_X + DEPTH * Math.pow(1 - t * t, 0.75);
     const thick = (t) => THICK * Math.pow(Math.max(0, 1 - t * t), 1.3);
@@ -141,10 +141,10 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
         ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke();
       }
     };
-    drawEdge(ex, 22, 0.32, 0.07, 0.7);
-    drawEdge(ex, 12, 0.6, 0.03, 0.5);
-    drawEdge(ex, 5, 1.0, 0.0);
-    drawEdge(ex, 1.6, 1.0, -0.004);
+    drawEdge(ex, 50, 0.32, 0.09, 0.7);
+    drawEdge(ex, 28, 0.6, 0.04, 0.5);
+    drawEdge(ex, 12, 1.0, 0.0);
+    drawEdge(ex, 3.2, 1.0, -0.004);
 
     // 7) 잔상: 조금 뒤에 옅고 가는 초승달 두 개 (빠르게 날아가는 느낌)
     for (const [back, a, w] of [[70, 0.32, 7], [150, 0.14, 5]]) {
@@ -210,15 +210,18 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
       drawFx(g2, red, x, y, gw, gh, rot);
       // 판정 사각형 (옅은 선)
       g2.save(); g2.translate(x, y); g2.rotate(rot); g2.strokeStyle = 'rgba(255,255,255,0.35)'; g2.lineWidth = 1;
-      g2.strokeRect(-7.5 + (560 - W / 2) * scaleImg, -30, 15, 60); g2.restore();
+      g2.strokeRect(-7.5 + (TIP_X + DEPTH - 7.5 * 940 / 60 - W / 2) * scaleImg, -30, 15, 60); g2.restore();
     }
     const game4 = mk(1440, 800), g4 = game4.getContext('2d');
     g4.imageSmoothingEnabled = false; g4.drawImage(game, 0, 0, 1440, 800);
 
-    return { white: white.toDataURL('image/png'), big: big.toDataURL('image/png'), game: game4.toDataURL('image/png'), size: [W, H] };
+    // 게임용 축소본 (1/4)
+    const small = mk(W / 4, H / 4), sx = small.getContext('2d');
+    sx.imageSmoothingQuality = 'high'; sx.drawImage(white, 0, 0, W / 4, H / 4);
+    return { small: small.toDataURL('image/png'), white: white.toDataURL('image/png'), big: big.toDataURL('image/png'), game: game4.toDataURL('image/png'), size: [W, H] };
   });
   const save = (name, url) => fs.writeFileSync(`${OUT}/${name}`, Buffer.from(url.split(',')[1], 'base64'));
-  save('wave_white.png', res.white); save('preview_big.png', res.big); save('preview_game.png', res.game);
+  save('swordman_wave.png', res.small); save('wave_white.png', res.white); save('preview_big.png', res.big); save('preview_game.png', res.game);
   console.log(res.size);
   await b.close();
 })();

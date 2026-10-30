@@ -157,11 +157,11 @@ class SwordmanProjectileAttack {
 }
 
 // 검기 그림 (assets/swordman_wave.png, 오른쪽으로 날아가는 초승달)
-// 원본 800x1024 기준 초승달 끝~끝 940px → 판정 길이 60px에 맞춘다.
-// 판정 사각형 가운데 = 앞날(x 660)에서 판정 두께 절반(7.5px)만큼 뒤
+// 원본 900x1024 기준 초승달 끝~끝 940px → 판정 길이 60px에 맞춘다.
+// 판정 사각형 가운데 = 앞날(x 780)에서 판정 두께 절반(7.5px)만큼 뒤
 const SWORDMAN_WAVE_IMAGE = loadImage('assets/swordman_wave.png');
-const SWORDMAN_WAVE_SIZE = [800 * 60 / 940, 1024 * 60 / 940];
-const SWORDMAN_WAVE_ANCHOR = [(660 - 7.5 * 940 / 60) / 800, 0.5];
+const SWORDMAN_WAVE_SIZE = [900 * 60 / 940, 1024 * 60 / 940];
+const SWORDMAN_WAVE_ANCHOR = [(780 - 7.5 * 940 / 60) / 900, 0.5];
 
 // 돌진 공통: 돌진하는 동안 이동키로 더 움직이지 않게 슬로우 100%를 걸고, 끝나면 풀어준다
 function finishDash(owner) {
