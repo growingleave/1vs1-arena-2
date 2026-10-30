@@ -405,3 +405,143 @@ class RingSlashVFX {
         }
     }
 }
+
+// ==========================================
+// 튀는 불꽃 (짧은 빛줄기). SweepSparkVFX와 HitSparkVFX가 같이 쓴다
+// ==========================================
+class SparkVFX {
+    constructor(color) {
+        this.rgb = vfxHexToRgb(color);
+        this.sparks = [];
+        this.elapsed = 0;
+    }
+
+    // x, y에서 angle 방향으로 speed(px/초)만큼 튀는 불꽃 하나
+    addSpark(x, y, angle, speed, life, size) {
+        this.sparks.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life, maxLife: life, size });
+    }
+
+    get sparksDone() {
+        return this.sparks.every(s => s.life <= 0);
+    }
+
+    update(dt) {
+        this.elapsed += dt;
+        const drag = Math.exp(-5 * dt); // 공기 저항처럼 점점 느려진다
+        for (const s of this.sparks) {
+            if (s.life <= 0) continue;
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            s.vx *= drag;
+            s.vy *= drag;
+            s.life -= dt;
+        }
+    }
+
+    // 지나온 자리로 꼬리를 그린다: 바깥은 색, 가운데는 흰색
+    drawSparks(ctx) {
+        const [r, g, b] = this.rgb;
+        ctx.lineCap = 'round';
+        for (const s of this.sparks) {
+            if (s.life <= 0) continue;
+            const a = s.life / s.maxLife;
+            const tx = s.x - s.vx * 0.04, ty = s.y - s.vy * 0.04;
+            ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(tx, ty);
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.8})`;
+            ctx.lineWidth = s.size * 1.8 * (0.5 + 0.5 * a);
+            ctx.stroke();
+            ctx.strokeStyle = `rgba(255,255,255,${a})`;
+            ctx.lineWidth = s.size * 0.6;
+            ctx.stroke();
+        }
+    }
+}
+
+// 칼끝이 지나가는 자리에서 불꽃이 차례로 튄다 (휘두르는 동안 계속 뿌림)
+//   follow:    따라다닐 대상 (휘두르는 사람)
+//   radius:    칼끝까지 거리
+//   fromAngle, toAngle: 칼끝이 지나가는 화면 각도 (라디안)
+//   sweep:     지나가는 시간(초), count: 뿌릴 불꽃 수
+class SweepSparkVFX extends SparkVFX {
+    constructor(options) {
+        super(options.color ?? '#ffffff');
+        this.follow = options.follow;
+        this.radius = options.radius ?? 60;
+        this.fromAngle = options.fromAngle;
+        this.toAngle = options.toAngle;
+        this.sweep = options.sweep ?? 0.15;
+        this.count = options.count ?? 14;
+        this.emitted = 0;
+    }
+
+    get finished() {
+        return this.elapsed >= this.sweep && this.sparksDone;
+    }
+
+    update(dt) {
+        super.update(dt);
+        const progress = Math.min(1, this.elapsed / this.sweep);
+        const dir = this.toAngle > this.fromAngle ? 1 : -1;
+        while (this.emitted < Math.round(this.count * progress)) {
+            const u = (this.emitted + Math.random()) / this.count;
+            const edge = this.fromAngle + (this.toAngle - this.fromAngle) * u;
+            const r = this.radius * vfxRand(0.75, 1.05);
+            const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
+            // 바깥쪽과 휘두르는 방향 사이로 튄다
+            this.addSpark(cx + Math.cos(edge) * r, cy + Math.sin(edge) * r,
+                edge + dir * vfxRand(0.3, 1.2), vfxRand(150, 380), vfxRand(0.18, 0.4), vfxRand(1.2, 2.4));
+            this.emitted++;
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
+
+// 맞은 자리에서 작게 번쩍이며 진행 방향 쪽으로 불꽃이 튄다
+//   angle: 날아온 방향 (라디안), count: 불꽃 수, size: 섬광 크기
+class HitSparkVFX extends SparkVFX {
+    constructor(x, y, options) {
+        super(options.color ?? '#ffffff');
+        this.x = x;
+        this.y = y;
+        this.flashSize = options.size ?? 22;
+        this.flashTime = 0.18;
+        const angle = options.angle ?? 0;
+        const count = options.count ?? 12;
+        for (let i = 0; i < count; i++) {
+            this.addSpark(x, y, angle + vfxRand(-1.1, 1.1), vfxRand(120, 340), vfxRand(0.15, 0.35), vfxRand(1, 2.2));
+        }
+    }
+
+    get finished() {
+        return this.elapsed >= this.flashTime && this.sparksDone;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const t = this.elapsed / this.flashTime;
+        if (t < 1) {
+            const [r, g, b] = this.rgb;
+            const a = 1 - t;
+            // 가운데 섬광
+            const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.flashSize);
+            grad.addColorStop(0, `rgba(255,255,255,${a})`);
+            grad.addColorStop(0.35, `rgba(${r},${g},${b},${a * 0.7})`);
+            grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.flashSize, 0, Math.PI * 2); ctx.fill();
+            // 퍼지는 고리
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.8})`;
+            ctx.lineWidth = 2 * a + 0.5;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.flashSize * (0.3 + 0.9 * t), 0, Math.PI * 2); ctx.stroke();
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
