@@ -226,7 +226,8 @@ class SlashVFX {
 // ==========================================
 // RingSlashVFX: 그림 한 장(흰색, 배경 투명)으로 만드는 회전 베기 이펙트
 // 1. 부채꼴로 가린 뒤 그 부채꼴을 돌리면서 그림을 조금씩 드러낸다 (칼이 그어지는 느낌)
-// 2. 다 드러나면 살짝 커지고 같은 방향으로 조금 더 돌면서 흐려진다
+// 2. 그동안 그림 전체가 같은 방향으로 돌고(처음엔 빠르게), 잔상이 뒤따라온다
+// 3. 다 드러나면 살짝 커지면서 흐려진다
 // 그림은 흰색이라 색을 입혀 쓴다 (색 입힌 그림 + 흰 그림을 겹쳐 가운데가 하얗게 빛나게)
 //
 // 옵션
@@ -239,6 +240,8 @@ class SlashVFX {
 //   sweepAngle: 드러나는 총 각도 (기본 2π, 음수면 반대 방향)
 //   sweep:     다 드러나는 데 걸리는 시간(초)
 //   fade:      그 뒤 사라지는 데 걸리는 시간(초)
+//   spinTotal: 전체 시간 동안 그림이 도는 각도(라디안, 기본 π). 처음엔 빠르게, 끝으로 갈수록 느리게
+//   ghosts:    뒤따라오는 잔상 수 (기본 3)
 // ==========================================
 const vfxTintCache = new Map();
 
@@ -272,6 +275,8 @@ class RingSlashVFX {
         this.sweepAngle = options.sweepAngle ?? Math.PI * 2;
         this.sweep = options.sweep ?? 0.2;
         this.fade = options.fade ?? 0.25;
+        this.spinTotal = options.spinTotal ?? Math.PI;  // 전체 시간 동안 그림이 도는 각도 (sweepAngle과 같은 방향)
+        this.ghosts = options.ghosts ?? 3;              // 뒤따라오는 잔상 수
         this.elapsed = 0;
     }
 
@@ -281,6 +286,13 @@ class RingSlashVFX {
 
     update(dt) {
         this.elapsed += dt;
+    }
+
+    // 시각 t(초)에 그림이 얼마나 돌아가 있는지. 처음엔 빠르게, 끝으로 갈수록 느려진다
+    spinAt(t) {
+        const life = Math.min(1, Math.max(0, t / (this.sweep + this.fade)));
+        const dir = this.sweepAngle < 0 ? -1 : 1;
+        return dir * this.spinTotal * (1 - (1 - life) ** 3);
     }
 
     draw(ctx) {
@@ -295,28 +307,42 @@ class RingSlashVFX {
         if (alpha <= 0) return;
 
         const size = this.size * (1 + 0.15 * fadeT);         // 사라지면서 살짝 커진다
-        const spin = this.sweepAngle * 0.08 * fadeT;           // 같은 방향으로 조금 더 돈다
         const tinted = vfxTinted(this.image, this.color);
 
         ctx.save();
         ctx.translate(cx, cy);
+        ctx.globalCompositeOperation = 'lighter';
+
+        // 잔상: 조금 전 시각의 회전 각도로, 점점 옅게 (빠르게 도는 느낌)
+        for (let i = this.ghosts; i >= 1; i--) {
+            const angle = this.spinAt(this.elapsed - i * 0.03);
+            this.drawLayer(ctx, tinted, angle, size, ease, reveal, alpha * (0.45 - 0.12 * i), false);
+        }
+        this.drawLayer(ctx, tinted, this.spinAt(this.elapsed), size, ease, reveal, alpha, true);
+        ctx.restore();
+    }
+
+    // 그림 한 장 그리기. withCore면 흰 그림을 겹쳐 가운데를 밝게 한다
+    drawLayer(ctx, tinted, spin, size, ease, reveal, alpha, withCore) {
+        if (alpha <= 0) return;
+        ctx.save();
         ctx.rotate(this.rotation + spin);
 
         // 드러난 부분만 보이게 부채꼴로 자르기 (다 드러난 뒤에는 자르지 않는다)
         if (reveal < 1) {
-            const r = size;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.arc(0, 0, r, this.startAngle, this.startAngle + this.sweepAngle * ease, this.sweepAngle < 0);
+            ctx.arc(0, 0, size, this.startAngle, this.startAngle + this.sweepAngle * ease, this.sweepAngle < 0);
             ctx.closePath();
             ctx.clip();
         }
 
-        ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = alpha;
         ctx.drawImage(tinted, -size / 2, -size / 2, size, size);
-        ctx.globalAlpha = alpha * 0.55;                        // 흰 그림을 겹쳐 가운데를 밝게
-        ctx.drawImage(this.image, -size / 2, -size / 2, size, size);
+        if (withCore) {
+            ctx.globalAlpha = alpha * 0.55;
+            ctx.drawImage(this.image, -size / 2, -size / 2, size, size);
+        }
         ctx.restore();
     }
 }
