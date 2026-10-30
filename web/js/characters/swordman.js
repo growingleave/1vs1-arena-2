@@ -273,6 +273,16 @@ const SWORDMAN_ULT_WINDUP = 0.6;  // 선딜(초), 무적
 const SWORDMAN_ULT_SHEATH = 0.6;  // 납도 연출(초), 못 움직이고 무적
 const SWORDMAN_ULT_STUN_AFTER = 0.5; // 베인 뒤에도 남는 기절(초)
 
+// 궁극기 그림 (tools/swordman_ult_gen.js로 생성, 팀 색이 이미 들어 있고 글리치만 다른 2장씩)
+//   돌진: 800x210, 길 x 60~690, 가운데 y 105 / 베기: 800x400, 길 x 40~760, 가운데 y 200
+const swordmanUltImages = (kind) => ({
+    red: [0, 1].map(i => loadImage(`assets/swordman_ult_${kind}_red_${i}.png`)),
+    blue: [0, 1].map(i => loadImage(`assets/swordman_ult_${kind}_blue_${i}.png`)),
+});
+const SWORDMAN_ULT_DASH_IMAGES = swordmanUltImages('dash');
+const SWORDMAN_ULT_CUT_IMAGES = swordmanUltImages('cut');
+const swordmanTeam = (owner) => owner.playerNum === 2 ? 'blue' : 'red';
+
 class SwordmanUltDashAttack {
     constructor(owner, direction, color) {
         this.owner = owner;
@@ -299,19 +309,20 @@ class SwordmanUltDashAttack {
         this.isDash = true;
         this.canPenetrateWalls = false;
 
-        const color2 = owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
-        // 돌진 자국: 판정(150px)만큼 굵게, 지나간 만큼 드러난다
+        // 돌진 자국: 가는 가로줄 + 글리치, 지나간 만큼 드러난다
+        const fullDist = this.dashSpeed * this.duration / (1000 / 60);
         Vfx.spawn(new StretchSlashVFX({
-            image: SWORDMAN_DASH_IMAGE,
+            images: SWORDMAN_ULT_DASH_IMAGES[swordmanTeam(owner)],
+            frameTime: 0.05,
+            colored: true,
             follow: owner,
             isActive: () => this.phase === 'dash',
             angle: Math.atan2(direction[1], direction[0]),
-            imageX0: SWORDMAN_DASH_X0, imageX1: SWORDMAN_DASH_X1, imageCY: SWORDMAN_DASH_CY,
-            scaleY: SWORDMAN_DASH_SCALE_Y * this.height / 60,
+            imageX0: 60, imageX1: 690, imageCY: 105,
+            scaleY: (fullDist + 70) / 630, // 가로와 같은 배율 (찌그러지지 않게)
             back: 35, front: 35,
-            fullDist: this.dashSpeed * this.duration / (1000 / 60),
-            softEdge: 60,
-            color: color2,
+            fullDist,
+            softEdge: 50,
             fade: SWORDMAN_ULT_SHEATH, // 납도하는 동안 서서히 사라진다
         }));
     }
@@ -354,7 +365,13 @@ class SwordmanUltDashAttack {
     // 납도 끝: 지나온 길이 베이고, 기절시킨 대상에게 피해
     cut() {
         const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
-        Vfx.spawn(new PathCutVFX(this.startX, this.startY, this.posX, this.posY, { color, width: this.height }));
+        Vfx.spawn(new CutBurstVFX(this.startX, this.startY, this.posX, this.posY, {
+            images: SWORDMAN_ULT_CUT_IMAGES[swordmanTeam(this.owner)],
+            frameTime: 0.04,
+            imageX0: 40, imageX1: 760, imageCY: 200,
+            margin: 35, scaleY: 0.8, duration: 0.55, darken: 0.4,
+        }));
+        Vfx.shake(this.marked.length > 0 ? 7 : 4, 0.25); // 맞혔으면 더 세게
         for (const target of this.marked) {
             if (!canBeHit(this, target)) continue;
             const finalDamage = target.takeDamage(this.damage);
