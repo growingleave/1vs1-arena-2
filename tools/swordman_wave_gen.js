@@ -1,7 +1,7 @@
 // 검사 스킬 2 검기 이미지 생성 (미리 구워두는 용도라 무거워도 됨)
 // 진행 방향 = 오른쪽(+x). 흰색 그림 + 투명 배경으로 저장 (게임에서 색을 입힘)
 // 결과: wave_white.png (원본 800x1024), preview_*.png (확인용)
-// swordman_wave.png (1/4 축소본)를 web/assets/에 복사해서 쓴다. 크기·앞날 위치를 바꾸면 swordman.js의 SWORDMAN_WAVE_* 도 맞출 것
+// swordman_wave.png (1/4 축소본)를 web/assets/에 복사해서 쓴다. 크기·앞날 위치를 바꾸면 swordman.js의 SWORDMAN_WAVE_* 도 맞출 것 (그림 크기는 판정 크기를 따라감)
 // 실행: node tools/swordman_wave_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
 const fs = require('fs');
