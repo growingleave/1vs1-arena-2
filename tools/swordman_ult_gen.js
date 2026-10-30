@@ -104,14 +104,20 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
     taperLine(c2, B0, CY2, B1, CY2, 14, 1.0, 80, 0.55);
     // 화면을 가로지르는 긴 칼자국: 대부분 세로에 가깝게, 몇 개는 비스듬히. 일부는 두 줄
     const cuts = [];
-    // 세로 참격 14개는 길 전체에 골고루(같은 간격 + 약간 흔들기), 비스듬한 긴 참격 4개는 아무 데나
-    const STEEP = 14, SHALLOW = 4;
-    for (let i = 0; i < STEEP + SHALLOW; i++) {
-      const steep = i < STEEP;
-      const cx = steep ? B0 + 110 + (B1 - B0 - 220) * (i + 0.5) / STEEP + R(-25, 25) : R(B0 + 150, B1 - 150);
-      const cy = CY2 + gauss() * 40;
-      const ang = steep ? Math.PI / 2 + R(-0.3, 0.3) : R(-0.45, 0.45) + (rnd() < 0.5 ? 0.12 : -0.12);
-      const len = steep ? R(450, 820) : R(700, 1300);
+    // 세로 참격 위치: 아무 데나 뽑되 너무 붙은 자리는 다시 뽑는다 → 한쪽에 몰리지 않으면서 간격은 불규칙
+    const steepX = [];
+    for (let tries = 0; steepX.length < 15 && tries < 2000; tries++) {
+      const x = R(B0 + 90, B1 - 90);
+      if (steepX.every(o => Math.abs(o - x) > 55)) steepX.push(x);
+    }
+    const SHALLOW = 4;
+    for (let i = 0; i < steepX.length + SHALLOW; i++) {
+      const steep = i < steepX.length;
+      const short = steep && rnd() < 0.3;                       // 몇 개는 짧은 참격
+      const cx = steep ? steepX[i] : R(B0 + 150, B1 - 150);
+      const cy = CY2 + gauss() * (short ? 70 : 45);
+      const ang = steep ? Math.PI / 2 + gauss() * 0.22 : R(-0.45, 0.45) + (rnd() < 0.5 ? 0.12 : -0.12);
+      const len = steep ? (short ? R(200, 380) : R(420, 880)) : R(700, 1300);
       cuts.push({ cx, cy, ang, len });
       const dx = Math.cos(ang) * len / 2, dy = Math.sin(ang) * len / 2;
       const head = R(0.35, 0.65), w = R(2, 5.5);
