@@ -99,6 +99,7 @@ const Perf = {
 };
 
 function frame(now) {
+    Vfx.update(Math.min(0.1, (now - lastTime) / 1000)); // 화면 효과는 실제 흐른 시간으로 움직인다
     accumulator += now - lastTime;
     lastTime = now;
 
