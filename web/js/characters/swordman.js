@@ -136,10 +136,32 @@ class SwordmanProjectileAttack {
         slow(target, 2.0, 30);
     }
 
+    // 초승달 검기 그림을 판정 사각형에 맞춰 그린다 (그림이 아직 안 불러와졌으면 사각형)
     draw(ctx) {
-        drawPolygon(ctx, this.getPolygonPoints(), this.color, COLOR_WHITE, 2);
+        if (!isImageReady(SWORDMAN_WAVE_IMAGE)) {
+            drawPolygon(ctx, this.getPolygonPoints(), this.color, COLOR_WHITE, 2);
+            return;
+        }
+        const w = SWORDMAN_WAVE_SIZE[0], h = SWORDMAN_WAVE_SIZE[1];
+        const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
+        ctx.save();
+        ctx.translate(this.posX, this.posY);
+        ctx.rotate(-this.angle * Math.PI / 180); // angle은 위쪽이 + 기준이라 화면 회전은 반대
+        ctx.globalCompositeOperation = 'lighter';
+        const x = -w * SWORDMAN_WAVE_ANCHOR[0], y = -h * SWORDMAN_WAVE_ANCHOR[1];
+        ctx.drawImage(vfxTinted(SWORDMAN_WAVE_IMAGE, color), x, y, w, h);
+        ctx.globalAlpha = 0.55;
+        ctx.drawImage(SWORDMAN_WAVE_IMAGE, x, y, w, h); // 흰 그림을 겹쳐 앞날을 밝게
+        ctx.restore();
     }
 }
+
+// 검기 그림 (assets/swordman_wave.png, 오른쪽으로 날아가는 초승달)
+// 원본 800x1024 기준 초승달 끝~끝 940px → 판정 길이 60px에 맞춘다.
+// 판정 사각형 가운데 = 앞날(x 660)에서 판정 두께 절반(7.5px)만큼 뒤
+const SWORDMAN_WAVE_IMAGE = loadImage('assets/swordman_wave.png');
+const SWORDMAN_WAVE_SIZE = [800 * 60 / 940, 1024 * 60 / 940];
+const SWORDMAN_WAVE_ANCHOR = [(660 - 7.5 * 940 / 60) / 800, 0.5];
 
 // 돌진 공통: 돌진하는 동안 이동키로 더 움직이지 않게 슬로우 100%를 걸고, 끝나면 풀어준다
 function finishDash(owner) {
