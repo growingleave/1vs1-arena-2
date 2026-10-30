@@ -60,7 +60,7 @@ class AssassinSpinAttack {
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
 
-        // 그림 이펙트: 바라보는 방향에서 시작해 시계 방향으로 한 바퀴 쓸고 지나가며 빙글 돈다 (화면 효과 전용)
+        // 그림 이펙트: 어쌔신 앞의 보이지 않는 막대가 시계 방향으로 돌며 그림을 드러낸다 (화면 효과 전용)
         const face = Math.atan2(owner.facing[1], owner.facing[0]);
         Vfx.spawn(new RingSlashVFX(0, 0, {
             image: ASSASSIN_SPIN_IMAGE,
@@ -72,8 +72,12 @@ class AssassinSpinAttack {
             sweepAngle: Math.PI * 2,
             sweep: this.lifespan / 1000,
             fade: 0.25,
-            spinTotal: Math.PI * 1.2,   // 그리는 동안 그림 자체도 시계 방향으로 216도 돈다
-            ghosts: 3,                  // 뒤따라오는 잔상
+            // 그림은 제자리에 두고, 어쌔신 앞에서 시작하는 보이지 않는 막대가 시계 방향으로
+            // 일정한 속도로 한 바퀴 돌며 지나간 자리를 드러낸다
+            spinTotal: 0,
+            ghosts: 0,
+            revealEase: 'linear',
+            softEdge: 25 * Math.PI / 180,
         }));
     }
 
