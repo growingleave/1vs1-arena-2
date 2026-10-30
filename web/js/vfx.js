@@ -287,6 +287,8 @@ class RingSlashVFX {
         this.revealEase = options.revealEase ?? 'easeOut'; // 'linear'면 막대가 일정한 속도로 돈다
         this.softEdge = options.softEdge ?? 0;          // 드러나는 경계를 이 각도(라디안)만큼 흐리게
         this.afterSpin = options.afterSpin ?? 0;        // 다 드러난 뒤 사라지는 동안 더 도는 각도
+        // 'wipe': 그림은 가만히, 막대가 돌며 드러냄 / 'rotate': 그림이 돌면서 시작선 뒤에서 빠져나옴
+        this.revealMode = options.revealMode ?? 'wipe';
         this.elapsed = 0;
     }
 
@@ -349,6 +351,18 @@ class RingSlashVFX {
 
         if (reveal >= 1) {
             this.drawImages(ctx, tinted, scale, alpha, withCore);
+        } else if (this.revealMode === 'rotate') {
+            // 그림을 덜 돌아간 만큼 뒤로 돌려 두고, 시작선 앞쪽만 보여준다 (칼끝이 앞장서고 꼬리가 뒤따라 나옴)
+            const dir = this.sweepAngle < 0 ? -1 : 1;
+            const back = -this.sweepAngle * (1 - ease);
+            const s0 = this.startAngle, end = this.startAngle + this.sweepAngle + 0.3 * dir;
+            const soft = this.softEdge * dir;
+            // 시작선 근처는 옅게 두 겹 → 뒤에서 스며 나오는 느낌
+            this.drawWedge(ctx, tinted, scale, s0 + soft, end, alpha, withCore, back);
+            if (this.softEdge > 0) {
+                this.drawWedge(ctx, tinted, scale, s0 + soft / 2, s0 + soft, alpha * 0.5, false, back);
+                this.drawWedge(ctx, tinted, scale, s0, s0 + soft / 2, alpha * 0.2, false, back);
+            }
         } else {
             // 보이지 않는 막대가 startAngle에서 돌아가며 지나간 자리만 드러낸다 (부채꼴로 자르기)
             const dir = this.sweepAngle < 0 ? -1 : 1;
@@ -365,7 +379,7 @@ class RingSlashVFX {
     }
 
     // from~to 각도 부채꼴 안에만 그림 그리기
-    drawWedge(ctx, tinted, scale, from, to, alpha, withCore) {
+    drawWedge(ctx, tinted, scale, from, to, alpha, withCore, imageTurn = 0) {
         if (alpha <= 0 || from === to) return;
         const reach = Math.hypot(this.width, this.height) * scale; // 그림 전체를 덮는 반지름
         ctx.save();
@@ -374,6 +388,7 @@ class RingSlashVFX {
         ctx.arc(0, 0, reach, from, to, to < from);
         ctx.closePath();
         ctx.clip();
+        if (imageTurn) ctx.rotate(imageTurn);
         this.drawImages(ctx, tinted, scale, alpha, withCore);
         ctx.restore();
     }

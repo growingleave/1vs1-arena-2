@@ -61,7 +61,7 @@ const SWORDMAN_SLASH_IMAGE_RADIUS = 221;
 const SWORDMAN_SLASH_RIGHT = -19.2 * Math.PI / 180;
 const SWORDMAN_SLASH_LEFT = -161.7 * Math.PI / 180;
 const SWORDMAN_SLASH_CENTER = (SWORDMAN_SLASH_RIGHT + SWORDMAN_SLASH_LEFT) / 2;
-const SWORDMAN_SLASH_RADIUS = 78; // 화면에 보이는 반지름 (판정 60보다 살짝 크게)
+const SWORDMAN_SLASH_RADIUS = 60; // 판정 반지름과 같게
 
 function spawnSwordmanSlashVfx(owner, direction) {
     const faceAngle = Math.atan2(direction[1], direction[0]); // 화면 좌표 기준 바라보는 방향
@@ -83,6 +83,7 @@ function spawnSwordmanSlashVfx(owner, direction) {
         spinTotal: 0,
         ghosts: 0,
         revealEase: 'linear',
+        revealMode: 'rotate', // 그림이 돌면서 시작선 뒤에서 빠져나온다
         softEdge: 20 * Math.PI / 180,
     }));
 }
