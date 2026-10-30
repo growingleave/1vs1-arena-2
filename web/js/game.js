@@ -52,6 +52,7 @@ class Game {
     }
 
     enterLoadout() {
+        Vfx.clear();
         this.walls = this.loadoutWalls;
         this.dummy1 = createPracticeDummy(320, 220);
         this.dummy2 = createPracticeDummy(960, 220);
@@ -67,6 +68,7 @@ class Game {
     }
 
     startBattle() {
+        Vfx.clear();
         const map = MAPS[this.selectedMapIdx];
         this.walls = map.buildWalls();
         this.pickups = map.buildPickups();
@@ -276,6 +278,7 @@ class Game {
         this.player1.draw(ctx);
         this.player2.draw(ctx);
         for (const attack of this.attacks) attack.draw(ctx);
+        Vfx.draw(ctx);
 
         if (this.p1Ready) {
             drawText(ctx, 'READY', this.player1.rect.centerx, this.player1.rect.top - 28, 24, COLOR_GOLD, { bold: true, align: 'center' });
@@ -424,6 +427,7 @@ class Game {
         this.player1.draw(ctx);
         this.player2.draw(ctx);
         for (const attack of this.attacks) attack.draw(ctx);
+        Vfx.draw(ctx);
 
         const p1 = this.player1;
         const p2 = this.player2;

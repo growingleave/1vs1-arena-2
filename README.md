@@ -18,6 +18,7 @@ pygame 버전을 순수 HTML/JavaScript(Canvas)로 조금씩 옮기고 있습니
 
 - `index.html`: 실행 파일 (스크립트 순서가 중요합니다)
 - `js/core.js`: 화면 크기, 게임 시간, 사각형/충돌 판정, 글자, 소리
+- `js/vfx.js`: 화면 효과 전용(칼 이펙트 `SlashVFX` 등). 게임 계산과 따로 돌아서 온라인 결과에 영향이 없습니다. 여기서는 `Math.random()`을 써도 되지만, 게임 상태는 바꾸면 안 됩니다
 - `js/status.js`: 상태이상 (`status_effects.py`)
 - `js/world.js`: 벽, 구슬, 맵 (`wall.py`, `pickup.py`, `map.py`)
 - `js/terrain.js`: 용암 구덩이, 낙하 용암, 빙판, 눈보라 (`terrain.py`)

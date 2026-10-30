@@ -46,9 +46,29 @@ class SwordmanSlashAttack {
         return canBeHit(this, target) && checkPolygonCollision(this.getPoints(), target.rect);
     }
 
+    // 칼 이펙트(SlashVFX)가 주인공이라, 판정 범위는 옅게만 보여준다
     draw(ctx) {
-        drawPolygon(ctx, this.getPoints(), this.color, COLOR_WHITE, 2);
+        drawPolygon(ctx, this.getPoints(), withAlpha(this.color, 0.22), 'rgba(255, 255, 255, 0.35)', 1);
     }
+}
+
+// 평타 칼 이펙트: 부채꼴(반지름 60, 120도)을 쓸고 지나가는 방향과 크기에 맞춘다.
+// 화면 효과 전용이라 게임 결과와는 무관하다 (vfx.js 설명 참고)
+function spawnSwordmanSlashVfx(owner, direction) {
+    const faceAngle = Math.atan2(direction[1], direction[0]); // 화면 좌표 기준 바라보는 방향
+    Vfx.spawn(new SlashVFX(
+        owner.rect.centerx + direction[0] * 30, // 부채꼴 현(chord)의 가운데
+        owner.rect.centery + direction[1] * 30,
+        {
+            palette: owner.playerNum === 2 ? 'blue' : 'red',
+            angle: faceAngle - Math.PI / 2, // 판정과 같은 방향으로 쓸고 지나간다
+            length: 170,                    // scale 0.65 → 실제 110px (부채꼴 현 길이와 비슷)
+            curve: 60,                      // 바라보는 쪽으로 볼록하게
+            scale: 0.65,
+            duration: 0.45,
+            sweep: 0.15,                    // 판정 부채꼴(150ms)과 같은 속도로 그어진다
+        },
+    ));
 }
 
 // ==========================================
@@ -227,6 +247,7 @@ class SwordmanBasicSlash extends Skill {
     use(owner, direction, attacks, color) {
         this.lastUsed = Time.now;
         attacks.push(new SwordmanSlashAttack(owner, direction, color));
+        spawnSwordmanSlashVfx(owner, direction);
 
         if (owner.slashEnhanceCount > 0) {
             attacks.push(new SwordmanProjectileAttack(owner, direction, color));
