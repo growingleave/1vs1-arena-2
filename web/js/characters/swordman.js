@@ -217,7 +217,7 @@ class SwordmanDashAttack {
         this.isDash = true;
         this.canPenetrateWalls = false;
 
-        // 돌진 베기 그림: 출발점에서 플레이어를 따라 늘어나며 그어진다 (화면 효과라 게임 결과와는 무관)
+        // 돌진 베기 그림: 출발점에서 플레이어가 지나간 만큼 드러난다 (화면 효과라 게임 결과와는 무관)
         Vfx.spawn(new StretchSlashVFX({
             image: SWORDMAN_DASH_IMAGE,
             follow: owner,
@@ -226,6 +226,9 @@ class SwordmanDashAttack {
             imageX0: SWORDMAN_DASH_X0, imageX1: SWORDMAN_DASH_X1, imageCY: SWORDMAN_DASH_CY,
             scaleY: SWORDMAN_DASH_SCALE_Y,
             back: 30, front: 30, // 판정 상자 절반만큼 앞뒤로
+            // 그림은 끝까지 돌진한 크기(18px x 12틱)로 고정하고, 지나간 만큼 천천히 드러낸다
+            fullDist: this.dashSpeed * this.duration / (1000 / 60),
+            softEdge: 40,
             color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
             fade: 0.3,
         }));
