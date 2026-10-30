@@ -44,7 +44,7 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
       const s = i / 90;
       bx.beginPath();
       for (let k = 0; k <= 200; k++) { const t = -1 + 2 * k / 200; const [x, y] = pt(t, s); k ? bx.lineTo(x, y) : bx.moveTo(x, y); }
-      bx.strokeStyle = `rgba(255,255,255,${0.035 * Math.exp(-3.2 * s)})`;
+      bx.strokeStyle = `rgba(255,255,255,${0.05 * Math.exp(-1.6 * s)})`;
       bx.lineWidth = 3;
       bx.stroke();
     }
@@ -65,13 +65,13 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
         bx.beginPath(); bx.moveTo(xa, ya); bx.lineTo(xb, yb); bx.stroke();
       }
     };
-    for (let i = 0; i < 520; i++) {
-      const s = Math.pow(rnd(), 1.7);                     // 앞날 쪽에 몰리게
+    for (let i = 0; i < 700; i++) {
+      const s = Math.pow(rnd(), 1.15);                    // 앞날 쪽에 살짝 몰리게
       const len = R(0.25, 1.4) * (1 - 0.5 * s);
       const mid = R(-0.85, 0.85);
       const t0 = clamp(mid - len / 2, -0.98, 0.98), t1 = clamp(mid + len / 2, -0.98, 0.98);
-      const bright = Math.exp(-2.6 * s);
-      strokeCurve(s, t0, t1, R(0.6, 3.2) * (1.2 - s), R(0.08, 0.32) * bright, 0.05);
+      const bright = Math.exp(-1.3 * s);
+      strokeCurve(s, t0, t1, R(0.6, 3.2) * (1.2 - s), R(0.1, 0.38) * bright, 0.05);
     }
     // 굵고 진한 결 몇 개 (그림에 힘을 줌)
     for (let i = 0; i < 26; i++) {
@@ -81,13 +81,13 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
     }
 
     // 3) 뒤로 흩날리는 꼬리: 뒷면에서 진행 반대쪽(왼쪽)으로 뻗는 가는 선
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 420; i++) {
       const t = R(-0.92, 0.92) * Math.pow(rnd(), 0.15);
       const s = R(0.55, 1.0);
       const [x0, y0] = pt(t, s);
-      const len = R(40, 260) * Math.pow(1 - t * t, 0.6) + R(10, 40);
+      const len = R(80, 380) * Math.pow(1 - t * t, 0.6) + R(20, 60);
       const bend = t * R(10, 60);                          // 끝 쪽 꼬리는 바깥으로 살짝 휨
-      const a0 = (rnd() < 0.15 ? R(0.2, 0.4) : R(0.03, 0.14)) * Math.pow(1 - Math.abs(t), 0.5);
+      const a0 = (rnd() < 0.2 ? R(0.25, 0.5) : R(0.06, 0.2)) * Math.pow(1 - Math.abs(t), 0.5);
       const segs = 24;
       for (let k = 0; k < segs; k++) {
         const u0 = k / segs, u1 = (k + 1) / segs;
@@ -141,13 +141,13 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
         ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke();
       }
     };
-    drawEdge(ex, 50, 0.32, 0.09, 0.7);
-    drawEdge(ex, 28, 0.6, 0.04, 0.5);
-    drawEdge(ex, 12, 1.0, 0.0);
-    drawEdge(ex, 3.2, 1.0, -0.004);
+    drawEdge(ex, 26, 0.22, 0.05, 0.7);
+    drawEdge(ex, 13, 0.45, 0.02, 0.5);
+    drawEdge(ex, 6, 0.9, 0.0);
+    drawEdge(ex, 2, 1.0, -0.003);
 
     // 7) 잔상: 조금 뒤에 옅고 가는 초승달 두 개 (빠르게 날아가는 느낌)
-    for (const [back, a, w] of [[70, 0.32, 7], [150, 0.14, 5]]) {
+    for (const [back, a, w] of [[60, 0.45, 9], [130, 0.32, 7], [210, 0.18, 5]]) {
       const n = 200, nz = noise1();
       for (let k = 0; k < n; k++) {
         const ta = -0.92 + 1.84 * k / n, tb = -0.92 + 1.84 * (k + 1) / n, tm = (ta + tb) / 2;
@@ -166,7 +166,7 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
     o.globalCompositeOperation = 'lighter';
     const glowSrc = mk(W, H), gx = glowSrc.getContext('2d');
     gx.drawImage(body, 0, 0); gx.drawImage(edge, 0, 0);
-    for (const [blur, a] of [[60, 0.5], [24, 0.6], [8, 0.7]]) {
+    for (const [blur, a] of [[60, 0.4], [24, 0.35], [8, 0.3]]) {
       o.filter = `blur(${blur}px)`; o.globalAlpha = a; o.drawImage(glowSrc, 0, 0);
     }
     o.filter = 'none'; o.globalAlpha = 1;
@@ -176,7 +176,7 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
     // 밝기 → 불투명도 (흰색 + 투명 배경)
     const d = o.getImageData(0, 0, W, H), px = d.data;
     for (let i = 0; i < W * H; i++) {
-      const l = Math.max(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]) / 255;
+      const l = 0.8 * Math.max(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]) / 255; // 살짝 낮춰 앞날이 하얗게 뭉치지 않게
       px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = 255;
       px[i * 4 + 3] = Math.round(clamp(l, 0, 1) * 255);
     }
