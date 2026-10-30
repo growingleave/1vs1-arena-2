@@ -640,3 +640,153 @@ class StretchSlashVFX {
         ctx.drawImage(this.image, x, y, w, h); // 흰 그림을 겹쳐 칼날을 밝게
     }
 }
+
+// ==========================================
+// 납도: 뒤쪽으로 뻗은 칼날이 천천히, 마지막에 빠르게 들어가고 "찰칵" 하며 고리와 불꽃
+//   follow: 검사, angle: 돌진 방향(라디안), duration: 납도 시간(초)
+// ==========================================
+class SheathVFX extends SparkVFX {
+    constructor(follow, angle, options) {
+        super(options.color ?? '#ffffff');
+        this.follow = follow;
+        this.angle = angle;
+        this.duration = options.duration ?? 0.6;
+        this.bladeLength = options.length ?? 56;
+        this.clickAt = 0.8;   // 이 비율에서 칼이 다 들어간다
+        this.clicked = false;
+    }
+
+    get finished() {
+        return this.elapsed >= this.duration + 0.25 && this.sparksDone;
+    }
+
+    update(dt) {
+        super.update(dt);
+        if (!this.clicked && this.elapsed >= this.duration * this.clickAt) {
+            this.clicked = true;
+            const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
+            for (let i = 0; i < 10; i++) {
+                this.addSpark(cx, cy, Math.random() * Math.PI * 2, vfxRand(80, 220), vfxRand(0.15, 0.35), vfxRand(1, 2));
+            }
+        }
+    }
+
+    draw(ctx) {
+        const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
+        const [r, g, b] = this.rgb;
+        const t = this.elapsed / this.duration;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+
+        const inT = Math.min(1, t / this.clickAt);
+        if (inT < 1) {
+            // 칼날: 돌진 반대쪽으로 뻗어 있다가 몸 쪽으로 들어간다 (처음엔 느리게, 끝에서 빠르게)
+            const len = this.bladeLength * (1 - inT * inT * inT);
+            const dx = -Math.cos(this.angle), dy = -Math.sin(this.angle);
+            const hx = cx + Math.cos(this.angle) * 6, hy = cy + Math.sin(this.angle) * 6; // 칼집 입구
+            const tx = hx + dx * len, ty = hy + dy * len;
+            ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty);
+            ctx.strokeStyle = `rgba(${r},${g},${b},0.45)`; ctx.lineWidth = 9; ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2.5; ctx.stroke();
+            // 칼날을 따라 미끄러지는 반짝임
+            const gu = (this.elapsed * 3) % 1;
+            const gx = hx + dx * len * gu, gy = hy + dy * len * gu;
+            const glint = ctx.createRadialGradient(gx, gy, 0, gx, gy, 8);
+            glint.addColorStop(0, 'rgba(255,255,255,0.9)'); glint.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = glint; ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI * 2); ctx.fill();
+        } else {
+            // 찰칵: 퍼지는 고리 + 섬광
+            const k = Math.min(1, (this.elapsed - this.duration * this.clickAt) / 0.25);
+            const a = 1 - k;
+            if (a > 0) {
+                ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.9})`;
+                ctx.lineWidth = 3 * a + 0.5;
+                ctx.beginPath(); ctx.arc(cx, cy, 8 + 40 * k, 0, Math.PI * 2); ctx.stroke();
+                const flash = ctx.createRadialGradient(cx, cy, 0, cx, cy, 26);
+                flash.addColorStop(0, `rgba(255,255,255,${a})`); flash.addColorStop(1, `rgba(${r},${g},${b},0)`);
+                ctx.fillStyle = flash; ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
+
+// ==========================================
+// 지나온 길이 베인다: 길 위에 비스듬한 칼자국이 출발점부터 차례로 번쩍이고, 길을 따라 긴 섬광
+//   (x0, y0) → (x1, y1): 지나온 길, width: 칼자국 길이 (판정 폭)
+// ==========================================
+class PathCutVFX extends SparkVFX {
+    constructor(x0, y0, x1, y1, options) {
+        super(options.color ?? '#ffffff');
+        this.x0 = x0; this.y0 = y0; this.x1 = x1; this.y1 = y1;
+        this.angle = Math.atan2(y1 - y0, x1 - x0);
+        const length = Math.hypot(x1 - x0, y1 - y0);
+        const width = options.width ?? 150;
+        const count = Math.max(3, Math.round(length / 55));
+        this.cuts = [];
+        for (let i = 0; i < count; i++) {
+            const u = (i + 0.5) / count;
+            const side = i % 2 === 0 ? 1 : -1;
+            this.cuts.push({
+                x: x0 + (x1 - x0) * u, y: y0 + (y1 - y0) * u,
+                angle: this.angle + Math.PI / 2 + side * vfxRand(0.35, 0.6), // 길과 비스듬하게 엇갈린다
+                length: width * vfxRand(0.9, 1.15),
+                delay: i * 0.03,
+                sparked: false,
+            });
+        }
+        this.cutLife = 0.4;
+        this.total = (count - 1) * 0.03 + this.cutLife;
+    }
+
+    get finished() {
+        return this.elapsed >= this.total && this.sparksDone;
+    }
+
+    update(dt) {
+        super.update(dt);
+        for (const c of this.cuts) {
+            if (!c.sparked && this.elapsed >= c.delay) {
+                c.sparked = true;
+                for (let i = 0; i < 3; i++) {
+                    const along = vfxRand(-0.5, 0.5) * c.length;
+                    this.addSpark(c.x + Math.cos(c.angle) * along, c.y + Math.sin(c.angle) * along,
+                        c.angle + (Math.random() < 0.5 ? 0 : Math.PI) + vfxRand(-0.4, 0.4),
+                        vfxRand(100, 260), vfxRand(0.15, 0.3), vfxRand(1, 2));
+                }
+            }
+        }
+    }
+
+    draw(ctx) {
+        const [r, g, b] = this.rgb;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+
+        // 길을 따라 긴 섬광 (처음에 번쩍하고 사라진다)
+        const fa = Math.max(0, 1 - this.elapsed / 0.3);
+        if (fa > 0) {
+            ctx.beginPath(); ctx.moveTo(this.x0, this.y0); ctx.lineTo(this.x1, this.y1);
+            ctx.strokeStyle = `rgba(${r},${g},${b},${fa * 0.35})`; ctx.lineWidth = 22; ctx.stroke();
+            ctx.strokeStyle = `rgba(255,255,255,${fa * 0.8})`; ctx.lineWidth = 3; ctx.stroke();
+        }
+
+        // 칼자국: 가운데에서 양쪽으로 순식간에 그어지고 서서히 사라진다
+        for (const c of this.cuts) {
+            const t = this.elapsed - c.delay;
+            if (t < 0 || t > this.cutLife) continue;
+            const grow = Math.min(1, t / 0.05);
+            const a = 1 - Math.max(0, (t - 0.05) / (this.cutLife - 0.05));
+            const half = c.length / 2 * grow;
+            const dx = Math.cos(c.angle) * half, dy = Math.sin(c.angle) * half;
+            ctx.beginPath(); ctx.moveTo(c.x - dx, c.y - dy); ctx.lineTo(c.x + dx, c.y + dy);
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.5})`; ctx.lineWidth = 10 * a + 2; ctx.stroke();
+            ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 2.5 * a + 0.5; ctx.stroke();
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
