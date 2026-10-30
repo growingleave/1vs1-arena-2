@@ -86,6 +86,17 @@ function spawnSwordmanSlashVfx(owner, direction) {
         revealMode: 'rotate', // 그림이 돌면서 시작선 뒤에서 빠져나온다
         softEdge: 20 * Math.PI / 180,
     }));
+    // 칼끝이 지나가는 자리에서 튀는 불꽃 (그림과 같은 각도·속도로 지나간다)
+    const rotation = faceAngle - SWORDMAN_SLASH_CENTER;
+    Vfx.spawn(new SweepSparkVFX({
+        follow: owner,
+        color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+        radius: SWORDMAN_SLASH_RADIUS,
+        fromAngle: rotation + SWORDMAN_SLASH_RIGHT,
+        toAngle: rotation + SWORDMAN_SLASH_LEFT,
+        sweep: 0.15,
+        count: 14,
+    }));
 }
 
 // ==========================================
@@ -134,6 +145,12 @@ class SwordmanProjectileAttack {
 
     applyEffect(target) {
         slow(target, 2.0, 30);
+        // 맞은 자리 불꽃 (화면 효과라 게임 결과와는 무관)
+        Vfx.spawn(new HitSparkVFX(
+            (this.posX + target.rect.centerx) / 2, (this.posY + target.rect.centery) / 2,
+            { color: this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+              angle: Math.atan2(this.direction[1], this.direction[0]), count: 12, size: 22 },
+        ));
     }
 
     // 초승달 검기 그림을 판정 사각형에 맞춰 그린다 (그림이 아직 안 불러와졌으면 사각형)
