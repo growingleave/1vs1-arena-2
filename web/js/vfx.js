@@ -244,6 +244,7 @@ class SlashVFX {
 //   ghosts:    뒤따라오는 잔상 수 (기본 3)
 //   revealEase: 'easeOut'(기본, 처음엔 빠르게) 또는 'linear'(막대가 일정한 속도로 돈다)
 //   softEdge:  드러나는 경계를 흐리게 할 각도(라디안, 기본 0)
+//   afterSpin: 다 드러난 뒤 사라지는 동안 대상을 중심으로 더 도는 각도(라디안, 기본 0). 처음엔 빠르게 점점 느리게
 // ==========================================
 const vfxTintCache = new Map();
 
@@ -281,6 +282,7 @@ class RingSlashVFX {
         this.ghosts = options.ghosts ?? 3;              // 뒤따라오는 잔상 수
         this.revealEase = options.revealEase ?? 'easeOut'; // 'linear'면 막대가 일정한 속도로 돈다
         this.softEdge = options.softEdge ?? 0;          // 드러나는 경계를 이 각도(라디안)만큼 흐리게
+        this.afterSpin = options.afterSpin ?? 0;        // 다 드러난 뒤 사라지는 동안 더 도는 각도
         this.elapsed = 0;
     }
 
@@ -294,9 +296,16 @@ class RingSlashVFX {
 
     // 시각 t(초)에 그림이 얼마나 돌아가 있는지. 처음엔 빠르게, 끝으로 갈수록 느려진다
     spinAt(t) {
-        const life = Math.min(1, Math.max(0, t / (this.sweep + this.fade)));
         const dir = this.sweepAngle < 0 ? -1 : 1;
-        return dir * this.spinTotal * (1 - (1 - life) ** 3);
+        const life = Math.min(1, Math.max(0, t / (this.sweep + this.fade)));
+        const after = Math.min(1, Math.max(0, (t - this.sweep) / this.fade)); // 다 드러난 뒤 진행도
+        return dir * (this.spinTotal * (1 - (1 - life) ** 3) + this.afterSpin * (1 - (1 - after) ** 3));
+    }
+
+    // 지금 그림이 돌고 있는지 (잔상은 돌 때만 그린다)
+    isSpinning() {
+        if (this.spinTotal !== 0) return true;
+        return this.afterSpin !== 0 && this.elapsed > this.sweep;
     }
 
     draw(ctx) {
@@ -319,7 +328,8 @@ class RingSlashVFX {
         ctx.globalCompositeOperation = 'lighter';
 
         // 잔상: 조금 전 시각의 회전 각도로, 점점 옅게 (빠르게 도는 느낌)
-        for (let i = this.ghosts; i >= 1; i--) {
+        const ghosts = this.isSpinning() ? this.ghosts : 0;
+        for (let i = ghosts; i >= 1; i--) {
             const angle = this.spinAt(this.elapsed - i * 0.03);
             this.drawLayer(ctx, tinted, angle, size, ease, reveal, alpha * (0.45 - 0.12 * i), false);
         }
