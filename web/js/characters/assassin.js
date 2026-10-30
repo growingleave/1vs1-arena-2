@@ -71,13 +71,16 @@ class AssassinSpinAttack {
             startAngle: ASSASSIN_SPIN_IMAGE_START,
             sweepAngle: Math.PI * 2,
             sweep: this.lifespan / 1000,
-            fade: 0.25,
+            fade: 0.3,
             // 그림은 제자리에 두고, 어쌔신 앞에서 시작하는 보이지 않는 막대가 시계 방향으로
             // 일정한 속도로 한 바퀴 돌며 지나간 자리를 드러낸다
             spinTotal: 0,
-            ghosts: 0,
             revealEase: 'linear',
             softEdge: 25 * Math.PI / 180,
+            // 다 드러나면 막대가 돌던 속도를 이어받아 어쌔신을 중심으로 계속 돌며(점점 느리게) 사라진다.
+            // 막대 속도 = 한 바퀴 / 0.22초. 점점 느려지는 곡선(처음 속도 = 3 x 각도 / 시간)에 맞춘 각도
+            afterSpin: (Math.PI * 2 / (this.lifespan / 1000)) * 0.3 / 3,
+            ghosts: 3,                  // 도는 동안 뒤따라오는 잔상
         }));
     }
 
