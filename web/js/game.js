@@ -245,6 +245,21 @@ class Game {
     // 그리기
     // ------------------------------------------
     render(ctx) {
+        // 화면 흔들림: 바깥 빈틈은 검게 칠하고 전체를 살짝 민다 (화면 효과라 게임 결과와는 무관)
+        const [sx, sy] = Vfx.shakeOffset();
+        if (sx !== 0 || sy !== 0) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            ctx.save();
+            ctx.translate(sx, sy);
+            this.renderState(ctx);
+            ctx.restore();
+            return;
+        }
+        this.renderState(ctx);
+    }
+
+    renderState(ctx) {
         if (this.state === 'TITLE') this.renderTitle(ctx);
         else if (this.state === 'LOADOUT') this.renderLoadout(ctx);
         else if (this.state === 'VERSUS') this.renderVersus(ctx);

@@ -9,6 +9,8 @@ const VFX_MAX_ACTIVE = 16;
 
 const Vfx = {
     active: [],
+    shakeTime: 0,  // 화면 흔들림 남은 시간(초)
+    shakePower: 0, // 흔들림 세기(px)
 
     spawn(effect) {
         this.active.push(effect);
@@ -18,6 +20,23 @@ const Vfx = {
     update(dtSec) {
         for (const v of this.active) v.update(dtSec);
         this.active = this.active.filter(v => !v.finished);
+        this.shakeTime = Math.max(0, this.shakeTime - dtSec);
+    },
+
+    // 화면 흔들기 (더 센 흔들림이 오면 덮어쓴다)
+    shake(power, time) {
+        if (power >= this.shakePower * (this.shakeTime > 0 ? 1 : 0)) {
+            this.shakePower = power;
+            this.shakeTime = time;
+            this.shakeTotal = time;
+        }
+    },
+
+    // 이번 프레임 화면을 얼마나 밀지 [x, y] (점점 약해진다)
+    shakeOffset() {
+        if (this.shakeTime <= 0) return [0, 0];
+        const p = this.shakePower * (this.shakeTime / this.shakeTotal);
+        return [(Math.random() * 2 - 1) * p, (Math.random() * 2 - 1) * p];
     },
 
     draw(ctx) {
@@ -26,6 +45,7 @@ const Vfx = {
 
     clear() {
         this.active = [];
+        this.shakeTime = 0;
     },
 };
 
@@ -559,10 +579,16 @@ class HitSparkVFX extends SparkVFX {
 //   scaleY:  세로 배율 (가로는 지나온 거리에 맞춰 늘어난다)
 //   back, front: 출발점 뒤로 / 지금 위치 앞으로 얼마나 더 그릴지(px)
 //   fullDist: 끝까지 돌진하는 거리(px), softEdge: 드러나는 경계를 흐리게 할 길이(px)
+//   images, frameTime: 그림 여러 장을 frameTime(초)마다 번갈아 보여준다 (image 대신)
+//   colored: 그림에 이미 색이 들어 있으면 true (색을 입히지 않고 그대로 'lighter'로 그림)
 // ==========================================
 class StretchSlashVFX {
     constructor(options) {
-        this.image = options.image;
+        this.images = options.images ?? [options.image];
+        this.image = this.images[0];
+        this.frameTime = options.frameTime ?? 0.05;
+        this.colored = options.colored ?? false;
+        this.elapsed = 0;
         this.follow = options.follow;
         this.isActive = options.isActive;
         this.angle = options.angle;
@@ -587,6 +613,8 @@ class StretchSlashVFX {
     }
 
     update(dt) {
+        this.elapsed += dt;
+        this.image = this.images[Math.floor(this.elapsed / this.frameTime) % this.images.length];
         if (this.fadeT < 0) {
             const dx = this.follow.rect.centerx - this.startX, dy = this.follow.rect.centery - this.startY;
             this.dist = Math.max(this.dist, dx * Math.cos(this.angle) + dy * Math.sin(this.angle));
@@ -603,7 +631,7 @@ class StretchSlashVFX {
         const reach = this.back + this.dist + this.front;           // 꼬리에서 지금 앞끝까지 (화면 px)
         const length = this.fullDist > 0 ? this.back + this.fullDist + this.front : reach;
         const kx = length / (this.imageX1 - this.imageX0), ky = this.scaleY;
-        const tinted = vfxTinted(this.image, this.color);
+        const tinted = this.colored ? null : vfxTinted(this.image, this.color);
         ctx.save();
         ctx.translate(this.startX - Math.cos(this.angle) * this.back, this.startY - Math.sin(this.angle) * this.back);
         ctx.rotate(this.angle);
@@ -635,6 +663,10 @@ class StretchSlashVFX {
         const w = this.image.naturalWidth * kx, h = this.image.naturalHeight * ky;
         const x = -this.imageX0 * kx, y = -this.imageCY * ky;
         ctx.globalAlpha = alpha;
+        if (this.colored) {
+            ctx.drawImage(this.image, x, y, w, h);
+            return;
+        }
         ctx.drawImage(tinted, x, y, w, h);
         ctx.globalAlpha = alpha * 0.55;
         ctx.drawImage(this.image, x, y, w, h); // 흰 그림을 겹쳐 칼날을 밝게
@@ -714,79 +746,62 @@ class SheathVFX extends SparkVFX {
 }
 
 // ==========================================
-// 지나온 길이 베인다: 길 위에 비스듬한 칼자국이 출발점부터 차례로 번쩍이고, 길을 따라 긴 섬광
-//   (x0, y0) → (x1, y1): 지나온 길, width: 칼자국 길이 (판정 폭)
+// 지나온 길이 한 번에 베인다: 미리 구운 칼자국 그림을 길 위에 번쩍 띄우고(글리치 그림 번갈아),
+// 잠깐 화면을 어둡게 했다가 사라진다
+//   (x0, y0) → (x1, y1): 지나온 길
+//   images: 그림 여러 장 (색이 들어 있음, 'lighter'로 그림), frameTime: 번갈아 보여줄 간격(초)
+//   imageX0, imageX1, imageCY: 그림 속 길의 시작·끝 x, 가운데 y
+//   margin: 길 앞뒤로 더 그릴 길이(px), scaleY: 세로 배율, duration: 전체 시간(초)
 // ==========================================
-class PathCutVFX extends SparkVFX {
+class CutBurstVFX {
     constructor(x0, y0, x1, y1, options) {
-        super(options.color ?? '#ffffff');
-        this.x0 = x0; this.y0 = y0; this.x1 = x1; this.y1 = y1;
+        this.x0 = x0; this.y0 = y0;
         this.angle = Math.atan2(y1 - y0, x1 - x0);
-        const length = Math.hypot(x1 - x0, y1 - y0);
-        const width = options.width ?? 150;
-        const count = Math.max(3, Math.round(length / 55));
-        this.cuts = [];
-        for (let i = 0; i < count; i++) {
-            const u = (i + 0.5) / count;
-            const side = i % 2 === 0 ? 1 : -1;
-            this.cuts.push({
-                x: x0 + (x1 - x0) * u, y: y0 + (y1 - y0) * u,
-                angle: this.angle + Math.PI / 2 + side * vfxRand(0.35, 0.6), // 길과 비스듬하게 엇갈린다
-                length: width * vfxRand(0.9, 1.15),
-                delay: i * 0.03,
-                sparked: false,
-            });
-        }
-        this.cutLife = 0.4;
-        this.total = (count - 1) * 0.03 + this.cutLife;
+        this.length = Math.hypot(x1 - x0, y1 - y0);
+        this.images = options.images;
+        this.frameTime = options.frameTime ?? 0.04;
+        this.imageX0 = options.imageX0;
+        this.imageX1 = options.imageX1;
+        this.imageCY = options.imageCY;
+        this.margin = options.margin ?? 35;
+        this.scaleY = options.scaleY ?? 1;
+        this.duration = options.duration ?? 0.55;
+        this.darken = options.darken ?? 0.4; // 화면을 어둡게 하는 정도 (0이면 안 함)
+        this.elapsed = 0;
     }
 
     get finished() {
-        return this.elapsed >= this.total && this.sparksDone;
+        return this.elapsed >= this.duration;
     }
 
     update(dt) {
-        super.update(dt);
-        for (const c of this.cuts) {
-            if (!c.sparked && this.elapsed >= c.delay) {
-                c.sparked = true;
-                for (let i = 0; i < 3; i++) {
-                    const along = vfxRand(-0.5, 0.5) * c.length;
-                    this.addSpark(c.x + Math.cos(c.angle) * along, c.y + Math.sin(c.angle) * along,
-                        c.angle + (Math.random() < 0.5 ? 0 : Math.PI) + vfxRand(-0.4, 0.4),
-                        vfxRand(100, 260), vfxRand(0.15, 0.3), vfxRand(1, 2));
-                }
-            }
-        }
+        this.elapsed += dt;
     }
 
     draw(ctx) {
-        const [r, g, b] = this.rgb;
+        const t = this.elapsed / this.duration;
+        // 화면 어둡게: 처음에 확 어두워졌다가 빠르게 돌아온다
+        if (this.darken > 0) {
+            const d = this.darken * Math.max(0, 1 - t * 2);
+            if (d > 0) {
+                ctx.fillStyle = `rgba(0,0,0,${d})`;
+                ctx.fillRect(-50, -50, WIDTH + 100, HEIGHT + 100);
+            }
+        }
+        const image = this.images[Math.floor(this.elapsed / this.frameTime) % this.images.length];
+        if (!isImageReady(image)) return;
+        // 처음 잠깐은 더 밝게(두 번 겹쳐 그림), 0.15초 유지 후 사라진다
+        const alpha = t < 0.27 ? 1 : Math.max(0, 1 - (t - 0.27) / 0.73);
+        const kx = (this.length + this.margin * 2) / (this.imageX1 - this.imageX0);
+        const ky = this.scaleY * (1 + 0.06 * t); // 사라지면서 살짝 퍼진다
+        const w = image.naturalWidth * kx, h = image.naturalHeight * ky;
         ctx.save();
+        ctx.translate(this.x0 - Math.cos(this.angle) * this.margin, this.y0 - Math.sin(this.angle) * this.margin);
+        ctx.rotate(this.angle);
         ctx.globalCompositeOperation = 'lighter';
-        ctx.lineCap = 'round';
-
-        // 길을 따라 긴 섬광 (처음에 번쩍하고 사라진다)
-        const fa = Math.max(0, 1 - this.elapsed / 0.3);
-        if (fa > 0) {
-            ctx.beginPath(); ctx.moveTo(this.x0, this.y0); ctx.lineTo(this.x1, this.y1);
-            ctx.strokeStyle = `rgba(${r},${g},${b},${fa * 0.35})`; ctx.lineWidth = 22; ctx.stroke();
-            ctx.strokeStyle = `rgba(255,255,255,${fa * 0.8})`; ctx.lineWidth = 3; ctx.stroke();
-        }
-
-        // 칼자국: 가운데에서 양쪽으로 순식간에 그어지고 서서히 사라진다
-        for (const c of this.cuts) {
-            const t = this.elapsed - c.delay;
-            if (t < 0 || t > this.cutLife) continue;
-            const grow = Math.min(1, t / 0.05);
-            const a = 1 - Math.max(0, (t - 0.05) / (this.cutLife - 0.05));
-            const half = c.length / 2 * grow;
-            const dx = Math.cos(c.angle) * half, dy = Math.sin(c.angle) * half;
-            ctx.beginPath(); ctx.moveTo(c.x - dx, c.y - dy); ctx.lineTo(c.x + dx, c.y + dy);
-            ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.5})`; ctx.lineWidth = 10 * a + 2; ctx.stroke();
-            ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 2.5 * a + 0.5; ctx.stroke();
-        }
-        this.drawSparks(ctx);
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(image, -this.imageX0 * kx, -this.imageCY * ky, w, h);
+        if (t < 0.12) ctx.drawImage(image, -this.imageX0 * kx, -this.imageCY * ky, w, h);
         ctx.restore();
     }
 }
