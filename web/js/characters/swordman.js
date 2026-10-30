@@ -267,8 +267,12 @@ class SwordmanDashAttack {
 }
 
 // ==========================================
-// [검사 - 궁극기] 일섬 거대 돌진
+// [검사 - 궁극기] 일섬: 선딜 → 전방 돌진(닿은 적 기절) → 납도 → 지나온 길이 베이며 피해
 // ==========================================
+const SWORDMAN_ULT_WINDUP = 0.6;  // 선딜(초), 무적
+const SWORDMAN_ULT_SHEATH = 0.6;  // 납도 연출(초), 못 움직이고 무적
+const SWORDMAN_ULT_STUN_AFTER = 0.5; // 베인 뒤에도 남는 기절(초)
+
 class SwordmanUltDashAttack {
     constructor(owner, direction, color) {
         this.owner = owner;
@@ -280,18 +284,40 @@ class SwordmanUltDashAttack {
         this.duration = 350;
         this.startTime = Time.now;
         this.hitPlayers = [];
+        this.marked = [];      // 돌진에 닿아 기절한 대상 (납도가 끝나면 피해)
+        this.phase = 'dash';   // 'dash' → 'sheath'
+        this.sheathStart = 0;
 
         this.width = 70;
         this.height = 150;
         this.angle = directionToAngle(direction);
-        this.posX = owner.rect.centerx;
-        this.posY = owner.rect.centery;
+        this.startX = owner.rect.centerx;
+        this.startY = owner.rect.centery;
+        this.posX = this.startX;
+        this.posY = this.startY;
 
         this.isDash = true;
         this.canPenetrateWalls = false;
+
+        const color2 = owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
+        // 돌진 자국: 판정(150px)만큼 굵게, 지나간 만큼 드러난다
+        Vfx.spawn(new StretchSlashVFX({
+            image: SWORDMAN_DASH_IMAGE,
+            follow: owner,
+            isActive: () => this.phase === 'dash',
+            angle: Math.atan2(direction[1], direction[0]),
+            imageX0: SWORDMAN_DASH_X0, imageX1: SWORDMAN_DASH_X1, imageCY: SWORDMAN_DASH_CY,
+            scaleY: SWORDMAN_DASH_SCALE_Y * this.height / 60,
+            back: 35, front: 35,
+            fullDist: this.dashSpeed * this.duration / (1000 / 60),
+            softEdge: 60,
+            color: color2,
+            fade: SWORDMAN_ULT_SHEATH, // 납도하는 동안 서서히 사라진다
+        }));
     }
 
     update(walls) {
+        if (this.phase !== 'dash') return;
         slow(this.owner, 0.1, 100);
         const timeScale = this.owner.timeScale;
         moveEntityWithWalls(this.owner,
@@ -301,23 +327,65 @@ class SwordmanUltDashAttack {
         this.posY = this.owner.rect.centery;
     }
 
-
+    // 돌진이 끝나면 납도, 납도가 끝나면 베기. 납도가 끝나야 사라진다
     isExpired() {
-        const expired = Time.now - this.startTime >= this.duration;
-        if (expired) finishDash(this.owner);
-        return expired;
+        if (this.phase === 'dash') {
+            if (Time.now - this.startTime < this.duration) return false; // 벽에 막히면 startTime이 당겨져 일찍 끝난다
+            this.startSheath();
+            return false;
+        }
+        if (Time.now - this.sheathStart < SWORDMAN_ULT_SHEATH * 1000) return false;
+        this.cut();
+        return true;
+    }
+
+    startSheath() {
+        this.phase = 'sheath';
+        this.sheathStart = Time.now;
+        finishDash(this.owner);
+        this.owner.castTimer = SWORDMAN_ULT_SHEATH;          // 납도하는 동안 아무것도 못 함
+        defenseMod(this.owner, SWORDMAN_ULT_SHEATH, 100);    // 무적
+        Vfx.spawn(new SheathVFX(this.owner, Math.atan2(this.direction[1], this.direction[0]), {
+            color: this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+            duration: SWORDMAN_ULT_SHEATH,
+        }));
+    }
+
+    // 납도 끝: 지나온 길이 베이고, 기절시킨 대상에게 피해
+    cut() {
+        const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
+        Vfx.spawn(new PathCutVFX(this.startX, this.startY, this.posX, this.posY, { color, width: this.height }));
+        for (const target of this.marked) {
+            if (!canBeHit(this, target)) continue;
+            const finalDamage = target.takeDamage(this.damage);
+            this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+            Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+                { color, angle: Math.atan2(this.direction[1], this.direction[0]), count: 16, size: 34 }));
+        }
     }
 
     getPolygonPoints() {
         return rotatedRectPoints(this.posX, this.posY, this.width, this.height, this.angle);
     }
 
+    // 돌진 중 닿으면 피해 없이 기절만 건다 (피해는 납도가 끝날 때 cut()에서).
+    // 그래서 game.js가 바로 피해를 주지 않도록 항상 false를 돌려준다
     collidesWith(target) {
-        return canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect);
+        if (this.phase !== 'dash' || this.marked.includes(target)) return false;
+        if (canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect)) {
+            const remain = Math.max(0, this.duration - (Time.now - this.startTime)) / 1000;
+            const stunTime = remain + SWORDMAN_ULT_SHEATH + SWORDMAN_ULT_STUN_AFTER;
+            slow(target, stunTime, 100);
+            silence(target, stunTime); // 이동 불가 + 침묵 = 기절
+            this.marked.push(target);
+        }
+        return false;
     }
 
+    // 그림(돌진 자국, 납도, 베기)이 대신 보여서 판정 범위는 그리지 않는다
     draw(ctx) {
-        drawPolygon(ctx, this.getPolygonPoints(), `rgba(255, 215, 0, ${90 / 255})`, COLOR_WHITE, 3);
+        if (isImageReady(SWORDMAN_DASH_IMAGE)) return;
+        if (this.phase === 'dash') drawPolygon(ctx, this.getPolygonPoints(), `rgba(255, 215, 0, ${90 / 255})`, COLOR_WHITE, 3);
     }
 }
 
@@ -364,8 +432,8 @@ class SwordmanUltSkill extends Skill {
     }
 
     use(owner, direction, attacks, color) {
-        owner.castTimer = 1.0;
-        defenseMod(owner, 1.0, 100); // 1초 기 모으는 동안 무적
+        owner.castTimer = SWORDMAN_ULT_WINDUP;
+        defenseMod(owner, SWORDMAN_ULT_WINDUP, 100); // 기 모으는 동안 무적
         owner.pendingAction = () => {
             this.lastUsed = Time.now;
             attacks.push(new SwordmanUltDashAttack(owner, direction, color));
@@ -395,7 +463,7 @@ function applySwordmanToPlayer(player) {
 const SWORDMAN_CHARACTER_DATA = {
     id: 'SWORDMAN',
     name: '검사',
-    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 앞으로 강하게 돌진합니다(45)',
+    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 검을 넣는 순간 지나온 길을 베어냅니다(45)',
     apply: applySwordmanToPlayer,
     thumbnail: null,
 };
