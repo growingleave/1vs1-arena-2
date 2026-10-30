@@ -222,3 +222,101 @@ class SlashVFX {
         ctx.globalAlpha = 1;
     }
 }
+
+// ==========================================
+// RingSlashVFX: 그림 한 장(흰색, 배경 투명)으로 만드는 회전 베기 이펙트
+// 1. 부채꼴로 가린 뒤 그 부채꼴을 돌리면서 그림을 조금씩 드러낸다 (칼이 그어지는 느낌)
+// 2. 다 드러나면 살짝 커지고 같은 방향으로 조금 더 돌면서 흐려진다
+// 그림은 흰색이라 색을 입혀 쓴다 (색 입힌 그림 + 흰 그림을 겹쳐 가운데가 하얗게 빛나게)
+//
+// 옵션
+//   image:     흰색 그림 (loadImage로 불러온 것)
+//   follow:    이 대상(플레이어)의 가운데를 따라다닌다 (없으면 x, y 고정)
+//   size:      그림을 그릴 크기(px, 정사각형)
+//   color:     '#rrggbb'
+//   rotation:  그림 전체를 돌리는 각도(라디안)
+//   startAngle: 드러나기 시작하는 각도(라디안, 그림 기준)
+//   sweepAngle: 드러나는 총 각도 (기본 2π, 음수면 반대 방향)
+//   sweep:     다 드러나는 데 걸리는 시간(초)
+//   fade:      그 뒤 사라지는 데 걸리는 시간(초)
+// ==========================================
+const vfxTintCache = new Map();
+
+// 흰색 그림을 color로 물들인 복사본 (색마다 한 번만 만든다)
+function vfxTinted(image, color) {
+    const key = `${image.src}|${color}`;
+    let tinted = vfxTintCache.get(key);
+    if (tinted) return tinted;
+    tinted = document.createElement('canvas');
+    tinted.width = image.naturalWidth;
+    tinted.height = image.naturalHeight;
+    const tctx = tinted.getContext('2d');
+    tctx.drawImage(image, 0, 0);
+    tctx.globalCompositeOperation = 'source-in';
+    tctx.fillStyle = color;
+    tctx.fillRect(0, 0, tinted.width, tinted.height);
+    vfxTintCache.set(key, tinted);
+    return tinted;
+}
+
+class RingSlashVFX {
+    constructor(x, y, options) {
+        this.image = options.image;
+        this.follow = options.follow || null;
+        this.x = x;
+        this.y = y;
+        this.size = options.size ?? 140;
+        this.color = options.color ?? '#ffffff';
+        this.rotation = options.rotation ?? 0;
+        this.startAngle = options.startAngle ?? 0;
+        this.sweepAngle = options.sweepAngle ?? Math.PI * 2;
+        this.sweep = options.sweep ?? 0.2;
+        this.fade = options.fade ?? 0.25;
+        this.elapsed = 0;
+    }
+
+    get finished() {
+        return this.elapsed >= this.sweep + this.fade;
+    }
+
+    update(dt) {
+        this.elapsed += dt;
+    }
+
+    draw(ctx) {
+        if (!isImageReady(this.image)) return;
+        const cx = this.follow ? this.follow.rect.centerx : this.x;
+        const cy = this.follow ? this.follow.rect.centery : this.y;
+
+        const reveal = Math.min(1, this.elapsed / this.sweep);                  // 0 → 1: 그어지는 중
+        const fadeT = Math.max(0, (this.elapsed - this.sweep) / this.fade);      // 0 → 1: 사라지는 중
+        const ease = 1 - (1 - reveal) ** 2;                                     // 처음엔 빠르게, 끝에서 부드럽게
+        const alpha = 1 - fadeT;
+        if (alpha <= 0) return;
+
+        const size = this.size * (1 + 0.15 * fadeT);         // 사라지면서 살짝 커진다
+        const spin = this.sweepAngle * 0.08 * fadeT;           // 같은 방향으로 조금 더 돈다
+        const tinted = vfxTinted(this.image, this.color);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(this.rotation + spin);
+
+        // 드러난 부분만 보이게 부채꼴로 자르기 (다 드러난 뒤에는 자르지 않는다)
+        if (reveal < 1) {
+            const r = size;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, r, this.startAngle, this.startAngle + this.sweepAngle * ease, this.sweepAngle < 0);
+            ctx.closePath();
+            ctx.clip();
+        }
+
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(tinted, -size / 2, -size / 2, size, size);
+        ctx.globalAlpha = alpha * 0.55;                        // 흰 그림을 겹쳐 가운데를 밝게
+        ctx.drawImage(this.image, -size / 2, -size / 2, size, size);
+        ctx.restore();
+    }
+}

@@ -1,6 +1,11 @@
 // 어쌔신 (abilities/assassin.py를 옮김)
 
 const MAX_ASSASSIN_CHARGE = 3;
+
+// 회전 베기 이펙트 그림 (흰색, 배경 투명). 원 모양 칼자국이 오른쪽 위(약 -37도)에서 시작해
+// 시계 방향으로 한 바퀴 가까이 돈다
+const ASSASSIN_SPIN_IMAGE = loadImage('assets/assassin_spin.png');
+const ASSASSIN_SPIN_IMAGE_START = -37 * Math.PI / 180;
 const ULT_SLASH_PHASE_DURATION = 260; // X자 참격 한 획이 지나가는 시간(ms)
 
 function addAssassinCharge(owner) {
@@ -54,13 +59,23 @@ class AssassinSpinAttack {
         this.lifespan = 220;
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
-        this.effectAngle = 0.0;
+
+        // 그림 이펙트: 바라보는 방향에서 시작해 시계 방향으로 한 바퀴 쓸고 지나간다 (화면 효과 전용)
+        const face = Math.atan2(owner.facing[1], owner.facing[0]);
+        Vfx.spawn(new RingSlashVFX(0, 0, {
+            image: ASSASSIN_SPIN_IMAGE,
+            follow: owner,
+            size: 135,
+            color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+            rotation: face - ASSASSIN_SPIN_IMAGE_START,
+            startAngle: ASSASSIN_SPIN_IMAGE_START,
+            sweepAngle: Math.PI * 2,
+            sweep: this.lifespan / 1000,
+            fade: 0.25,
+        }));
     }
 
-    update() {
-        this.effectAngle += 40.0;
-        if (this.effectAngle >= 360) this.effectAngle -= 360;
-    }
+    update() {}
 
     isExpired() { return Time.now - this.createdTime >= this.lifespan; }
 
@@ -69,23 +84,13 @@ class AssassinSpinAttack {
         return Math.hypot(target.rect.centerx - this.owner.rect.centerx, target.rect.centery - this.owner.rect.centery) <= this.radius;
     }
 
+    // 그림 이펙트(RingSlashVFX)가 주인공이라, 판정 범위는 옅은 원으로만 보여준다
     draw(ctx) {
         const progress = Math.min(1.0, (Time.now - this.createdTime) / this.lifespan);
-        const alpha = Math.max(0, Math.trunc(210 * (1.0 - progress))) / 255;
-        const cx = this.owner.rect.centerx;
-        const cy = this.owner.rect.centery;
-        const r = this.radius;
-        drawCircle(ctx, cx, cy, r - 2.5, null, `rgba(230, 230, 240, ${alpha})`, 5);
-
-        // 회전하는 칼날 3개
-        for (let i = 0; i < 3; i++) {
-            const ang = (this.effectAngle + i * 120) * Math.PI / 180;
-            drawLine(ctx, cx + Math.cos(ang) * r * 0.25, cy + Math.sin(ang) * r * 0.25,
-                     cx + Math.cos(ang) * r, cy + Math.sin(ang) * r, `rgba(255, 255, 255, ${alpha})`, 4);
-        }
+        drawCircle(ctx, this.owner.rect.centerx, this.owner.rect.centery, this.radius - 1, null,
+                   `rgba(230, 230, 240, ${0.25 * (1 - progress)})`, 2);
     }
 }
-
 class AssassinBasicSkill extends Skill {
     constructor() { super('Thrust / Spin Slash', 350, ['melee']); }
 
