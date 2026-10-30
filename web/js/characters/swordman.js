@@ -52,23 +52,39 @@ class SwordmanSlashAttack {
     }
 }
 
-// 평타 칼 이펙트: 부채꼴(반지름 60, 120도)을 쓸고 지나가는 방향과 크기에 맞춘다.
+// 평타 칼 이펙트: 부채꼴 그림(assets/swordman_slash.png)을 판정 부채꼴과 같은 방향으로 쓸며 드러낸다.
 // 화면 효과 전용이라 게임 결과와는 무관하다 (vfx.js 설명 참고)
+const SWORDMAN_SLASH_IMAGE = loadImage('assets/swordman_slash.png');
+// 그림 정보 (400×222): 부채꼴 꼭짓점 위치(비율), 그림 속 반지름(px), 오른쪽/왼쪽 반지름 각도와 가운데 방향
+const SWORDMAN_SLASH_APEX = [0.5034, 0.9953];
+const SWORDMAN_SLASH_IMAGE_RADIUS = 221;
+const SWORDMAN_SLASH_RIGHT = -19.2 * Math.PI / 180;
+const SWORDMAN_SLASH_LEFT = -161.7 * Math.PI / 180;
+const SWORDMAN_SLASH_CENTER = (SWORDMAN_SLASH_RIGHT + SWORDMAN_SLASH_LEFT) / 2;
+const SWORDMAN_SLASH_RADIUS = 78; // 화면에 보이는 반지름 (판정 60보다 살짝 크게)
+
 function spawnSwordmanSlashVfx(owner, direction) {
     const faceAngle = Math.atan2(direction[1], direction[0]); // 화면 좌표 기준 바라보는 방향
-    Vfx.spawn(new SlashVFX(
-        owner.rect.centerx + direction[0] * 30, // 부채꼴 현(chord)의 가운데
-        owner.rect.centery + direction[1] * 30,
-        {
-            palette: owner.playerNum === 2 ? 'blue' : 'red',
-            angle: faceAngle - Math.PI / 2, // 판정과 같은 방향으로 쓸고 지나간다
-            length: 170,                    // scale 0.65 → 실제 110px (부채꼴 현 길이와 비슷)
-            curve: 60,                      // 바라보는 쪽으로 볼록하게
-            scale: 0.65,
-            duration: 0.45,
-            sweep: 0.15,                    // 판정 부채꼴(150ms)과 같은 속도로 그어진다
-        },
-    ));
+    const k = SWORDMAN_SLASH_RADIUS / SWORDMAN_SLASH_IMAGE_RADIUS;
+    Vfx.spawn(new RingSlashVFX(0, 0, {
+        image: SWORDMAN_SLASH_IMAGE,
+        follow: owner,
+        width: 400 * k,
+        height: 222 * k,
+        anchorX: SWORDMAN_SLASH_APEX[0],
+        anchorY: SWORDMAN_SLASH_APEX[1],
+        color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+        rotation: faceAngle - SWORDMAN_SLASH_CENTER,
+        // 판정처럼 오른쪽(바라보는 방향 +60도 쪽)에서 왼쪽으로 쓸고 지나간다
+        startAngle: SWORDMAN_SLASH_RIGHT,
+        sweepAngle: SWORDMAN_SLASH_LEFT - SWORDMAN_SLASH_RIGHT,
+        sweep: 0.15,          // 판정 부채꼴(150ms)과 같은 속도
+        fade: 0.3,
+        spinTotal: 0,
+        ghosts: 0,
+        revealEase: 'linear',
+        softEdge: 20 * Math.PI / 180,
+    }));
 }
 
 // ==========================================

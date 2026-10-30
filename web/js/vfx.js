@@ -272,6 +272,10 @@ class RingSlashVFX {
         this.x = x;
         this.y = y;
         this.size = options.size ?? 140;
+        this.width = options.width ?? this.size;   // 그림 크기 (기본은 size×size 정사각형)
+        this.height = options.height ?? this.size;
+        this.anchorX = options.anchorX ?? 0.5;     // 그림에서 회전 중심(플레이어 위치)이 있는 곳 (0~1)
+        this.anchorY = options.anchorY ?? 0.5;
         this.color = options.color ?? '#ffffff';
         this.rotation = options.rotation ?? 0;
         this.startAngle = options.startAngle ?? 0;
@@ -320,7 +324,7 @@ class RingSlashVFX {
         const alpha = 1 - fadeT;
         if (alpha <= 0) return;
 
-        const size = this.size * (1 + 0.15 * fadeT);         // 사라지면서 살짝 커진다
+        const scale = 1 + 0.15 * fadeT;                       // 사라지면서 살짝 커진다
         const tinted = vfxTinted(this.image, this.color);
 
         ctx.save();
@@ -331,55 +335,58 @@ class RingSlashVFX {
         const ghosts = this.isSpinning() ? this.ghosts : 0;
         for (let i = ghosts; i >= 1; i--) {
             const angle = this.spinAt(this.elapsed - i * 0.03);
-            this.drawLayer(ctx, tinted, angle, size, ease, reveal, alpha * (0.45 - 0.12 * i), false);
+            this.drawLayer(ctx, tinted, angle, scale, ease, reveal, alpha * (0.45 - 0.12 * i), false);
         }
-        this.drawLayer(ctx, tinted, this.spinAt(this.elapsed), size, ease, reveal, alpha, true);
+        this.drawLayer(ctx, tinted, this.spinAt(this.elapsed), scale, ease, reveal, alpha, true);
         ctx.restore();
     }
 
     // 그림 한 장 그리기. withCore면 흰 그림을 겹쳐 가운데를 밝게 한다
-    drawLayer(ctx, tinted, spin, size, ease, reveal, alpha, withCore) {
+    drawLayer(ctx, tinted, spin, scale, ease, reveal, alpha, withCore) {
         if (alpha <= 0) return;
         ctx.save();
         ctx.rotate(this.rotation + spin);
 
         if (reveal >= 1) {
-            this.drawImages(ctx, tinted, size, alpha, withCore);
+            this.drawImages(ctx, tinted, scale, alpha, withCore);
         } else {
             // 보이지 않는 막대가 startAngle에서 돌아가며 지나간 자리만 드러낸다 (부채꼴로 자르기)
             const dir = this.sweepAngle < 0 ? -1 : 1;
             const edge = this.startAngle + this.sweepAngle * ease; // 막대가 지금 있는 각도
-            this.drawWedge(ctx, tinted, size, this.startAngle, edge, alpha, withCore);
+            this.drawWedge(ctx, tinted, scale, this.startAngle, edge, alpha, withCore);
             // 경계를 흐리게: 막대 바로 앞을 옅게 두 겹 (칼끝이 쓸고 지나가는 느낌)
             if (this.softEdge > 0) {
                 const half = this.softEdge / 2 * dir;
-                this.drawWedge(ctx, tinted, size, edge, edge + half, alpha * 0.5, false);
-                this.drawWedge(ctx, tinted, size, edge + half, edge + half * 2, alpha * 0.2, false);
+                this.drawWedge(ctx, tinted, scale, edge, edge + half, alpha * 0.5, false);
+                this.drawWedge(ctx, tinted, scale, edge + half, edge + half * 2, alpha * 0.2, false);
             }
         }
         ctx.restore();
     }
 
     // from~to 각도 부채꼴 안에만 그림 그리기
-    drawWedge(ctx, tinted, size, from, to, alpha, withCore) {
+    drawWedge(ctx, tinted, scale, from, to, alpha, withCore) {
         if (alpha <= 0 || from === to) return;
+        const reach = Math.hypot(this.width, this.height) * scale; // 그림 전체를 덮는 반지름
         ctx.save();
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.arc(0, 0, size, from, to, to < from);
+        ctx.arc(0, 0, reach, from, to, to < from);
         ctx.closePath();
         ctx.clip();
-        this.drawImages(ctx, tinted, size, alpha, withCore);
+        this.drawImages(ctx, tinted, scale, alpha, withCore);
         ctx.restore();
     }
 
     // 색 입힌 그림 + (withCore면) 흰 그림을 겹쳐 가운데를 밝게
-    drawImages(ctx, tinted, size, alpha, withCore) {
+    drawImages(ctx, tinted, scale, alpha, withCore) {
+        const w = this.width * scale, h = this.height * scale;
+        const x = -w * this.anchorX, y = -h * this.anchorY;
         ctx.globalAlpha = alpha;
-        ctx.drawImage(tinted, -size / 2, -size / 2, size, size);
+        ctx.drawImage(tinted, x, y, w, h);
         if (withCore) {
             ctx.globalAlpha = alpha * 0.55;
-            ctx.drawImage(this.image, -size / 2, -size / 2, size, size);
+            ctx.drawImage(this.image, x, y, w, h);
         }
     }
 }
