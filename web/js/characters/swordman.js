@@ -183,10 +183,10 @@ const SWORDMAN_WAVE_W = 900, SWORDMAN_WAVE_H = 1024;
 const SWORDMAN_WAVE_SPAN = 940;
 const SWORDMAN_WAVE_FRONT = 780;
 
-// 돌진 베기 그림 (assets/swordman_dash.png 375x125, 오른쪽으로 긋는 일섬, tools/swordman_dash_gen.js로 생성)
-// 그림 속 꼬리 x 35 ~ 앞끝 x 325, 가운데 선 y 62.5. 세로는 원본 설계 배율(돌진 276px ↔ 그림 290px)을 그대로 쓴다
+// 돌진 베기 그림 (assets/swordman_dash.png 375x180, 오른쪽으로 긋는 일섬, tools/swordman_dash_gen.js로 생성)
+// 그림 속 꼬리 x 35 ~ 앞끝 x 325, 가운데 선 y 90. 세로는 원본 설계 배율(돌진 276px ↔ 그림 290px)을 그대로 쓴다
 const SWORDMAN_DASH_IMAGE = loadImage('assets/swordman_dash.png');
-const SWORDMAN_DASH_X0 = 35, SWORDMAN_DASH_X1 = 325, SWORDMAN_DASH_CY = 62.5;
+const SWORDMAN_DASH_X0 = 35, SWORDMAN_DASH_X1 = 325, SWORDMAN_DASH_CY = 90;
 const SWORDMAN_DASH_SCALE_Y = 276 / 290;
 
 // 돌진 공통: 돌진하는 동안 이동키로 더 움직이지 않게 슬로우 100%를 걸고, 끝나면 풀어준다
