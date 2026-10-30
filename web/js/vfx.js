@@ -545,3 +545,68 @@ class HitSparkVFX extends SparkVFX {
         ctx.restore();
     }
 }
+
+// ==========================================
+// 늘어나며 그어지는 베기 (돌진용)
+// 출발점(꼬리)은 그 자리에 두고, 앞끝은 돌진하는 사람을 따라가며 그림을 가로로 늘린다.
+// 돌진이 끝나면(벽에 막혀 일찍 끝나도) 그 자리에 멈춰서 사라진다.
+//   image:   흰색 그림, 진행 방향 = 오른쪽
+//   follow:  돌진하는 사람, isActive(): 돌진 중인지 (게임 상태를 읽기만 한다)
+//   angle:   진행 방향 (화면 각도, 라디안)
+//   imageX0, imageX1, imageCY: 그림 속 꼬리·앞끝 x, 가운데 선 y
+//   scaleY:  세로 배율 (가로는 지나온 거리에 맞춰 늘어난다)
+//   back, front: 출발점 뒤로 / 지금 위치 앞으로 얼마나 더 그릴지(px)
+// ==========================================
+class StretchSlashVFX {
+    constructor(options) {
+        this.image = options.image;
+        this.follow = options.follow;
+        this.isActive = options.isActive;
+        this.angle = options.angle;
+        this.imageX0 = options.imageX0;
+        this.imageX1 = options.imageX1;
+        this.imageCY = options.imageCY;
+        this.scaleY = options.scaleY;
+        this.back = options.back ?? 30;
+        this.front = options.front ?? 30;
+        this.color = options.color ?? '#ffffff';
+        this.fade = options.fade ?? 0.3;
+        this.startX = this.follow.rect.centerx;
+        this.startY = this.follow.rect.centery;
+        this.dist = 0;
+        this.fadeT = -1; // 멈춘 뒤 흐른 시간 (-1이면 아직 돌진 중)
+    }
+
+    get finished() {
+        return this.fadeT >= this.fade;
+    }
+
+    update(dt) {
+        if (this.fadeT < 0) {
+            const dx = this.follow.rect.centerx - this.startX, dy = this.follow.rect.centery - this.startY;
+            this.dist = Math.max(this.dist, dx * Math.cos(this.angle) + dy * Math.sin(this.angle));
+            if (!this.isActive()) this.fadeT = 0;
+        } else {
+            this.fadeT += dt;
+        }
+    }
+
+    draw(ctx) {
+        if (!isImageReady(this.image)) return;
+        const alpha = this.fadeT < 0 ? 1 : 1 - this.fadeT / this.fade;
+        if (alpha <= 0) return;
+        const length = this.back + this.dist + this.front;          // 화면에서 꼬리~앞끝 길이
+        const kx = length / (this.imageX1 - this.imageX0), ky = this.scaleY;
+        const w = this.image.naturalWidth, h = this.image.naturalHeight;
+        const x = -this.imageX0 * kx, y = -this.imageCY * ky;
+        ctx.save();
+        ctx.translate(this.startX - Math.cos(this.angle) * this.back, this.startY - Math.sin(this.angle) * this.back);
+        ctx.rotate(this.angle);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(vfxTinted(this.image, this.color), x, y, w * kx, h * ky);
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.drawImage(this.image, x, y, w * kx, h * ky); // 흰 그림을 겹쳐 칼날을 밝게
+        ctx.restore();
+    }
+}

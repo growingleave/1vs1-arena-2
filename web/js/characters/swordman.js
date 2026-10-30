@@ -183,6 +183,12 @@ const SWORDMAN_WAVE_W = 900, SWORDMAN_WAVE_H = 1024;
 const SWORDMAN_WAVE_SPAN = 940;
 const SWORDMAN_WAVE_FRONT = 780;
 
+// 돌진 베기 그림 (assets/swordman_dash.png 375x125, 오른쪽으로 긋는 일섬, tools/swordman_dash_gen.js로 생성)
+// 그림 속 꼬리 x 35 ~ 앞끝 x 325, 가운데 선 y 62.5. 세로는 원본 설계 배율(돌진 276px ↔ 그림 290px)을 그대로 쓴다
+const SWORDMAN_DASH_IMAGE = loadImage('assets/swordman_dash.png');
+const SWORDMAN_DASH_X0 = 35, SWORDMAN_DASH_X1 = 325, SWORDMAN_DASH_CY = 62.5;
+const SWORDMAN_DASH_SCALE_Y = 276 / 290;
+
 // 돌진 공통: 돌진하는 동안 이동키로 더 움직이지 않게 슬로우 100%를 걸고, 끝나면 풀어준다
 function finishDash(owner) {
     delete owner.statusEffects.slow;
@@ -210,6 +216,19 @@ class SwordmanDashAttack {
 
         this.isDash = true;
         this.canPenetrateWalls = false;
+
+        // 돌진 베기 그림: 출발점에서 플레이어를 따라 늘어나며 그어진다 (화면 효과라 게임 결과와는 무관)
+        Vfx.spawn(new StretchSlashVFX({
+            image: SWORDMAN_DASH_IMAGE,
+            follow: owner,
+            isActive: () => Time.now - this.startTime < this.duration, // 벽에 막히면 startTime이 당겨져 일찍 끝난다
+            angle: Math.atan2(direction[1], direction[0]),
+            imageX0: SWORDMAN_DASH_X0, imageX1: SWORDMAN_DASH_X1, imageCY: SWORDMAN_DASH_CY,
+            scaleY: SWORDMAN_DASH_SCALE_Y,
+            back: 30, front: 30, // 판정 상자 절반만큼 앞뒤로
+            color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+            fade: 0.3,
+        }));
     }
 
     update(walls) {
@@ -232,7 +251,9 @@ class SwordmanDashAttack {
         return canBeHit(this, target) && this.rect.colliderect(target.rect);
     }
 
+    // 돌진 베기 그림(StretchSlashVFX)이 대신 보여서, 그림이 아직 안 불러와졌을 때만 상자를 그린다
     draw(ctx) {
+        if (isImageReady(SWORDMAN_DASH_IMAGE)) return;
         const r = this.rect;
         ctx.fillStyle = withAlpha(this.color, 100 / 255);
         ctx.fillRect(r.x, r.y, r.w, r.h);
