@@ -242,6 +242,8 @@ class SlashVFX {
 //   fade:      그 뒤 사라지는 데 걸리는 시간(초)
 //   spinTotal: 전체 시간 동안 그림이 도는 각도(라디안, 기본 π). 처음엔 빠르게, 끝으로 갈수록 느리게
 //   ghosts:    뒤따라오는 잔상 수 (기본 3)
+//   revealEase: 'easeOut'(기본, 처음엔 빠르게) 또는 'linear'(막대가 일정한 속도로 돈다)
+//   softEdge:  드러나는 경계를 흐리게 할 각도(라디안, 기본 0)
 // ==========================================
 const vfxTintCache = new Map();
 
@@ -277,6 +279,8 @@ class RingSlashVFX {
         this.fade = options.fade ?? 0.25;
         this.spinTotal = options.spinTotal ?? Math.PI;  // 전체 시간 동안 그림이 도는 각도 (sweepAngle과 같은 방향)
         this.ghosts = options.ghosts ?? 3;              // 뒤따라오는 잔상 수
+        this.revealEase = options.revealEase ?? 'easeOut'; // 'linear'면 막대가 일정한 속도로 돈다
+        this.softEdge = options.softEdge ?? 0;          // 드러나는 경계를 이 각도(라디안)만큼 흐리게
         this.elapsed = 0;
     }
 
@@ -302,7 +306,8 @@ class RingSlashVFX {
 
         const reveal = Math.min(1, this.elapsed / this.sweep);                  // 0 → 1: 그어지는 중
         const fadeT = Math.max(0, (this.elapsed - this.sweep) / this.fade);      // 0 → 1: 사라지는 중
-        const ease = 1 - (1 - reveal) ** 2;                                     // 처음엔 빠르게, 끝에서 부드럽게
+        // 드러난 정도: 기본은 처음엔 빠르게 끝에서 부드럽게, 'linear'면 일정한 속도
+        const ease = this.revealEase === 'linear' ? reveal : 1 - (1 - reveal) ** 2;
         const alpha = 1 - fadeT;
         if (alpha <= 0) return;
 
@@ -328,21 +333,43 @@ class RingSlashVFX {
         ctx.save();
         ctx.rotate(this.rotation + spin);
 
-        // 드러난 부분만 보이게 부채꼴로 자르기 (다 드러난 뒤에는 자르지 않는다)
-        if (reveal < 1) {
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.arc(0, 0, size, this.startAngle, this.startAngle + this.sweepAngle * ease, this.sweepAngle < 0);
-            ctx.closePath();
-            ctx.clip();
+        if (reveal >= 1) {
+            this.drawImages(ctx, tinted, size, alpha, withCore);
+        } else {
+            // 보이지 않는 막대가 startAngle에서 돌아가며 지나간 자리만 드러낸다 (부채꼴로 자르기)
+            const dir = this.sweepAngle < 0 ? -1 : 1;
+            const edge = this.startAngle + this.sweepAngle * ease; // 막대가 지금 있는 각도
+            this.drawWedge(ctx, tinted, size, this.startAngle, edge, alpha, withCore);
+            // 경계를 흐리게: 막대 바로 앞을 옅게 두 겹 (칼끝이 쓸고 지나가는 느낌)
+            if (this.softEdge > 0) {
+                const half = this.softEdge / 2 * dir;
+                this.drawWedge(ctx, tinted, size, edge, edge + half, alpha * 0.5, false);
+                this.drawWedge(ctx, tinted, size, edge + half, edge + half * 2, alpha * 0.2, false);
+            }
         }
+        ctx.restore();
+    }
 
+    // from~to 각도 부채꼴 안에만 그림 그리기
+    drawWedge(ctx, tinted, size, from, to, alpha, withCore) {
+        if (alpha <= 0 || from === to) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, size, from, to, to < from);
+        ctx.closePath();
+        ctx.clip();
+        this.drawImages(ctx, tinted, size, alpha, withCore);
+        ctx.restore();
+    }
+
+    // 색 입힌 그림 + (withCore면) 흰 그림을 겹쳐 가운데를 밝게
+    drawImages(ctx, tinted, size, alpha, withCore) {
         ctx.globalAlpha = alpha;
         ctx.drawImage(tinted, -size / 2, -size / 2, size, size);
         if (withCore) {
             ctx.globalAlpha = alpha * 0.55;
             ctx.drawImage(this.image, -size / 2, -size / 2, size, size);
         }
-        ctx.restore();
     }
 }
