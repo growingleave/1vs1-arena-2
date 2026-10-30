@@ -99,8 +99,8 @@ class SwordmanProjectileAttack {
         this.damage = owner.baseAtk * 1.2;
         this.speed = 10.0;
 
-        this.width = 15;
-        this.height = 60;
+        this.width = 24;  // 진행 방향 두께 (원래 15)
+        this.height = 96; // 진행 방향과 수직인 길이 (원래 60)
         this.angle = directionToAngle(direction);
 
         this.posX = owner.rect.centerx;
@@ -142,13 +142,16 @@ class SwordmanProjectileAttack {
             drawPolygon(ctx, this.getPolygonPoints(), this.color, COLOR_WHITE, 2);
             return;
         }
-        const w = SWORDMAN_WAVE_SIZE[0], h = SWORDMAN_WAVE_SIZE[1];
+        // 그림 크기와 회전 중심을 판정 사각형에 맞춘다 (판정을 바꾸면 그림도 같이 커진다)
+        const k = this.height / SWORDMAN_WAVE_SPAN;            // 화면 px / 그림 px
+        const w = SWORDMAN_WAVE_W * k, h = SWORDMAN_WAVE_H * k;
+        const anchorX = SWORDMAN_WAVE_FRONT - (this.width / 2) / k; // 판정 가운데 = 앞날에서 두께 절반 뒤
         const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
         ctx.save();
         ctx.translate(this.posX, this.posY);
         ctx.rotate(-this.angle * Math.PI / 180); // angle은 위쪽이 + 기준이라 화면 회전은 반대
         ctx.globalCompositeOperation = 'lighter';
-        const x = -w * SWORDMAN_WAVE_ANCHOR[0], y = -h * SWORDMAN_WAVE_ANCHOR[1];
+        const x = -anchorX * k, y = -h / 2;
         ctx.drawImage(vfxTinted(SWORDMAN_WAVE_IMAGE, color), x, y, w, h);
         ctx.globalAlpha = 0.55;
         ctx.drawImage(SWORDMAN_WAVE_IMAGE, x, y, w, h); // 흰 그림을 겹쳐 앞날을 밝게
@@ -157,11 +160,11 @@ class SwordmanProjectileAttack {
 }
 
 // 검기 그림 (assets/swordman_wave.png, 오른쪽으로 날아가는 초승달)
-// 원본 900x1024 기준 초승달 끝~끝 940px → 판정 길이 60px에 맞춘다.
-// 판정 사각형 가운데 = 앞날(x 780)에서 판정 두께 절반(7.5px)만큼 뒤
+// 원본 900x1024 기준: 초승달 끝~끝 940px(판정 길이에 맞춤), 가운데 앞날 x 780
 const SWORDMAN_WAVE_IMAGE = loadImage('assets/swordman_wave.png');
-const SWORDMAN_WAVE_SIZE = [900 * 60 / 940, 1024 * 60 / 940];
-const SWORDMAN_WAVE_ANCHOR = [(780 - 7.5 * 940 / 60) / 900, 0.5];
+const SWORDMAN_WAVE_W = 900, SWORDMAN_WAVE_H = 1024;
+const SWORDMAN_WAVE_SPAN = 940;
+const SWORDMAN_WAVE_FRONT = 780;
 
 // 돌진 공통: 돌진하는 동안 이동키로 더 움직이지 않게 슬로우 100%를 걸고, 끝나면 풀어준다
 function finishDash(owner) {
