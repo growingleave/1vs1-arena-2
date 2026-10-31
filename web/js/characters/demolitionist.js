@@ -11,9 +11,15 @@ const DMX_ORANGE = '255, 150, 60';
 const DMX_RED = '255, 60, 30';
 
 // 이펙트 그림 (tools/demolitionist_gen.js로 생성)
-const DMX_BLAST_IMAGE = loadImage('assets/dmx_blast.png'); // 250x250 흰 빛, 가운데=그림 가운데 (색 입혀 'lighter')
-const DMX_SHOCK_IMAGE = loadImage('assets/dmx_shock.png'); // 280x150 흰 빛, 뒤쪽 기준점 (20,75) → 오른쪽으로 뻗음 (색 입혀 'lighter')
-const DMX_DUST_IMAGE = loadImage('assets/dmx_dust.png');   // 150x150 옅은 회갈색 먼지, 가운데=그림 가운데 (보통으로)
+const DMX_BLAST_IMAGE = loadImage('assets/dmx_blast.png');         // 280x280 평소 폭발 번쩍임 (멀티컬러, 가운데=그림 가운데) — 'lighter' 원본 그대로
+const DMX_BLAST_RED_IMAGE = loadImage('assets/dmx_blast_red.png'); // 280x280 변신/궁극기 폭발 번쩍임 (더 붉은 멀티컬러) — 'lighter' 원본 그대로
+const DMX_ROCKS_IMAGE = loadImage('assets/dmx_rocks.png');         // 280x280 날아가는 암석 파편, 가운데=그림 가운데 — 보통
+const DMX_SMOKE_IMAGE = loadImage('assets/dmx_smoke2.png');        // 280x350 치솟는 검은 연기, 바닥 기준점 x=140,y=325 — 보통
+const DMX_CRATER_IMAGE = loadImage('assets/dmx_crater.png');       // 280x280 바닥 크레이터/균열, 가운데=그림 가운데 — 보통
+const DMX_SHOCK_IMAGE = loadImage('assets/dmx_shock.png');         // 280x150 평소 충격파 글로우(흰 빛), 뒤쪽 기준점 (20,75) — 색 입혀 'lighter'
+const DMX_SHOCK_RED_IMAGE = loadImage('assets/dmx_shock_red.png'); // 280x150 변신 스킬1 균열형 충격파 (멀티컬러 빨강), 뒤쪽 기준점 (20,75) — 'lighter' 원본 그대로
+const DMX_PILLAR_IMAGE = loadImage('assets/dmx_pillar.png');       // 100x200 변신 스킬2 착탄 불기둥, 바닥 기준점 x=50,y=195 — 'lighter' 원본 그대로
+const DMX_DUST_IMAGE = loadImage('assets/dmx_dust.png');           // 150x150 옅은 회갈색 먼지, 가운데=그림 가운데 (밀림/후딜 궤적용) — 보통
 
 // 색 입힌 글로우 그림을 (x,y) 중심에 angle 회전, size(지름)로 그린다 ('lighter')
 function dmxDrawGlow(ctx, img, color, x, y, size, angle, alpha) {
@@ -23,6 +29,17 @@ function dmxDrawGlow(ctx, img, color, x, y, size, angle, alpha) {
     ctx.translate(x, y); ctx.rotate(angle);
     ctx.globalAlpha = Math.min(1, alpha);
     ctx.drawImage(vfxTinted(img, color), -size / 2, -size / 2, size, size);
+    ctx.restore();
+}
+
+// 이미 색이 섞여 구워진 그림을 원본 색 그대로 'lighter'로 그린다 (추가 tint 없음)
+function dmxDrawRaw(ctx, img, x, y, size, angle, alpha) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y); ctx.rotate(angle);
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
     ctx.restore();
 }
 
@@ -37,6 +54,17 @@ function dmxDrawShock(ctx, color, x, y, angle, scale, alpha) {
     ctx.restore();
 }
 
+// 변신 스킬1 균열형 충격파 그림 (멀티컬러, 색 그대로): 뒤쪽 기준점(그림의 20,75)을 (x,y)에 맞춰 angle 방향으로 뻗어나가게 그린다
+function dmxDrawShockRed(ctx, x, y, angle, scale, alpha) {
+    if (!isImageReady(DMX_SHOCK_RED_IMAGE) || alpha <= 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y); ctx.rotate(angle); ctx.scale(scale, scale);
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(DMX_SHOCK_RED_IMAGE, -20, -75);
+    ctx.restore();
+}
+
 // 먼지바람 (보통으로, 밝기 조절만)
 function dmxDrawDust(ctx, x, y, size, alpha) {
     if (!isImageReady(DMX_DUST_IMAGE) || alpha <= 0) return;
@@ -46,16 +74,65 @@ function dmxDrawDust(ctx, x, y, size, alpha) {
     ctx.restore();
 }
 
-// 폭발/충격 뒤에 은은하게 퍼지는 먼지바람 (화면 전용)
-class DmxDustVFX {
-    constructor(x, y, baseSize = 90) {
-        this.x = x; this.y = y; this.duration = 0.9; this.elapsed = 0; this.baseSize = baseSize;
-    }
+// 가운데=그림 가운데인 "보통" 합성 그림을 (x,y)에 size로 그린다 (암석 파편/크레이터용)
+function dmxDrawPlainCentered(ctx, img, x, y, size, alpha) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+    ctx.restore();
+}
+
+// 바닥 기준점(그림 가운데 아래쪽)이 (x,y)가 되도록 위로 치솟는 그림(연기/불기둥)을 그린다
+function dmxDrawRising(ctx, img, x, y, width, anchorYFrac, alpha, lighter) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    const scale = width / img.naturalWidth;
+    const h = img.naturalHeight * scale;
+    ctx.save();
+    if (lighter) ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(img, x - width / 2, y - h * anchorYFrac, width, h);
+    ctx.restore();
+}
+
+// 폭발 공통: 크레이터 → 연기 뭉치 → 암석 파편 (화면 전용, 폭파 느낌의 바탕)
+class DmxCraterVFX {
+    constructor(x, y, radius) { this.x = x; this.y = y; this.size = radius * 3.0; this.duration = 0.6; this.elapsed = 0; }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) { dmxDrawPlainCentered(ctx, DMX_CRATER_IMAGE, this.x, this.y, this.size, 0.85 * (1 - this.elapsed / this.duration)); }
+}
+
+class DmxSmokeVFX {
+    constructor(x, y, radius) { this.x = x; this.y = y; this.width = radius * 2.6; this.duration = 1.0; this.elapsed = 0; }
     get finished() { return this.elapsed >= this.duration; }
     update(dt) { this.elapsed += dt; }
     draw(ctx) {
         const t = this.elapsed / this.duration;
-        dmxDrawDust(ctx, this.x, this.y, this.baseSize * (0.6 + 0.8 * t), 0.5 * (1 - t));
+        const riseIn = t < 0.15 ? t / 0.15 : 1;
+        dmxDrawRising(ctx, DMX_SMOKE_IMAGE, this.x, this.y - t * this.width * 0.5, this.width * (0.8 + 0.5 * t), 0.93, 0.55 * (1 - t) * riseIn, false);
+    }
+}
+
+class DmxRocksVFX {
+    constructor(x, y, radius, vivid) { this.x = x; this.y = y; this.size = radius * (vivid ? 3.4 : 2.8); this.duration = 0.5; this.elapsed = 0; }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = this.elapsed / this.duration;
+        const scale = 0.85 + 0.3 * Math.min(1, t * 3);
+        dmxDrawPlainCentered(ctx, DMX_ROCKS_IMAGE, this.x, this.y, this.size * scale, 0.9 * (1 - t));
+    }
+}
+
+// 변신 스킬2 착탄 불기둥 (화면 전용)
+class DmxPillarVFX {
+    constructor(x, y) { this.x = x; this.y = y; this.duration = 0.35; this.elapsed = 0; }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = this.elapsed / this.duration;
+        dmxDrawRising(ctx, DMX_PILLAR_IMAGE, this.x, this.y, 70 * (1 - 0.2 * t), 0.975, 0.9 * (1 - t), true);
     }
 }
 
@@ -121,7 +198,7 @@ class DmxFallingBombVFX {
         ctx.globalAlpha = 0.9 * t + 0.1;
         ctx.fillStyle = '#2b2b30';
         ctx.beginPath(); ctx.arc(this.x, y, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = `rgba(255, 150, 60, ${0.5 * fall})`;
+        ctx.strokeStyle = `rgba(${DMX_RED}, ${0.5 * fall})`;
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(this.x, y - 14 * fall); ctx.lineTo(this.x, y); ctx.stroke();
         ctx.restore();
@@ -144,10 +221,13 @@ class DemolitionistExplosionEffect {
         this.lifespan = lifespan;
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
-        this.vivid = vivid; // 변신 중: 색은 그대로, 파티클·하이라이트만 화려하게
+        this.vivid = vivid; // 변신/궁극기: 더 붉은 멀티컬러 + 화려한 파티클
+        this.useRed = color === DMX_RED;
 
+        Vfx.spawn(new DmxCraterVFX(x, y, radius));
+        Vfx.spawn(new DmxSmokeVFX(x, y, radius));
+        Vfx.spawn(new DmxRocksVFX(x, y, radius, vivid));
         Vfx.spawn(new DmxBlastSparkVFX(x, y, `rgb(${color})`, radius, vivid));
-        Vfx.spawn(new DmxDustVFX(x, y, radius * (vivid ? 2.0 : 1.6)));
     }
 
     update() {}
@@ -160,12 +240,10 @@ class DemolitionistExplosionEffect {
 
     draw(ctx) {
         const progress = Math.min(1.0, Math.max(0.0, (Time.now - this.createdTime) / this.lifespan));
-        const tint = `rgb(${this.color})`;
         const grow = 1 - (1 - progress) ** 2; // 빠르게 커졌다가 서서히 사라짐
         const size = this.radius * 2.6 * (0.4 + 0.6 * grow);
         const alpha = (this.maxAlpha / 255) * (1 - progress) * (this.vivid ? 1.3 : 1);
-        dmxDrawGlow(ctx, DMX_BLAST_IMAGE, tint, this.posX, this.posY, size, 0, alpha);
-        if (this.vivid) dmxDrawGlow(ctx, DMX_BLAST_IMAGE, '#fff3c8', this.posX, this.posY, size * 0.55, 0, alpha * 0.8);
+        dmxDrawRaw(ctx, this.useRed ? DMX_BLAST_RED_IMAGE : DMX_BLAST_IMAGE, this.posX, this.posY, size, 0, alpha);
     }
 }
 
@@ -300,11 +378,13 @@ class DemolitionistSkill1Effect {
     draw(ctx) {
         const progress = Math.min(1, Math.max(0, (Time.now - this.createdTime) / this.lifespan));
         const fade = 1 - progress;
-        const tint = `rgb(${DMX_ORANGE})`;
         const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
         const scale = (this.isTransformed ? 0.58 : 0.42) * (0.85 + 0.3 * progress);
-        dmxDrawShock(ctx, tint, cx, cy, this.screenAngle, scale, 1.1 * fade);
-        if (this.isTransformed) dmxDrawShock(ctx, '#fff3c8', cx, cy, this.screenAngle, scale * 0.8, 0.6 * fade);
+        if (this.isTransformed) {
+            dmxDrawShockRed(ctx, cx, cy, this.screenAngle, scale, 1.15 * fade);
+        } else {
+            dmxDrawShock(ctx, `rgb(${DMX_ORANGE})`, cx, cy, this.screenAngle, scale, 1.1 * fade);
+        }
     }
 }
 
@@ -409,11 +489,13 @@ class DemolitionistSkill2DashManager {
     }
 
     spawnExplosion(mult, radius) {
-        // 폭탄이 위에서 떨어져 내려오는 짧은 선딜 연출 (화면 전용, 폭발 타이밍·판정은 그대로)
-        Vfx.spawn(new DmxFallingBombVFX(this.owner.rect.centerx, this.owner.rect.centery));
+        // 폭탄이 위에서 떨어져 착탄하는 짧은 선딜 연출 + 불기둥 (화면 전용, 폭발 타이밍·판정은 그대로)
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        Vfx.spawn(new DmxFallingBombVFX(cx, cy));
+        Vfx.spawn(new DmxPillarVFX(cx, cy));
         this.attacks.push(new DemolitionistExplosionEffect(
-            this.owner, this.owner.rect.centerx, this.owner.rect.centery, this.owner.baseAtk * mult, radius,
-            DMX_ORANGE, 200, 300, { vivid: true }));
+            this.owner, cx, cy, this.owner.baseAtk * mult, radius,
+            DMX_RED, 200, 300, { vivid: true }));
     }
 
     update(walls) {
