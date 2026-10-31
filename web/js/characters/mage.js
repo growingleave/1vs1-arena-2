@@ -75,6 +75,8 @@ class MageEnergyPulse {
         if (this.applySlow) slow(target, 1.5, 25);
         // 관통기가 아닌 평타는 맞으면 사라진다
         if (!this.canPenetrateWalls) this.lifespan = 0;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+            { color: this.color, angle: Math.atan2(this.direction[1], this.direction[0]), count: 10, size: 20 }));
     }
 
     draw(ctx) {
@@ -311,6 +313,13 @@ class MageSkyBombardment {
 
     isExpired() { return this.expired; }
 
+    // 전범위 강타에 맞으면 (collidesWith가 true일 때 game.js가 부른다)
+    applyEffect(target) {
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+            { color: '#64dcff', angle: Math.atan2(target.rect.centery - cy, target.rect.centerx - cx), count: 18, size: 36 }));
+    }
+
     canHitTarget(target) {
         return target !== this.owner && !target.invincible && target.defense < 100.0;
     }
@@ -322,6 +331,8 @@ class MageSkyBombardment {
             if (Math.hypot(target.rect.centerx - b.x, target.rect.centery - b.y) <= MAGE_ULT.bombRadius + 15) {
                 const finalDamage = target.takeDamage(this.owner.baseAtk * MAGE_ULT.bombDamage);
                 this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+                Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+                    { color: '#b478ff', angle: Math.atan2(target.rect.centery - b.y, target.rect.centerx - b.x), count: 6, size: 16 }));
             }
         }
         if (this.phase !== 'strike') return false;
@@ -432,6 +443,8 @@ class MagePiercingLaser extends BeamLaser {
 
     applyEffect(target) {
         slow(target, 1.5, 25);
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+            { color: '#b478ff', angle: Math.atan2(this.dirVec[1], this.dirVec[0]), count: 14, size: 26 }));
     }
 
     draw(ctx) {
