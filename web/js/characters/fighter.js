@@ -516,8 +516,21 @@ class FighterDashSkill extends Skill {
 }
 
 // ==========================================
-// [궁극기] 기를 모아 거대 충격파 3연발
+// [궁극기] 왼손 펀치 → 오른손 펀치 → 발차기
+// 한 번마다: 조준(범위 표시, 오른쪽 키 = 시계 방향 / 왼쪽 키 = 반시계 방향으로 돌릴 수 있음)
+//          → 고정(돌릴 수 없고 경고만) → 타격. 쓰는 동안 무적 + 제자리
+// 펀치 20, 발차기 30 + 강하게 밀침. 밀려서 벽(맵 끝 포함)에 부딪히면 추가 피해
 // ==========================================
+const FIGHTER_ULT = {
+    aim: 700, lock: 350,            // ms (한 번에 1.05초)
+    turnSpeed: 150,                 // 조준 중 회전 속도(도/초)
+    length: 500,                    // 앞으로 뻗는 길이
+    punchWidth: 220, kickWidth: 400, // 좌우 폭 (펀치는 좁게)
+    punchDamage: 20 / 15, kickDamage: 2.0, // baseAtk 배수 (15 기준 20 / 30)
+    knockTime: 0.3, knockPower: 1000, // 발차기 밀치기 (초, px/초) → 약 300px
+    wallDamage: 10,
+};
+
 // 기준점(시전 위치)에서 앞으로 width만큼 뻗는 사각형
 function fighterUltPoints(posX, posY, angle, width, height) {
     const hh = height / 2;
@@ -525,18 +538,20 @@ function fighterUltPoints(posX, posY, angle, width, height) {
 }
 
 class FighterUltHitbox {
-    constructor(owner, angle, posX, posY) {
+    constructor(owner, angle, posX, posY, { width, damage, kick, manager }) {
         this.owner = owner;
         this.angle = angle;
         this.posX = posX;
         this.posY = posY;
-        this.damage = owner.baseAtk * 2.0;
+        this.damage = owner.baseAtk * damage;
+        this.kick = kick;
+        this.manager = manager;
         this.createdTime = Time.now;
         this.lifespan = 150;
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
-        this.width = 500;
-        this.height = 400;
+        this.width = FIGHTER_ULT.length;
+        this.height = width;
     }
 
     getPolygonPoints() {
@@ -548,17 +563,22 @@ class FighterUltHitbox {
     isExpired() { return Time.now - this.createdTime >= this.lifespan; }
 
     collidesWith(target) {
-        if (!canBeHit(this, target)) return false;
-        if (checkPolygonCollision(this.getPolygonPoints(), target.rect) && !this.hitPlayers.includes(target)) {
-            this.hitPlayers.push(target);
-            return true;
-        }
-        return false;
+        return canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect);
     }
 
-    draw(ctx) {
-        drawPolygon(ctx, this.getPolygonPoints(), 'rgb(255, 80, 50)', COLOR_WHITE, 3);
+    applyEffect(target) {
+        const rad = this.angle * Math.PI / 180, dir = [Math.cos(rad), -Math.sin(rad)];
+        fighterHitSpark(target, Math.atan2(dir[1], dir[0]), this.kick ? 18 : 12, this.kick ? 38 : 28);
+        if (this.kick) {
+            forcedMove(target, FIGHTER_ULT.knockTime, FIGHTER_ULT.knockPower, dir);
+            this.manager.trackKnockback(target, dir);
+            Vfx.shake(7, 0.2);
+        } else {
+            Vfx.shake(4, 0.12);
+        }
     }
+
+    draw() {}
 }
 
 class FighterUltManager {
@@ -566,67 +586,230 @@ class FighterUltManager {
         this.owner = owner;
         this.attacks = attacks;
         this.createdTime = Time.now;
+        this.lastTick = Time.now;
         this.strikesDone = 0;
         this.damage = 0;
         this.hitPlayers = [];
-        this.width = 500;
-        this.height = 400;
-        this.angle = directionToAngle(direction);
+        this.angle = directionToAngle(direction); // 위쪽이 + 인 각도(도)
         this.posX = owner.rect.centerx;
         this.posY = owner.rect.centery;
+        this.knock = null; // 발차기로 밀리는 대상 { target, dir, until, lastX, lastY }
     }
 
-    getPolygonPoints() {
-        return fighterUltPoints(this.posX, this.posY, this.angle, this.width, this.height);
+    strikeWidth(i) { return i === 2 ? FIGHTER_ULT.kickWidth : FIGHTER_ULT.punchWidth; }
+
+    getPolygonPoints(i = this.strikesDone) {
+        return fighterUltPoints(this.posX, this.posY, this.angle, FIGHTER_ULT.length, this.strikeWidth(i));
     }
 
-    update() {
+    // 지금 몇 번째 타격의 어느 단계인지: 'aim' | 'lock' | 'done'
+    stage() {
+        if (this.strikesDone >= 3) return 'done';
+        const t = Time.now - this.createdTime - this.strikesDone * (FIGHTER_ULT.aim + FIGHTER_ULT.lock);
+        return t < FIGHTER_ULT.aim ? 'aim' : 'lock';
+    }
+
+    update(walls) {
+        const dt = (Time.now - this.lastTick) / 1000;
+        this.lastTick = Time.now;
+        const cycle = FIGHTER_ULT.aim + FIGHTER_ULT.lock;
         const elapsed = Time.now - this.createdTime;
 
-        // 3번째 충격파가 나갈 때까지 무적 + 행동 잠금
-        if (elapsed < 1850) {
+        if (this.strikesDone < 3) {
+            // 무적 + 제자리 + 다른 스킬 잠금
             defenseMod(this.owner, 0.1, 100);
             slow(this.owner, 0.1, 100);
             silence(this.owner, 0.1);
+            this.posX = this.owner.rect.centerx;
+            this.posY = this.owner.rect.centery;
+            // 조준 중에만 방향 돌리기 (오른쪽 = 시계 방향, 왼쪽 = 반시계 방향)
+            if (this.stage() === 'aim') {
+                const input = this.owner.input || {};
+                if (input.right) this.angle -= FIGHTER_ULT.turnSpeed * dt;
+                if (input.left) this.angle += FIGHTER_ULT.turnSpeed * dt;
+            }
+            if (elapsed >= (this.strikesDone + 1) * cycle) this.strike();
         }
+        this.updateKnockback(walls);
+    }
 
-        if (elapsed >= 1000 && this.strikesDone === 0) {
-            this.spawnStrike();
-            this.strikesDone = 1;
-        } else if (elapsed >= 1300 && this.strikesDone === 1) {
-            this.spawnStrike();
-            this.strikesDone = 2;
-        } else if (elapsed >= 1600 && this.strikesDone === 2) {
-            this.spawnStrike();
-            this.strikesDone = 3;
+    strike() {
+        const i = this.strikesDone;
+        const kick = i === 2;
+        this.attacks.push(new FighterUltHitbox(this.owner, this.angle, this.posX, this.posY, {
+            width: this.strikeWidth(i), damage: kick ? FIGHTER_ULT.kickDamage : FIGHTER_ULT.punchDamage, kick, manager: this,
+        }));
+        const rad = this.angle * Math.PI / 180;
+        Vfx.spawn(new FighterUltStrikeVFX(this.posX, this.posY, Math.atan2(-Math.sin(rad), Math.cos(rad)), FIGHTER_ULT.length, this.strikeWidth(i), i));
+        Vfx.spawn(new FighterWindVFX(this.owner, Math.atan2(-Math.sin(rad), Math.cos(rad)), 1.4));
+        this.strikesDone++;
+    }
+
+    trackKnockback(target, dir) {
+        this.knock = { target, dir, until: Time.now + FIGHTER_ULT.knockTime * 1000, lastX: target.rect.centerx, lastY: target.rect.centery };
+    }
+
+    // 밀려나다 벽(또는 맵 끝)에 막히면: 추가 피해 + 부딪힘 이펙트, 밀치기 끝
+    updateKnockback(walls) {
+        const k = this.knock;
+        if (!k) return;
+        if (Time.now > k.until || !k.target.statusEffects.forced_move) { this.knock = null; return; }
+        const r = k.target.rect;
+        const probe = new Rect(r.x + Math.sign(k.dir[0]) * 3, r.y + Math.sign(k.dir[1]) * 3, r.w, r.h);
+        const hitWall = walls.some(w => probe.colliderect(w.rect)) ||
+            probe.left < ARENA_RECT.left || probe.right > ARENA_RECT.right || probe.top < ARENA_RECT.top || probe.bottom > ARENA_RECT.bottom;
+        const moved = Math.hypot(r.centerx - k.lastX, r.centery - k.lastY);
+        k.lastX = r.centerx; k.lastY = r.centery;
+        if (hitWall && moved < FIGHTER_ULT.knockPower / 60 * 0.6) {
+            delete k.target.statusEffects.forced_move;
+            if (canBeHit(this, k.target)) {
+                const finalDamage = k.target.takeDamage(FIGHTER_ULT.wallDamage);
+                this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+            }
+            Vfx.spawn(new FighterWallHitVFX(r.centerx + k.dir[0] * r.w / 2, r.centery + k.dir[1] * r.h / 2, Math.atan2(k.dir[1], k.dir[0])));
+            Vfx.shake(9, 0.25);
+            this.knock = null;
         }
     }
 
-    spawnStrike() {
-        this.attacks.push(new FighterUltHitbox(this.owner, this.angle, this.posX, this.posY));
+    isExpired() {
+        return this.strikesDone >= 3 && !this.knock && Time.now - this.createdTime >= 3 * (FIGHTER_ULT.aim + FIGHTER_ULT.lock) + 200;
     }
-
-    isExpired() { return Time.now - this.createdTime >= 2500; }
 
     collidesWith() { return false; }
 
+    // 경고: 조준 중엔 범위가 옅게 깜빡이고(돌릴 수 있음), 고정되면 진하게 빠르게 깜빡이며 안쪽이 차오른다.
+    // 범위 끝에 다음 타격 표시 (왼손 / 오른손 / 발)
     draw(ctx) {
-        const elapsed = Time.now - this.createdTime;
-        if (elapsed >= 1000) return;
-
-        // 기 모으는 중: 범위 깜빡임 + 줄어드는 금색 원
-        if (Math.floor(elapsed / 100) % 2 === 0) {
-            const pts = this.getPolygonPoints();
-            ctx.beginPath();
-            ctx.moveTo(pts[0][0], pts[0][1]);
-            for (const [px, py] of pts.slice(1)) ctx.lineTo(px, py);
-            ctx.closePath();
-            ctx.strokeStyle = 'rgb(255, 50, 50)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
+        const st = this.stage();
+        if (st === 'done') return;
+        const pts = this.getPolygonPoints();
+        const t = Time.now - this.createdTime - this.strikesDone * (FIGHTER_ULT.aim + FIGHTER_ULT.lock);
+        const locked = st === 'lock';
+        const fill = locked ? (t - FIGHTER_ULT.aim) / FIGHTER_ULT.lock : 0;
+        const blink = locked ? Math.floor(Time.now / 60) % 2 === 0 : Math.floor(Time.now / 150) % 2 === 0;
+        ctx.save();
+        const path = () => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const [x, y] of pts.slice(1)) ctx.lineTo(x, y); ctx.closePath(); };
+        path(); ctx.fillStyle = locked ? `rgba(255, 90, 50, ${0.12 + 0.25 * fill})` : fighterRgba(0.08); ctx.fill();
+        path(); ctx.strokeStyle = locked ? (blink ? 'rgb(255, 60, 40)' : 'rgba(255, 60, 40, 0.5)') : (blink ? fighterRgba(0.9) : fighterRgba(0.45));
+        ctx.lineWidth = locked ? 4 : 2; ctx.stroke();
+        // 조준 중: 돌릴 수 있다는 표시 (양쪽 화살표 호)
+        const rad = this.angle * Math.PI / 180, ang = Math.atan2(-Math.sin(rad), Math.cos(rad));
+        if (!locked) {
+            ctx.strokeStyle = fighterRgba(0.7); ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(this.posX, this.posY, 52, ang - 0.6, ang + 0.6); ctx.stroke();
         }
-        const radius = Math.max(20, Math.trunc(150 * (1.0 - elapsed / 1000)));
-        drawCircle(ctx, this.posX, this.posY, radius, null, COLOR_GOLD, 2);
+        // 다음 타격 표시: 범위 가운데에 반투명 주먹(왼손은 뒤집어서) / 발차기는 큰 초승달
+        const mx = this.posX + Math.cos(ang) * FIGHTER_ULT.length * 0.55, my = this.posY + Math.sin(ang) * FIGHTER_ULT.length * 0.55;
+        if (this.strikesDone < 2) {
+            ctx.save(); ctx.translate(mx, my); if (this.strikesDone === 0) ctx.scale(1, -1);
+            drawFighterFist(ctx, 0, 0, this.strikesDone === 0 ? -ang : ang, 90, 0.25 + 0.4 * fill);
+            ctx.restore();
+        } else {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = fighterRgba(0.3 + 0.5 * fill); ctx.lineWidth = 6;
+            ctx.beginPath(); ctx.arc(mx - Math.cos(ang) * 60, my - Math.sin(ang) * 60, 90, ang - 1.0, ang + 1.0); ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
+
+// 궁극기 타격 이펙트: 펀치는 거대한 기 주먹이 범위를 따라 앞으로 쭉 뻗고(왼손은 뒤집힘),
+// 발차기는 넓은 초승달 바람이 앞으로 휩쓸고 나간다. 둘 다 시작점 충격파 + 범위 따라 바람줄
+class FighterUltStrikeVFX extends SparkVFX {
+    constructor(x, y, angle, length, width, index) {
+        super(FIGHTER_COLOR);
+        this.x = x; this.y = y; this.angle = angle; this.length = length; this.width = width; this.index = index;
+        this.duration = 0.4;
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        for (let i = 0; i < 18; i++) {
+            const d = vfxRand(40, length), side = vfxRand(-0.5, 0.5) * width;
+            this.addSpark(x + dx * d - dy * side, y + dy * d + dx * side, angle + vfxRand(-0.3, 0.3), vfxRand(200, 420), vfxRand(0.15, 0.3), vfxRand(1.2, 2.4));
+        }
+    }
+
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+
+    draw(ctx) {
+        const t = this.elapsed / this.duration;
+        const dx = Math.cos(this.angle), dy = Math.sin(this.angle);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        if (t < 1) {
+            const a = 1 - t, go = Math.min(1, t * 2.5); // 앞으로 뻗는 정도
+            // 범위 따라 바람줄
+            ctx.lineCap = 'round';
+            for (let i = 0; i < 9; i++) {
+                const side = (i / 8 - 0.5) * this.width * 0.9;
+                const d1 = this.length * go, d0 = Math.max(0, d1 - 160);
+                ctx.strokeStyle = fighterRgba(0.55 * a); ctx.lineWidth = 2 + (i % 2) * 2;
+                ctx.beginPath(); ctx.moveTo(this.x + dx * d0 - dy * side, this.y + dy * d0 + dx * side);
+                ctx.lineTo(this.x + dx * d1 - dy * side, this.y + dy * d1 + dx * side); ctx.stroke();
+            }
+            const hx = this.x + dx * this.length * go * 0.85, hy = this.y + dy * this.length * go * 0.85;
+            if (this.index < 2) {
+                // 거대한 기 주먹 (왼손은 위아래 뒤집기)
+                ctx.save(); ctx.translate(hx, hy); ctx.rotate(this.angle); if (this.index === 0) ctx.scale(1, -1);
+                drawFighterFist(ctx, 0, 0, 0, this.width * 0.9, a * 1.2);
+                ctx.restore();
+            } else {
+                // 넓은 초승달 바람 (발차기)
+                for (const [dr, w, al] of [[0, 16, 0.8], [-14, 6, 0.6], [12, 4, 0.5]]) {
+                    ctx.strokeStyle = fighterRgba(al * a); ctx.lineWidth = w;
+                    ctx.beginPath(); ctx.arc(hx - dx * 120, hy - dy * 120, 120 + dr, this.angle - 1.1, this.angle + 1.1); ctx.stroke();
+                }
+                ctx.strokeStyle = `rgba(255,255,255,${0.8 * a})`; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(hx - dx * 120, hy - dy * 120, 120, this.angle - 0.8, this.angle + 0.8); ctx.stroke();
+            }
+            // 시작점 충격파
+            ctx.strokeStyle = fighterRgba(0.8 * a); ctx.lineWidth = 4 * a + 1;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 20 + 60 * t, 0, Math.PI * 2); ctx.stroke();
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
+
+// 벽에 부딪힘: 벽 쪽으로 갈라지는 금 + 큰 섬광 + 먼지 + 파편
+class FighterWallHitVFX extends SparkVFX {
+    constructor(x, y, angle) {
+        super(FIGHTER_COLOR);
+        this.x = x; this.y = y; this.angle = angle;
+        this.duration = 0.5;
+        this.cracks = [];
+        for (let i = 0; i < 8; i++) this.cracks.push({ a: angle + vfxRand(-1.3, 1.3), len: vfxRand(20, 50), bend: vfxRand(-0.4, 0.4) });
+        for (let i = 0; i < 16; i++) this.addSpark(x, y, angle + Math.PI + vfxRand(-1.2, 1.2), vfxRand(120, 320), vfxRand(0.2, 0.4), vfxRand(1.5, 3));
+    }
+
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+
+    draw(ctx) {
+        const t = this.elapsed / this.duration, a = Math.max(0, 1 - t);
+        ctx.save();
+        // 먼지
+        for (let i = 0; i < 8; i++) {
+            const da = this.angle + Math.PI + (i / 7 - 0.5) * 2.4, d = 10 + 30 * t;
+            ctx.fillStyle = `rgba(210,190,170,${0.4 * a})`;
+            ctx.beginPath(); ctx.arc(this.x + Math.cos(da) * d, this.y + Math.sin(da) * d, 5 + 6 * t, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        // 섬광
+        if (t < 0.4) {
+            const f = 1 - t / 0.4;
+            const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 45);
+            g.addColorStop(0, `rgba(255,255,255,${f})`); g.addColorStop(0.4, fighterRgba(0.7 * f)); g.addColorStop(1, fighterRgba(0));
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(this.x, this.y, 45, 0, Math.PI * 2); ctx.fill();
+        }
+        // 금 (빠르게 뻗고 천천히 사라짐)
+        ctx.strokeStyle = fighterRgba(0.9 * a); ctx.lineWidth = 2.5;
+        for (const c of this.cracks) {
+            const l = c.len * Math.min(1, t * 6);
+            ctx.beginPath(); ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + Math.cos(c.a) * l * 0.5, this.y + Math.sin(c.a) * l * 0.5);
+            ctx.lineTo(this.x + Math.cos(c.a + c.bend) * l, this.y + Math.sin(c.a + c.bend) * l); ctx.stroke();
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
     }
 }
 
@@ -659,7 +842,7 @@ function applyFighter(player) {
 const FIGHTER_CHARACTER_DATA = {
     id: 'FIGHTER',
     name: '무투가',
-    desc: '평타: 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1: 기 주먹을 날립니다(8), 10개까지 모을 수 있습니다, 스킬 2: 돌진하며 부딪히면 피해(8)를 주고 돌려차기로 주변 상대를 바깥으로 밉니다(23), 1초간 기절, 궁극기: 기를 모으며 앞에 크기가 크고 쎈 충격파를 3번 쏩니다(한발당 30)',
+    desc: '평타: 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1: 기 주먹을 날립니다(8), 10개까지 모을 수 있습니다, 스킬 2: 돌진하며 부딪히면 피해(8)를 주고 돌려차기로 주변 상대를 바깥으로 밉니다(23), 1초간 기절, 궁극기: 왼손·오른손 펀치(20씩) 후 발차기(30)로 강하게 밀칩니다, 타격마다 범위를 좌우 키로 돌린 뒤 고정되면 들어가고, 밀려 벽에 부딪히면 추가 피해(10)',
     apply: applyFighter,
     thumbnail: FIGHTER_IMAGE,
 };
