@@ -9,6 +9,7 @@
 - 그림 생성: `node tools/<이름>_gen.js <폴더>` → 나온 PNG를 `web/assets/`에 복사.
 - 확인 이미지: `node tools/tests/shot.js <캐릭터번호> <스킬번호 0~3> <폴더> 100,300,600` → `<폴더>/shot_all.png` 한 장. 다른 장면이 필요하면 복사해서 장면 부분만 고친다.
 - 동기화 테스트: `node tools/tests/sync_test.js 3-3 3-0` (캐릭터번호쌍). 전부 '같음', `ERRS []`면 통과.
+  궁극기까지 시험하려면 `FULL_ULT=1 node tools/tests/sync_test.js 4-4`.
 - Playwright·Chromium은 컨테이너에 이미 있음 (설치하지 말 것).
 
 ## 사용자와 일하는 방식

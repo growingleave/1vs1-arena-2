@@ -1,17 +1,16 @@
-// 데몰리셔니스트(폭파광) 이펙트 그림 생성 (미리 구워두는 용도). 결과는 게임용 1/2 크기 → web/assets/에 복사
-// "폭파" 느낌을 위해 불꽃(flame) 모양 위주에서 → 암석 파편 + 검은 연기 뭉치 + 번쩍임/충격파 링 위주로 설계.
-// 색은 흰→노랑→주황→빨강(평소) / 흰→주황→빨강→진적색(변신·궁극기)을 실제로 섞어서 그린다 (단색 tint 아님).
-//
-//   dmx_blast.png      280x280  평소 폭발 번쩍임 (멀티컬러, 가운데=그림 가운데) — 'lighter'로 원본 그대로 그림(추가 tint 없음)
-//   dmx_blast_red.png  280x280  변신/궁극기 폭발 번쩍임 (더 붉은 멀티컬러) — 'lighter'
-//   dmx_rocks.png      280x280  날아가는 암석 파편 (짙은 회갈색 + 불빛 테두리, 가운데=그림 가운데) — 보통(source-over)
-//   dmx_smoke2.png     280x350  위로 치솟는 검은 연기 뭉치 (바닥 기준점: 그림 가운데 아래쪽, x=140,y=325) — 보통
-//   dmx_crater.png     280x280  바닥 크레이터/균열 (가운데=그림 가운데) — 보통
-//   dmx_shock.png      280x150  평소 충격파 글로우 (흰 빛, 뒤쪽 기준점 x=20,y=75) — 색 입혀 'lighter'
-//   dmx_pillar.png     100x200  변신 스킬2 착탄 불기둥 (바닥 기준점: 그림 가운데 아래쪽, x=50,y=195) — 'lighter'
-//   변신 스킬1은 전용 그림 없이 dmx_blast_red/dmx_rocks/dmx_smoke2를 연쇄 폭발처럼 겹쳐 그린다 (demolitionist.js)
-//   dmx_dust.png       150x150  먼지바람 (옅은 회갈색, 가운데=그림 가운데, 밀림/후딜 궤적용) — 보통
-//   preview_dmx.png (확인용)
+// 폭파광 그림 생성 (미리 구워두는 용도). 결과는 게임용 1/2 크기 → web/assets/에 복사
+//   dmx_grenade.png      32x32  : 평타 유탄 (가운데 = 그림 가운데) — 보통
+//   dmx_bigbomb.png      40x64  : 변신 스킬2 떨어지는 폭탄 (코 끝 = 아래 가운데 x20,y62) — 보통
+//   dmx_fireball.png     160x160: 폭발 불덩이 (주황 멀티컬러, 가운데, 불꽃 끝 반지름 ≈ 72) — 'lighter' 그대로
+//   dmx_fireball_red.png 160x160: 변신용 불덩이 (붉은 멀티컬러, 더 뾰족) — 'lighter' 그대로
+//   dmx_ring.png         160x160: 충격파 고리 (흰 빛, 고리 반지름 70) — 색 입혀 'lighter'
+//   dmx_cone.png         200x140: 스킬1 앞으로 뿜는 폭발 (뒤쪽 기준점 x10,y70, 오른쪽으로 길이 ≈ 185) — 'lighter' 그대로
+//   dmx_cone_red.png     200x140: 변신 스킬1 (붉은) — 'lighter' 그대로
+//   dmx_smoke.png        128x128: 검은 연기 뭉치 (가운데) — 보통
+//   dmx_dust.png         128x128: 옅은 흙먼지 (가운데) — 보통
+//   dmx_scorch.png       160x160: 바닥 그을림 (가운데, 반지름 ≈ 70) — 보통
+//   dmx_warn.png         200x200: 궁극기 경고 고리 (흰 빛, 고리 반지름 92) — 색 입혀 'lighter'
+//   preview_dmx.png, preview_dmx2.png (확인용)
 // 실행: node tools/demolitionist_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
 const fs = require('fs');
@@ -21,14 +20,11 @@ const OUT = process.argv[2] || __dirname;
   const b = await chromium.launch();
   const p = await b.newPage();
   const res = await p.evaluate(() => {
-    let seed = 9001;
+    let seed = 8086;
     const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
     const R = (a, b) => a + (b - a) * rnd();
-    const PICK = arr => arr[Math.floor(rnd() * arr.length)];
     const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-
-    // 빛나는 그림(색 보존): 검은 배경 + 블러 → 1/2. 밝기는 투명도가 되지만 r,g,b 비율은 유지되므로 색이 그대로 살아있다
-    const bakeGlowColor = (src, blurs) => {
+    const bakeGlow = (src, blurs) => {
       const W = src.width, H = src.height;
       const o = mk(W, H), x = o.getContext('2d');
       x.fillStyle = '#000'; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'lighter';
@@ -36,207 +32,140 @@ const OUT = process.argv[2] || __dirname;
       x.filter = 'none'; x.globalAlpha = 1; x.drawImage(src, 0, 0);
       const s = mk(W / 2, H / 2), sx = s.getContext('2d'); sx.imageSmoothingQuality = 'high'; sx.drawImage(o, 0, 0, W / 2, H / 2);
       const d = sx.getImageData(0, 0, s.width, s.height), px = d.data;
-      for (let i = 0; i < px.length; i += 4) {
-        const m = Math.max(px[i], px[i + 1], px[i + 2]);
-        if (!m) { px[i + 3] = 0; continue; }
-        px[i] = Math.min(255, px[i] * 255 / m); px[i + 1] = Math.min(255, px[i + 1] * 255 / m); px[i + 2] = Math.min(255, px[i + 2] * 255 / m);
-        px[i + 3] = m;
-      }
+      for (let i = 0; i < px.length; i += 4) { const m = Math.max(px[i], px[i + 1], px[i + 2]); if (!m) { px[i + 3] = 0; continue; } px[i] *= 255 / m; px[i + 1] *= 255 / m; px[i + 2] *= 255 / m; px[i + 3] = m; }
       sx.putImageData(d, 0, 0); return s;
     };
-    // 부드러운 반투명 그림(톤 있는 그림용): 블러만 먹여서 1/2로. 이미 그려둔 알파를 그대로 쓴다
-    const bakeSoft = (src, blur) => {
-      const o = mk(src.width, src.height), ox = o.getContext('2d');
-      if (blur > 0) { ox.filter = `blur(${blur}px)`; ox.drawImage(src, 0, 0); ox.filter = 'none'; }
-      else ox.drawImage(src, 0, 0);
-      const s = mk(src.width / 2, src.height / 2), sx = s.getContext('2d'); sx.imageSmoothingQuality = 'high'; sx.drawImage(o, 0, 0, s.width, s.height);
-      return s;
+    const half = (src) => { const s = mk(src.width / 2, src.height / 2), x = s.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, s.width, s.height); return s; };
+    const blurred = (src, bl) => { const o = mk(src.width, src.height), x = o.getContext('2d'); x.filter = `blur(${bl}px)`; x.drawImage(src, 0, 0); return o; };
+
+    // ---------- 유탄 ----------
+    const gr = mk(64, 64), g = gr.getContext('2d');
+    const gg = g.createRadialGradient(26, 26, 2, 32, 32, 22); gg.addColorStop(0, '#8a8f99'); gg.addColorStop(0.6, '#3b3f47'); gg.addColorStop(1, '#16181d');
+    g.fillStyle = gg; g.beginPath(); g.arc(32, 34, 20, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ff6a1f'; g.fillRect(12, 31, 40, 6);
+    g.fillStyle = '#ffd08a'; g.fillRect(12, 31, 40, 2);
+    g.fillStyle = '#5a5f69'; g.fillRect(26, 8, 12, 9);
+    g.strokeStyle = '#c9cdd4'; g.lineWidth = 2; g.beginPath(); g.moveTo(38, 10); g.quadraticCurveTo(48, 4, 50, 12); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.ellipse(25, 26, 6, 4, -0.6, 0, Math.PI * 2); g.fill();
+    const grenade = half(gr);
+
+    // ---------- 떨어지는 폭탄 (코가 아래) ----------
+    const bb = mk(80, 128), q = bb.getContext('2d');
+    const bg = q.createLinearGradient(16, 0, 64, 0); bg.addColorStop(0, '#1b1d22'); bg.addColorStop(0.35, '#6c717c'); bg.addColorStop(0.6, '#3a3e46'); bg.addColorStop(1, '#121318');
+    q.fillStyle = '#2a2d33';
+    q.beginPath(); q.moveTo(22, 6); q.lineTo(58, 6); q.lineTo(50, 34); q.lineTo(30, 34); q.closePath(); q.fill();
+    q.fillStyle = bg; q.beginPath(); q.moveTo(28, 28); q.lineTo(52, 28); q.quadraticCurveTo(66, 70, 52, 104); q.quadraticCurveTo(40, 128, 28, 104); q.quadraticCurveTo(14, 70, 28, 28); q.fill();
+    q.fillStyle = '#e8322a'; q.fillRect(21, 54, 38, 8); q.fillStyle = '#ff9b6a'; q.fillRect(21, 54, 38, 2);
+    q.fillStyle = '#ffd23c'; q.fillRect(23, 72, 34, 4);
+    const bigbomb = half(bb);
+
+    // ---------- 불덩이 ----------
+    const fire = (cols, spikes, spikeLen) => {
+      const c = mk(320, 320), x = c.getContext('2d'); const C = 160;
+      x.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < spikes; i++) {
+        const a = i / spikes * Math.PI * 2 + R(-0.15, 0.15), len = R(spikeLen * 0.7, spikeLen), w = R(0.18, 0.32);
+        const rg = x.createRadialGradient(C, C, 10, C, C, len); rg.addColorStop(0, cols[1]); rg.addColorStop(0.55, cols[2]); rg.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = rg; x.beginPath(); x.moveTo(C + Math.cos(a - w) * 40, C + Math.sin(a - w) * 40);
+        x.quadraticCurveTo(C + Math.cos(a) * len * 0.8, C + Math.sin(a) * len * 0.8, C + Math.cos(a) * len, C + Math.sin(a) * len);
+        x.quadraticCurveTo(C + Math.cos(a) * len * 0.8, C + Math.sin(a) * len * 0.8, C + Math.cos(a + w) * 40, C + Math.sin(a + w) * 40); x.closePath(); x.fill();
+      }
+      for (let i = 0; i < 14; i++) {
+        const a = R(0, Math.PI * 2), d = R(10, 60), r = R(28, 48), px = C + Math.cos(a) * d, py = C + Math.sin(a) * d;
+        const rg = x.createRadialGradient(px, py, 0, px, py, r); rg.addColorStop(0, cols[1]); rg.addColorStop(0.6, cols[2]); rg.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = rg; x.globalAlpha = 0.55; x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+      }
+      x.globalAlpha = 1;
+      const core = x.createRadialGradient(C, C, 0, C, C, 60); core.addColorStop(0, '#ffffff'); core.addColorStop(0.35, cols[0]); core.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = core; x.beginPath(); x.arc(C, C, 60, 0, Math.PI * 2); x.fill();
+      return bakeGlow(c, [[8, 0.6]]);
     };
-    const tint = (img, col) => { const t = mk(img.width, img.height), x = t.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, t.width, t.height); return t; };
+    const fireball = fire(['rgb(255,240,170)', 'rgb(255,170,50)', 'rgb(220,70,20)'], 11, 150);
+    const fireballRed = fire(['rgb(255,200,120)', 'rgb(255,60,25)', 'rgb(170,10,0)'], 15, 158);
 
-    // 폭발 번쩍임(암석 파편형 폭발의 핵심): 흰 코어 + 짧고 거친 화염 혓바닥 + 2단 충격파 링 + 불티. palette로 색 계열을 바꾼다.
-    const buildFlash = (palette) => {
-      const [WHITE, A, B, C] = palette; // A=안쪽(밝은 쪽), B=중간, C=바깥(어두운 쪽)
-      const cv = mk(560, 560), fx = cv.getContext('2d'); const CX = 280;
-      fx.globalCompositeOperation = 'lighter';
-      const gCore = fx.createRadialGradient(CX, CX, 0, CX, CX, 150);
-      gCore.addColorStop(0, `rgba(${WHITE},1)`); gCore.addColorStop(0.25, `rgba(${WHITE},0.95)`); gCore.addColorStop(0.55, `rgba(${A},0.75)`); gCore.addColorStop(1, `rgba(${B},0)`);
-      fx.fillStyle = gCore; fx.beginPath(); fx.arc(CX, CX, 150, 0, Math.PI * 2); fx.fill();
-      for (let i = 0; i < 18; i++) {
-        const a = R(0, Math.PI * 2), len = R(70, 160), w = R(10, 22);
-        fx.save(); fx.translate(CX, CX); fx.rotate(a);
-        const g = fx.createLinearGradient(0, 0, len, 0);
-        const col = PICK([WHITE, A, B]);
-        g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(1, `rgba(${C},0)`);
-        fx.fillStyle = g;
-        fx.beginPath(); fx.moveTo(-w / 2, 0); fx.lineTo(w / 2, 0); fx.lineTo(w * 0.1, len); fx.lineTo(-w * 0.1, len); fx.closePath(); fx.fill();
-        fx.restore();
+    // ---------- 충격파 고리 ----------
+    const rgc = mk(320, 320), r = rgc.getContext('2d');
+    r.strokeStyle = '#fff'; r.lineWidth = 7; r.beginPath(); r.arc(160, 160, 140, 0, Math.PI * 2); r.stroke();
+    r.globalAlpha = 0.45; r.lineWidth = 18; r.beginPath(); r.arc(160, 160, 128, 0, Math.PI * 2); r.stroke();
+    const ring = bakeGlow(rgc, [[8, 0.8], [3, 0.6]]);
+
+    // ---------- 스킬1 원뿔 폭발 ----------
+    const cone = (cols) => {
+      const c = mk(400, 280), x = c.getContext('2d'); const OX = 20, OY = 140;
+      x.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 26; i++) {
+        const a = R(-0.42, 0.42), len = R(220, 370), w = R(0.04, 0.09);
+        const lg = x.createLinearGradient(OX, OY, OX + Math.cos(a) * len, OY + Math.sin(a) * len); lg.addColorStop(0, cols[0]); lg.addColorStop(0.4, cols[1]); lg.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = lg; x.globalAlpha = R(0.25, 0.55); x.beginPath(); x.moveTo(OX, OY - 8); x.lineTo(OX + Math.cos(a - w) * len, OY + Math.sin(a - w) * len); x.lineTo(OX + Math.cos(a + w) * len, OY + Math.sin(a + w) * len); x.lineTo(OX, OY + 8); x.closePath(); x.fill();
       }
-      // 충격파 링: 두껍고 진하게 — 블러로 번져도 핵심 테두리가 또렷하게 보이도록
-      fx.globalAlpha = 1; fx.lineWidth = 9; fx.strokeStyle = `rgba(${WHITE},1)`;
-      fx.beginPath(); fx.arc(CX, CX, 195, 0, Math.PI * 2); fx.stroke();
-      fx.lineWidth = 6; fx.strokeStyle = `rgba(${C},0.85)`;
-      fx.beginPath(); fx.arc(CX, CX, 250, 0, Math.PI * 2); fx.stroke();
-      fx.globalAlpha = 1;
-      for (let i = 0; i < 50; i++) {
-        const a = R(0, Math.PI * 2), d = R(40, 230);
-        fx.fillStyle = `rgba(${PICK([WHITE, A, B, C])},${R(0.5, 1)})`;
-        fx.beginPath(); fx.arc(CX + Math.cos(a) * d, CX + Math.sin(a) * d, R(1.5, 4), 0, Math.PI * 2); fx.fill();
+      for (let i = 0; i < 12; i++) {
+        const t = R(0.2, 0.85), a = R(-0.32, 0.32), d = 40 + t * 280, rr = 18 + t * 40;
+        const px = OX + Math.cos(a) * d, py = OY + Math.sin(a) * d;
+        const rg = x.createRadialGradient(px, py, 0, px, py, rr); rg.addColorStop(0, cols[1]); rg.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = rg; x.globalAlpha = 0.5 * (1 - t * 0.5); x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill();
       }
-      return bakeGlowColor(cv, [[16, 0.6], [6, 0.45], [2, 0.3]]);
+      x.globalAlpha = 1;
+      const core = x.createRadialGradient(OX + 30, OY, 0, OX + 30, OY, 50); core.addColorStop(0, '#fff'); core.addColorStop(0.5, cols[0]); core.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = core; x.beginPath(); x.arc(OX + 30, OY, 50, 0, Math.PI * 2); x.fill();
+      return bakeGlow(c, [[7, 0.6]]);
     };
-    const WHITE = '255,255,255';
-    // 평소: 흰-노랑-주황-빨강 (fxColor 주황 계열이 주가 되게)
-    const blast = buildFlash([WHITE, '255,224,130', '255,138,60', '214,60,30']);
-    // 변신/궁극기: 흰-주황-빨강-진적색 (노랑 비중을 줄이고 훨씬 붉게)
-    const blastRed = buildFlash([WHITE, '255,110,50', '220,40,25', '150,20,15']);
+    const coneImg = cone(['rgb(255,220,140)', 'rgb(255,130,40)']);
+    const coneRed = cone(['rgb(255,170,110)', 'rgb(255,45,20)']);
 
-    // 날아가는 암석 파편 (불규칙 다각형, 짙은 회갈색 + 불빛 테두리) — 보통(source-over)
-    const rocksCv = mk(560, 560), dx = rocksCv.getContext('2d'); const RC = 280;
-    for (let i = 0; i < 22; i++) {
-      const ang = R(0, Math.PI * 2), dist = R(60, 340), size = R(8, 26);
-      const cx2 = RC + Math.cos(ang) * dist, cy2 = RC + Math.sin(ang) * dist;
-      const shade = R(35, 70);
-      dx.save(); dx.translate(cx2, cy2); dx.rotate(R(0, Math.PI * 2));
-      dx.fillStyle = `rgba(${shade},${shade - 8},${shade - 12},${R(0.8, 1)})`;
-      const pts = 5 + Math.floor(R(0, 3));
-      dx.beginPath();
-      for (let k = 0; k < pts; k++) {
-        const a2 = (k / pts) * Math.PI * 2, r2 = size * R(0.6, 1.1);
-        k === 0 ? dx.moveTo(Math.cos(a2) * r2, Math.sin(a2) * r2) : dx.lineTo(Math.cos(a2) * r2, Math.sin(a2) * r2);
+    // ---------- 연기 / 먼지 (보통 그림: 부드러운 뭉치) ----------
+    const puff = (col, n, alpha) => {
+      const c = mk(256, 256), x = c.getContext('2d');
+      for (let i = 0; i < n; i++) {
+        const a = R(0, Math.PI * 2), d = R(0, 50), rr = R(30, 55), px = 128 + Math.cos(a) * d, py = 128 + Math.sin(a) * d;
+        const rg = x.createRadialGradient(px, py, 0, px, py, rr); rg.addColorStop(0, `rgba(${col},${alpha})`); rg.addColorStop(1, `rgba(${col},0)`);
+        x.fillStyle = rg; x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill();
       }
-      dx.closePath(); dx.fill();
-      dx.strokeStyle = `rgba(${PICK(['255,138,60', '214,60,30'])},0.85)`; dx.lineWidth = 1.5; dx.stroke();
-      dx.restore();
-      dx.strokeStyle = `rgba(70,58,50,${R(0.25, 0.5)})`; dx.lineWidth = R(1.5, 3);
-      dx.beginPath(); dx.moveTo(RC + Math.cos(ang) * dist * 0.3, RC + Math.sin(ang) * dist * 0.3); dx.lineTo(cx2, cy2); dx.stroke();
-    }
-    const rocks = bakeSoft(rocksCv, 1);
+      return half(blurred(c, 6));
+    };
+    const smoke = puff('105,98,100', 12, 0.55);
+    const dust = puff('170,150,125', 10, 0.4);
 
-    // 바닥 크레이터/균열 (어두운 그림자 + 갈라지는 균열) — 보통
-    const craterCv = mk(560, 560), gx = craterCv.getContext('2d'); const GC = 280;
-    const gcr = gx.createRadialGradient(GC, GC, 0, GC, GC, 230);
-    gcr.addColorStop(0, 'rgba(15,10,9,0.95)'); gcr.addColorStop(0.5, 'rgba(25,18,15,0.68)'); gcr.addColorStop(1, 'rgba(25,18,15,0)');
-    gx.fillStyle = gcr; gx.beginPath(); gx.arc(GC, GC, 230, 0, Math.PI * 2); gx.fill();
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2 + R(-0.2, 0.2), len = R(120, 320);
-      gx.strokeStyle = `rgba(20,14,12,${R(0.45, 0.72)})`; gx.lineWidth = R(2, 5);
-      gx.beginPath(); gx.moveTo(GC, GC);
-      let x = GC, y = GC;
-      for (let s = 1; s <= 5; s++) { x += Math.cos(a) * (len / 5) + R(-14, 14); y += Math.sin(a) * (len / 5) + R(-14, 14); gx.lineTo(x, y); }
-      gx.stroke();
-    }
-    const crater = bakeSoft(craterCv, 6);
+    // ---------- 바닥 그을림 ----------
+    const sc = mk(320, 320), s = sc.getContext('2d');
+    const sg = s.createRadialGradient(160, 160, 0, 160, 160, 140); sg.addColorStop(0, 'rgba(15,10,8,0.85)'); sg.addColorStop(0.55, 'rgba(30,20,15,0.55)'); sg.addColorStop(1, 'rgba(30,20,15,0)');
+    s.fillStyle = sg; s.beginPath(); s.arc(160, 160, 140, 0, Math.PI * 2); s.fill();
+    s.strokeStyle = 'rgba(10,6,4,0.45)'; s.lineCap = 'round';
+    for (let i = 0; i < 9; i++) { let a = R(0, Math.PI * 2), rr = 20; s.lineWidth = R(1.5, 3); s.beginPath(); s.moveTo(160 + Math.cos(a) * rr, 160 + Math.sin(a) * rr); while (rr < 95) { rr += R(12, 22); a += R(-0.3, 0.3); s.lineTo(160 + Math.cos(a) * rr, 160 + Math.sin(a) * rr); } s.stroke(); }
+    s.fillStyle = 'rgba(255,120,40,0.35)';
+    s.beginPath(); s.arc(160, 160, 22, 0, Math.PI * 2); s.fill();
+    const scorch = half(sc);
 
-    // 위로 치솟는 검은 연기 뭉치 — 바닥 기준점(그림 가운데 아래쪽)에서 위로 번진다. 보통
-    const smokeCv = mk(560, 700), sx = smokeCv.getContext('2d'); const SMX = 280, SMY = 650;
-    const puff = (cx2, cy2, r, alpha) => { sx.fillStyle = `rgba(18,15,14,${alpha})`; sx.beginPath(); sx.arc(cx2, cy2, r, 0, Math.PI * 2); sx.fill(); };
+    // ---------- 궁극기 경고 고리 ----------
+    const wn = mk(400, 400), w = wn.getContext('2d'); const W = 200;
+    w.strokeStyle = '#fff'; w.fillStyle = '#fff';
+    w.lineWidth = 6; w.beginPath(); w.arc(W, W, 184, 0, Math.PI * 2); w.stroke();
+    w.lineWidth = 2; w.globalAlpha = 0.6; w.beginPath(); w.arc(W, W, 166, 0, Math.PI * 2); w.stroke();
+    w.globalAlpha = 1;
     for (let i = 0; i < 16; i++) {
-      const t = R(0, 1);
-      const cx2 = SMX + R(-120, 120) * (1 - t * 0.3);
-      const cy2 = SMY - t * 460 + R(-20, 20);
-      const r = R(45, 100) * (0.6 + t * 0.6);
-      puff(cx2, cy2, r, R(0.5, 0.78));
+      const a = i / 16 * Math.PI * 2; w.save(); w.translate(W + Math.cos(a) * 175, W + Math.sin(a) * 175); w.rotate(a);
+      w.beginPath(); w.moveTo(4, -9); w.lineTo(-8, 0); w.lineTo(4, 9); w.lineTo(0, 0); w.closePath(); w.fill(); w.restore();
     }
-    sx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 10; i++) {
-      const t = R(0, 0.5);
-      const cx2 = SMX + R(-150, 150) * (1 - t * 0.3), cy2 = SMY - t * 400 + R(-10, 10);
-      sx.fillStyle = `rgba(${PICK(['255,138,60', '214,60,30'])},${R(0.12, 0.25)})`;
-      sx.beginPath(); sx.arc(cx2, cy2, R(50, 90), 0, Math.PI * 2); sx.fill();
-    }
-    sx.globalCompositeOperation = 'source-over';
-    const smoke2 = bakeSoft(smokeCv, 10);
+    w.globalAlpha = 0.5; w.lineWidth = 3;
+    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; w.beginPath(); w.arc(W, W, 150, a, a + 0.09); w.stroke(); }
+    const warn = bakeGlow(wn, [[8, 0.8], [3, 0.5]]);
 
-    // ---------- 충격파 글로우 (평소, 흰색 — 색은 vfxTinted로 입힌다) — 기존 그대로 ----------
-    const sk = mk(560, 300), sx2 = sk.getContext('2d'); const SY = 150;
-    sx2.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 10; i++) {
-      const t = i / 9, ang = (t - 0.5) * 0.9;
-      sx2.save(); sx2.translate(40, SY); sx2.rotate(ang);
-      const len = R(380, 460); const g = sx2.createLinearGradient(0, 0, len, 0);
-      g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(0.6, 'rgba(255,255,255,0.5)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-      sx2.strokeStyle = g; sx2.lineWidth = R(6, 14); sx2.beginPath(); sx2.moveTo(0, 0); sx2.lineTo(len, 0); sx2.stroke(); sx2.restore();
-    }
-    const g2 = sx2.createRadialGradient(60, SY, 0, 60, SY, 110); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(1, 'rgba(255,255,255,0)');
-    sx2.fillStyle = g2; sx2.beginPath(); sx2.arc(60, SY, 110, 0, Math.PI * 2); sx2.fill();
-    sx2.globalAlpha = 0.68;
-    const g3 = sx2.createLinearGradient(40, SY, 480, SY); g3.addColorStop(0, 'rgba(255,255,255,0.75)'); g3.addColorStop(1, 'rgba(255,255,255,0)');
-    sx2.fillStyle = g3; sx2.beginPath(); sx2.moveTo(40, SY - 110); sx2.lineTo(480, SY - 170); sx2.lineTo(480, SY + 170); sx2.lineTo(40, SY + 110); sx2.closePath(); sx2.fill();
-    sx2.globalAlpha = 1;
-    const shock = bakeGlowColor(sk, [[14, 0.6], [4, 0.4]]);
-    const T_WHITE = WHITE, T_ORANGE = '255,110,50', T_RED = '230,40,25', T_DEEPRED = '170,20,15', T_EMBER = '110,15,10';
-
-    // ---------- 변신 스킬2 착탄 불기둥 (바닥 기준점: 가운데 아래) ----------
-    const pil = mk(200, 400), px2 = pil.getContext('2d'); const PX = 100, PY = 390;
-    px2.globalCompositeOperation = 'lighter';
-    px2.save(); px2.translate(PX, PY);
-    for (let i = 0; i < 6; i++) {
-      const ang = R(-0.3, 0.3), h = R(180, 340), w = R(20, 44);
-      const col = PICK([T_WHITE, T_RED, T_ORANGE]);
-      px2.save(); px2.rotate(ang);
-      const g = px2.createLinearGradient(0, 0, 0, -h);
-      g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(0.3, `rgba(${T_RED},0.88)`); g.addColorStop(1, `rgba(${T_DEEPRED},0)`);
-      px2.fillStyle = g;
-      px2.beginPath(); px2.moveTo(-w / 2, 0); px2.lineTo(w / 2, 0); px2.lineTo(w * 0.15, -h); px2.lineTo(-w * 0.15, -h); px2.closePath(); px2.fill();
-      px2.restore();
-    }
-    px2.restore();
-    const gp = px2.createRadialGradient(PX, PY, 0, PX, PY, 90);
-    gp.addColorStop(0, `rgba(${T_WHITE},1)`); gp.addColorStop(0.4, `rgba(${T_RED},0.88)`); gp.addColorStop(1, `rgba(${T_EMBER},0)`);
-    px2.fillStyle = gp; px2.beginPath(); px2.arc(PX, PY, 90, 0, Math.PI * 2); px2.fill();
-    const pillar = bakeGlowColor(pil, [[12, 0.6], [4, 0.4]]);
-
-    // ---------- 먼지바람 (옅은 회갈색, 보통으로) — 기존 그대로, 밀림/후딜 궤적용 ----------
-    const du = mk(300, 300), dc = du.getContext('2d'); const DC = 150;
-    for (let i = 0; i < 6; i++) { const r = R(70, 115), a = R(0.08, 0.16); dc.fillStyle = `rgba(168,146,120,${a})`; dc.beginPath(); dc.arc(DC + R(-24, 24), DC + R(-24, 24), r, 0, Math.PI * 2); dc.fill(); }
-    const g5 = dc.createRadialGradient(DC, DC, 0, DC, DC, 135); g5.addColorStop(0, 'rgba(190,170,145,0.35)'); g5.addColorStop(1, 'rgba(190,170,145,0)');
-    dc.fillStyle = g5; dc.beginPath(); dc.arc(DC, DC, 135, 0, Math.PI * 2); dc.fill();
-    const dust = bakeSoft(du, 10);
-
-    // ---------- 미리보기 ----------
-    const pv = mk(900, 700), pc = pv.getContext('2d'); pc.fillStyle = '#17171b'; pc.fillRect(0, 0, 900, 700);
-    pc.font = '13px sans-serif'; pc.fillStyle = '#aaa';
-    const stamp = (img, x, y, label, lighter) => {
-      pc.globalCompositeOperation = lighter ? 'lighter' : 'source-over';
-      pc.drawImage(img, x, y);
-      pc.globalCompositeOperation = 'source-over';
-      pc.fillText(label, x, y + img.height + 14);
-    };
-    stamp(crater, 10, 10, 'crater', false);
-    stamp(rocks, 150, 10, 'rocks', false);
-    stamp(smoke2, 300, 10, 'smoke2', false);
-    stamp(blast, 460, 10, 'blast', true);
-    stamp(blastRed, 620, 10, 'blast_red', true);
-    stamp(tint(shock, '#ff8a3c'), 10, 310, 'shock (tinted)', true);
-    stamp(pillar, 310, 310, 'pillar', true);
-    stamp(dust, 10, 500, 'dust', false);
-    // 레이어 합성 샘플 (크레이터→연기→파편→번쩍임)
-    pc.fillStyle = '#2a2a30'; pc.fillRect(200, 500, 280, 180);
-    const sampleX = 200 + 140 - crater.width / 2, sampleY = 500 + 90 - crater.height / 2;
-    pc.drawImage(crater, sampleX, sampleY);
-    pc.drawImage(smoke2, 200 + 140 - smoke2.width / 2, 500 + 90 - smoke2.height + 40);
-    pc.drawImage(rocks, sampleX, sampleY);
+    const tint = (img, col) => { const t = mk(img.width, img.height), x = t.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, t.width, t.height); return t; };
+    const pv = mk(820, 200), pc = pv.getContext('2d');
+    pc.fillStyle = '#3a3a40'; pc.fillRect(0, 0, 820, 200);
+    pc.drawImage(scorch, 0, 20); pc.drawImage(smoke, 170, 0); pc.drawImage(dust, 170, 90);
+    pc.drawImage(grenade, 300, 20); pc.drawImage(bigbomb, 300, 70);
     pc.globalCompositeOperation = 'lighter';
-    pc.drawImage(blast, sampleX, sampleY);
-    pc.globalCompositeOperation = 'source-over';
-    pc.fillText('layered sample (normal)', 200, 690);
-
-    return {
-      blast: blast.toDataURL(), blastRed: blastRed.toDataURL(), rocks: rocks.toDataURL(), smoke2: smoke2.toDataURL(),
-      crater: crater.toDataURL(), shock: shock.toDataURL(), pillar: pillar.toDataURL(),
-      dust: dust.toDataURL(), preview: pv.toDataURL(),
-    };
+    pc.drawImage(fireball, 340, 20); pc.drawImage(fireballRed, 500, 20);
+    pc.drawImage(tint(ring, '#ffa040'), 660, 0, 80, 80); pc.drawImage(tint(warn, '#ff3030'), 660, 40, 160, 160);
+    const pv2 = mk(420, 150), p2 = pv2.getContext('2d'); p2.fillStyle = '#3a3a40'; p2.fillRect(0, 0, 420, 150); p2.globalCompositeOperation = 'lighter'; p2.drawImage(coneImg, 0, 5); p2.drawImage(coneRed, 210, 5);
+    const u = (c) => c.toDataURL();
+    return { grenade: u(grenade), bigbomb: u(bigbomb), fireball: u(fireball), fireballRed: u(fireballRed), ring: u(ring), cone: u(coneImg), coneRed: u(coneRed),
+      smoke: u(smoke), dust: u(dust), scorch: u(scorch), warn: u(warn), pv: u(pv), pv2: u(pv2) };
   });
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
-  save('dmx_blast.png', res.blast);
-  save('dmx_blast_red.png', res.blastRed);
-  save('dmx_rocks.png', res.rocks);
-  save('dmx_smoke2.png', res.smoke2);
-  save('dmx_crater.png', res.crater);
-  save('dmx_shock.png', res.shock);
-  save('dmx_pillar.png', res.pillar);
-  save('dmx_dust.png', res.dust);
-  save('preview_dmx.png', res.preview);
+  save('dmx_grenade.png', res.grenade); save('dmx_bigbomb.png', res.bigbomb); save('dmx_fireball.png', res.fireball); save('dmx_fireball_red.png', res.fireballRed);
+  save('dmx_ring.png', res.ring); save('dmx_cone.png', res.cone); save('dmx_cone_red.png', res.coneRed); save('dmx_smoke.png', res.smoke);
+  save('dmx_dust.png', res.dust); save('dmx_scorch.png', res.scorch); save('dmx_warn.png', res.warn);
+  save('preview_dmx.png', res.pv); save('preview_dmx2.png', res.pv2);
   await b.close();
 })();
