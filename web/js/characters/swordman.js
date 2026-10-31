@@ -304,40 +304,45 @@ class SwordmanSheathVFX extends SparkVFX {
         this.fadeOut = 0.25;
         this.carry = 0;
         this.clicked = false;
+        this.flip = follow.facing[0] < 0; // 왼쪽을 보면 좌우를 뒤집는다 (입구·손잡이가 왼쪽)
     }
 
     get finished() { return this.elapsed >= this.duration + this.fadeOut && this.sparksDone; }
 
-    // 칼집 왼쪽 끝 x, 입구 x, 높이 y
+    // 뒤집기 전 기준(입구가 오른쪽)의 칼집 왼쪽 끝 x, 입구 x, 높이 y + 화면에서 실제 입구 x(mouthX)
     layout() {
         const k = SWORDMAN_SHEATH_SCALE;
         const cx = this.follow.rect.centerx, y = this.follow.rect.centery + 10;
         const x0 = cx - 190 * k / 2 - 10;
-        return { k, x0, mouth: x0 + 185 * k, y };
+        const mouth = x0 + 185 * k;
+        return { k, cx, x0, mouth, y, mouthX: this.flip ? 2 * cx - mouth : mouth };
     }
 
     update(dt) {
         super.update(dt);
-        const { mouth, y } = this.layout();
+        const { mouthX, y } = this.layout();
+        const out = this.flip ? -1 : 1; // 칼이 나와 있는 쪽
         if (this.elapsed > this.appear && this.elapsed < this.clickAt) {
             this.carry += 45 * dt; // 들어가는 동안 입구에서 쇳가루 불꽃
             while (this.carry >= 1) {
                 this.carry -= 1;
-                this.addSpark(mouth + 2, y + vfxRand(-3, 3), -Math.PI / 2 + vfxRand(-1, 1) + 0.4, vfxRand(40, 140), vfxRand(0.12, 0.25), vfxRand(0.8, 1.5));
+                this.addSpark(mouthX + 2 * out, y + vfxRand(-3, 3), -Math.PI / 2 + (vfxRand(-1, 1) + 0.4) * out, vfxRand(40, 140), vfxRand(0.12, 0.25), vfxRand(0.8, 1.5));
             }
         }
         if (!this.clicked && this.elapsed >= this.clickAt) {
             this.clicked = true;
-            for (let i = 0; i < 12; i++) this.addSpark(mouth, y, Math.random() * Math.PI * 2, vfxRand(80, 220), vfxRand(0.15, 0.35), vfxRand(1, 2));
+            for (let i = 0; i < 12; i++) this.addSpark(mouthX, y, Math.random() * Math.PI * 2, vfxRand(80, 220), vfxRand(0.15, 0.35), vfxRand(1, 2));
         }
     }
 
     draw(ctx) {
-        const { k, x0, mouth, y } = this.layout();
+        const { k, cx, x0, mouth, y, mouthX } = this.layout();
         const t = this.elapsed;
         const alpha = Math.min(1, t / this.appear) * (t > this.duration ? Math.max(0, 1 - (t - this.duration) / this.fadeOut) : 1);
         ctx.save();
         if (alpha > 0 && isImageReady(SWORDMAN_SWORD_IMAGE) && isImageReady(SWORDMAN_SCABBARD_IMAGE)) {
+            ctx.save();
+            if (this.flip) { ctx.translate(2 * cx, 0); ctx.scale(-1, 1); } // 검사 가운데를 기준으로 좌우 뒤집기
             // 다 들어간 자리 = 칼날 끝(178)이 입구에 오는 곳. 처음엔 칼날 대부분이 밖에 나와 있다
             const u = Math.min(1, Math.max(0, (t - this.appear) / (this.clickAt - this.appear)));
             const out = 150 * k * (1 - u * u * u);
@@ -353,6 +358,7 @@ class SwordmanSheathVFX extends SparkVFX {
                 ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx, y, 7, 0, Math.PI * 2); ctx.fill();
                 ctx.globalCompositeOperation = 'source-over';
             }
+            ctx.restore();
         }
         if (this.clicked) { // 찰칵: 입구에서 섬광 + 퍼지는 고리
             const c = Math.min(1, (t - this.clickAt) / 0.25), a = 1 - c;
@@ -360,10 +366,10 @@ class SwordmanSheathVFX extends SparkVFX {
                 const [r, g, b] = this.rgb;
                 ctx.globalCompositeOperation = 'lighter';
                 ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.9})`; ctx.lineWidth = 3 * a + 0.5;
-                ctx.beginPath(); ctx.arc(mouth, y, 6 + 34 * c, 0, Math.PI * 2); ctx.stroke();
-                const fl = ctx.createRadialGradient(mouth, y, 0, mouth, y, 22);
+                ctx.beginPath(); ctx.arc(mouthX, y, 6 + 34 * c, 0, Math.PI * 2); ctx.stroke();
+                const fl = ctx.createRadialGradient(mouthX, y, 0, mouthX, y, 22);
                 fl.addColorStop(0, `rgba(255,255,255,${a})`); fl.addColorStop(1, `rgba(${r},${g},${b},0)`);
-                ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(mouth, y, 22, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(mouthX, y, 22, 0, Math.PI * 2); ctx.fill();
             }
         }
         ctx.globalCompositeOperation = 'lighter';
