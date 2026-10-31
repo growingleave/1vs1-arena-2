@@ -10,13 +10,11 @@ const fighterRgba = (a) => `rgba(${FIGHTER_RGB[0]},${FIGHTER_RGB[1]},${FIGHTER_R
 // 기(氣) 주먹 그림 (tools/fighter_fist_gen.js로 생성, 110x100, 주먹 마디가 오른쪽, 가운데 x 60 y 50, 색이 들어 있음)
 const FIGHTER_FIST_IMAGE = loadImage('assets/fighter_fist.png');
 
-// 발차기 그림 (110x100, 다리가 왼쪽·발바닥이 오른쪽)
-const FIGHTER_KICK_IMAGE = loadImage('assets/fighter_kick.png');
 // 그림 속 내용이 있는 영역 (빛 번짐 여백 조금 포함) — 범위를 꽉 채울 때 이 영역을 늘려 그린다
-const FIGHTER_FIST_BOX = [5, 19, 94, 64], FIGHTER_KICK_BOX = [2, 6, 102, 88];
+const FIGHTER_FIST_BOX = [3, 10, 98, 74];
 
 // 그림을 시작점(x, y)에서 angle 방향으로 길이 length·폭 width인 사각형에 꽉 채워 그린다
-// reach(0~1): 앞으로 뻗은 정도 (앞쪽 끝은 고정, 뒤쪽이 따라온다), flip: 위아래 뒤집기(왼손)
+// reach(0~1): 앞으로 뻗은 정도 (앞쪽 끝은 고정, 뒤쪽이 따라온다), flip: 위아래 뒤집기
 function drawFighterFill(ctx, img, box, x, y, angle, length, width, alpha, { flip = false, reach = 1 } = {}) {
     if (!isImageReady(img) || alpha <= 0) return;
     const len = length * reach;
@@ -39,7 +37,7 @@ function drawFighterFist(ctx, x, y, angle, size, alpha) {
     ctx.rotate(angle);
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = Math.min(1, alpha);
-    ctx.drawImage(FIGHTER_FIST_IMAGE, -60 * k, -50 * k, 110 * k, 100 * k);
+    ctx.drawImage(FIGHTER_FIST_IMAGE, -52 * k, -47 * k, 110 * k, 100 * k); // 주먹 내용 가운데가 (x, y)
     ctx.restore();
 }
 
@@ -545,7 +543,7 @@ const FIGHTER_ULT = {
     aim: 1000, lock: 550,           // ms (한 번에 1.55초)
     turnSpeed: 90,                  // 조준 중 회전 속도(도/초)
     length: 500,                    // 앞으로 뻗는 길이
-    punchWidth: 220, kickWidth: 400, // 좌우 폭 (펀치는 좁게)
+    punchWidth: 220, kickWidth: 220, // 좌우 폭 (세 번 모두 같은 주먹)
     punchDamage: 20 / 15, kickDamage: 2.0, // baseAtk 배수 (15 기준 20 / 30)
     knockTime: 0.3, knockPower: 1000, // 발차기 밀치기 (초, px/초) → 약 300px
     wallDamage: 10,
@@ -719,22 +717,20 @@ class FighterUltManager {
             ctx.strokeStyle = fighterRgba(0.7); ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(this.posX, this.posY, 52, ang - 0.6, ang + 0.6); ctx.stroke();
         }
-        // 다음 타격 표시: 범위를 꽉 채운 옅은 주먹(왼손은 뒤집힘) / 발
-        const img = this.strikesDone < 2 ? FIGHTER_FIST_IMAGE : FIGHTER_KICK_IMAGE;
-        const box = this.strikesDone < 2 ? FIGHTER_FIST_BOX : FIGHTER_KICK_BOX;
-        drawFighterFill(ctx, img, box, this.posX, this.posY, ang, FIGHTER_ULT.length, this.strikeWidth(this.strikesDone),
-            0.12 + 0.3 * fill, { flip: this.strikesDone === 0 });
+        // 다음 타격 표시: 플레이어 쪽(출발 자리)에 범위 폭만 한 옅은 주먹
+        const fw = this.strikeWidth(this.strikesDone), fl = fw * FIGHTER_FIST_BOX[2] / FIGHTER_FIST_BOX[3];
+        drawFighterFill(ctx, FIGHTER_FIST_IMAGE, FIGHTER_FIST_BOX, this.posX, this.posY, ang, fl, fw, 0.15 + 0.35 * fill);
         ctx.restore();
     }
 }
 
-// 궁극기 타격 이펙트: 펀치는 거대한 기 주먹이 범위를 따라 앞으로 쭉 뻗고(왼손은 뒤집힘),
-// 발차기는 넓은 초승달 바람이 앞으로 휩쓸고 나간다. 둘 다 시작점 충격파 + 범위 따라 바람줄
+// 궁극기 타격 이펙트: 범위 폭만 한 거대한 기 주먹이 플레이어 쪽에서 범위 끝까지 날아간다 (세 번 모두 같음)
+// + 시작점 충격파 + 범위 따라 바람줄·불꽃
 class FighterUltStrikeVFX extends SparkVFX {
     constructor(x, y, angle, length, width, index) {
         super(FIGHTER_COLOR);
         this.x = x; this.y = y; this.angle = angle; this.length = length; this.width = width; this.index = index;
-        this.duration = 0.4;
+        this.duration = 0.5;
         const dx = Math.cos(angle), dy = Math.sin(angle);
         for (let i = 0; i < 18; i++) {
             const d = vfxRand(40, length), side = vfxRand(-0.5, 0.5) * width;
@@ -760,12 +756,17 @@ class FighterUltStrikeVFX extends SparkVFX {
                 ctx.beginPath(); ctx.moveTo(this.x + dx * d0 - dy * side, this.y + dy * d0 + dx * side);
                 ctx.lineTo(this.x + dx * d1 - dy * side, this.y + dy * d1 + dx * side); ctx.stroke();
             }
-            // 범위를 꽉 채운 거대한 주먹(왼손은 뒤집힘) / 발: 뒤에서 앞으로 순식간에 뻗고, 잠깐 밝게 남았다 사라진다
-            const img = this.index < 2 ? FIGHTER_FIST_IMAGE : FIGHTER_KICK_IMAGE;
-            const box = this.index < 2 ? FIGHTER_FIST_BOX : FIGHTER_KICK_BOX;
-            const bright = t < 0.25 ? 1.4 : a * 1.4;
-            drawFighterFill(ctx, img, box, this.x, this.y, this.angle, this.length, this.width, bright, { flip: this.index === 0, reach: 0.35 + 0.65 * go });
-            if (t < 0.2) drawFighterFill(ctx, img, box, this.x, this.y, this.angle, this.length, this.width, 0.8, { flip: this.index === 0, reach: 0.35 + 0.65 * go });
+            // 범위 폭만 한 거대한 주먹이 플레이어 쪽에서 범위 끝까지 날아가고(잔상 3개), 끝에서 잠깐 남았다 사라진다
+            const fw = this.width, fl = fw * FIGHTER_FIST_BOX[2] / FIGHTER_FIST_BOX[3];
+            const travel = Math.max(0, this.length - fl);
+            const move = Math.min(1, t / 0.4); // 전체 0.4 중 앞 40% 동안 이동
+            const ease = 1 - (1 - move) * (1 - move);
+            for (let g = 3; g >= 0; g--) {
+                const e = Math.max(0, ease - g * 0.12);
+                const al = g === 0 ? (t < 0.6 ? 1.2 : a * 2) : 0.35 * (1 - g / 4) * (move < 1 ? 1 : a);
+                const off = travel * e;
+                drawFighterFill(ctx, FIGHTER_FIST_IMAGE, FIGHTER_FIST_BOX, this.x + dx * off, this.y + dy * off, this.angle, fl, fw, al);
+            }
             // 시작점 충격파
             ctx.strokeStyle = fighterRgba(0.8 * a); ctx.lineWidth = 4 * a + 1;
             ctx.beginPath(); ctx.arc(this.x, this.y, 20 + 60 * t, 0, Math.PI * 2); ctx.stroke();
@@ -847,7 +848,7 @@ function applyFighter(player) {
 const FIGHTER_CHARACTER_DATA = {
     id: 'FIGHTER',
     name: '무투가',
-    desc: '평타: 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1: 기 주먹을 날립니다(8), 10개까지 모을 수 있습니다, 스킬 2: 돌진하며 부딪히면 피해(8)를 주고 돌려차기로 주변 상대를 바깥으로 밉니다(23), 1초간 기절, 궁극기: 왼손·오른손 펀치(20씩) 후 발차기(30)로 강하게 밀칩니다, 타격마다 범위를 좌우 키로 돌린 뒤 고정되면 들어가고, 밀려 벽에 부딪히면 추가 피해(10)',
+    desc: '평타: 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1: 기 주먹을 날립니다(8), 10개까지 모을 수 있습니다, 스킬 2: 돌진하며 부딪히면 피해(8)를 주고 돌려차기로 주변 상대를 바깥으로 밉니다(23), 1초간 기절, 궁극기: 거대한 기 주먹을 세 번 날립니다(20, 20, 30), 마지막 주먹은 강하게 밀칩니다, 타격마다 범위를 좌우 키로 돌린 뒤 고정되면 들어가고, 밀려 벽에 부딪히면 추가 피해(10)',
     apply: applyFighter,
     thumbnail: FIGHTER_IMAGE,
 };
