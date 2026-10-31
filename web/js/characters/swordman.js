@@ -272,8 +272,8 @@ class SwordmanDashAttack {
 const SWORDMAN_ULT_WINDUP = 0.6;  // 선딜(초), 무적
 const SWORDMAN_ULT_SHEATH = 0.6;  // 납도 연출(초), 못 움직이고 무적
 const SWORDMAN_ULT_STUN_AFTER = 0.5; // 마지막 참격 뒤에도 남는 기절(초)
-const SWORDMAN_ULT_HITS = 5;         // 납도 끝에 빠바박 들어가는 참격 수 (피해를 나눠서)
-const SWORDMAN_ULT_HIT_GAP = 80;     // 참격 간격(ms)
+const SWORDMAN_ULT_HITS = 9;         // 납도 끝에 빠바박 들어가는 참격 수 (피해를 나눠서)
+const SWORDMAN_ULT_HIT_GAP = 60;     // 참격 간격(ms)
 
 // 궁극기 그림 (tools/swordman_ult_gen.js로 생성, 팀 색이 이미 들어 있고 글리치만 다른 2장씩)
 //   돌진: 800x210, 길 x 60~690, 가운데 y 105 / 베기: 800x400, 길 x 40~760, 가운데 y 200
@@ -504,7 +504,7 @@ function applySwordmanToPlayer(player) {
 const SWORDMAN_CHARACTER_DATA = {
     id: 'SWORDMAN',
     name: '검사',
-    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 검을 넣는 순간 지나온 길이 베이며 5번 연속 참격이 들어갑니다(9x5)',
+    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 검을 넣는 순간 지나온 길이 베이며 9번 연속 참격이 들어갑니다(5x9)',
     apply: applySwordmanToPlayer,
     thumbnail: null,
 };
