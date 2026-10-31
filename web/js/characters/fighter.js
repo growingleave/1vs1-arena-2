@@ -96,91 +96,39 @@ class FighterSlamVFX extends SparkVFX {
     }
 }
 
-// 돌려차기 이펙트: 발끝(빛나는 머리)이 플레이어 둘레를 한 바퀴 쓸고 지나간다
-// - 굵은 호(꼬리일수록 옅고 가늘게) + 안팎의 가는 바람결 호 + 흰 날
-// - 발끝에서 바깥(접선) 방향으로 튀는 불꽃
-// - 다 돌면 충격파 고리 두 겹 + 바깥으로 뻗는 바람줄 + 바닥 먼지 고리
-class FighterKickVFX extends SparkVFX {
+// 스킬 2 그림 (tools/fighter_kick_gen.js로 생성, 흰색 → 연주황을 입혀 그림)
+//   원형 참격 띠 256x256 (띠 반지름 = 크기의 0.38) / 충격파 256x256 (고리 반지름 = 크기의 0.3) / 돌진 바람 300x100 (꼬리 x 10 ~ 머리 x 290, 가운데 y 50)
+const FIGHTER_KICK_RING_IMAGE = loadImage('assets/fighter_kick_ring.png');
+const FIGHTER_KICK_SHOCK_IMAGE = loadImage('assets/fighter_kick_shock.png');
+const FIGHTER_DASH_IMAGE = loadImage('assets/fighter_dash.png');
+
+// 돌려차기 뒤 충격파: 원형 참격이 거의 다 돌았을 때 고리 그림이 퍼지며 사라지고, 띠를 따라 접선 방향으로 불꽃이 튄다
+class FighterKickShockVFX extends SparkVFX {
     constructor(follow, startAngle, radius) {
         super(FIGHTER_COLOR);
-        this.follow = follow; this.start = startAngle; this.radius = radius;
-        this.sweep = 0.16; this.duration = 0.45;
-        this.emitted = 0;
-        this.winds = [];
-        for (let i = 0; i < 10; i++) this.winds.push({ a: i / 10 * Math.PI * 2 + vfxRand(-0.2, 0.2), len: vfxRand(18, 34) });
+        this.follow = follow; this.radius = radius;
+        this.delay = 0.12; this.duration = 0.45;
+        const cx = follow.rect.centerx, cy = follow.rect.centery;
+        for (let i = 0; i < 16; i++) {
+            const a = startAngle + i / 16 * Math.PI * 2, r = radius - 6;
+            this.addSpark(cx + Math.cos(a) * r, cy + Math.sin(a) * r, a + Math.PI / 2 + vfxRand(-0.4, 0.4), vfxRand(120, 260), vfxRand(0.15, 0.3), vfxRand(1.2, 2.2));
+        }
     }
 
     get finished() { return this.elapsed >= this.duration && this.sparksDone; }
 
-    update(dt) {
-        super.update(dt);
-        // 쓸고 지나가는 동안 발끝에서 불꽃 (접선 방향으로)
-        const u = Math.min(1, this.elapsed / this.sweep);
-        const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
-        while (this.emitted < Math.round(16 * u)) {
-            const a = this.start + Math.PI * 2 * (this.emitted / 16);
-            const r = this.radius - 10;
-            this.addSpark(cx + Math.cos(a) * r, cy + Math.sin(a) * r, a + Math.PI / 2 + vfxRand(-0.4, 0.4), vfxRand(120, 260), vfxRand(0.15, 0.3), vfxRand(1.2, 2.2));
-            this.emitted++;
-        }
-    }
-
     draw(ctx) {
-        const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
-        const u = Math.min(1, this.elapsed / this.sweep);
-        const fade = 1 - Math.max(0, (this.elapsed - this.sweep) / (this.duration - this.sweep));
-        const head = this.start + Math.PI * 2 * u;
-        const R = this.radius - 10;
+        const t = (this.elapsed - this.delay) / (this.duration - this.delay);
         ctx.save();
-        ctx.lineCap = 'round';
-        // 바닥 먼지 고리 (다 돈 뒤)
-        if (this.elapsed > this.sweep) {
-            const w = Math.min(1, (this.elapsed - this.sweep) / 0.25);
-            for (let i = 0; i < 12; i++) {
-                const a = i / 12 * Math.PI * 2, d = R + 6 + 22 * w;
-                ctx.fillStyle = `rgba(210,190,170,${0.3 * (1 - w)})`;
-                ctx.beginPath(); ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 4 + 5 * w, 0, Math.PI * 2); ctx.fill();
-            }
-        }
         ctx.globalCompositeOperation = 'lighter';
-        // 굵은 호: 조각 14개, 꼬리일수록 옅고 가늘게
-        for (let i = 0; i < 14; i++) {
-            const a0 = head - (i + 1) * 0.3, a1 = head - i * 0.3;
-            if (a1 < this.start) break;
-            const k = 1 - i / 14;
-            ctx.strokeStyle = fighterRgba(0.8 * k * fade);
-            ctx.lineWidth = 3 + 18 * k;
-            ctx.beginPath(); ctx.arc(cx, cy, R, Math.max(this.start, a0), a1); ctx.stroke();
-        }
-        // 안팎의 가는 바람결 호
-        for (const [dr, len, a] of [[-16, 2.2, 0.55], [-8, 3.0, 0.7], [10, 2.6, 0.6], [18, 1.6, 0.4]]) {
-            ctx.strokeStyle = fighterRgba(a * fade); ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.arc(cx, cy, R + dr, Math.max(this.start, head - len), head - 0.15); ctx.stroke();
-        }
-        // 흰 날
-        ctx.strokeStyle = `rgba(255,255,255,${0.9 * fade})`; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(cx, cy, R, Math.max(this.start, head - 1.2), head); ctx.stroke();
-        // 발끝 빛
-        if (u < 1) {
-            const hx = cx + Math.cos(head) * R, hy = cy + Math.sin(head) * R;
-            const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 18);
-            g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, fighterRgba(0.8)); g.addColorStop(1, fighterRgba(0));
-            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 18, 0, Math.PI * 2); ctx.fill();
-        }
-        // 다 돈 뒤: 충격파 고리 두 겹 + 바깥으로 뻗는 바람줄
-        if (this.elapsed > this.sweep * 0.7) {
-            const w = Math.min(1, (this.elapsed - this.sweep * 0.7) / 0.25), a = 1 - w;
-            ctx.lineWidth = 3 * a + 0.5;
-            ctx.strokeStyle = fighterRgba(0.8 * a);
-            ctx.beginPath(); ctx.arc(cx, cy, this.radius * (0.8 + 0.6 * w), 0, Math.PI * 2); ctx.stroke();
-            ctx.strokeStyle = `rgba(255,255,255,${0.5 * a})`;
-            ctx.beginPath(); ctx.arc(cx, cy, this.radius * (0.7 + 0.4 * w), 0, Math.PI * 2); ctx.stroke();
-            ctx.strokeStyle = fighterRgba(0.7 * a); ctx.lineWidth = 2;
-            for (const wd of this.winds) {
-                const r0 = this.radius * (0.9 + 0.5 * w);
-                ctx.beginPath(); ctx.moveTo(cx + Math.cos(wd.a) * r0, cy + Math.sin(wd.a) * r0);
-                ctx.lineTo(cx + Math.cos(wd.a) * (r0 + wd.len), cy + Math.sin(wd.a) * (r0 + wd.len)); ctx.stroke();
-            }
+        if (t > 0 && t < 1 && isImageReady(FIGHTER_KICK_SHOCK_IMAGE)) {
+            const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
+            const size = (this.radius / 0.3) * (0.75 + 0.6 * t);
+            ctx.globalAlpha = 1 - t;
+            ctx.drawImage(vfxTinted(FIGHTER_KICK_SHOCK_IMAGE, FIGHTER_COLOR), cx - size / 2, cy - size / 2, size, size);
+            ctx.globalAlpha = (1 - t) * 0.4;
+            ctx.drawImage(FIGHTER_KICK_SHOCK_IMAGE, cx - size / 2, cy - size / 2, size, size);
+            ctx.globalAlpha = 1;
         }
         this.drawSparks(ctx);
         ctx.restore();
@@ -429,7 +377,15 @@ class FighterDashSlamHitbox {
         this.radius = 70;
         this.posX = owner.rect.centerx;
         this.posY = owner.rect.centery;
-        Vfx.spawn(new FighterKickVFX(owner, Math.atan2(owner.facing[1], owner.facing[0]), this.radius));
+        // 원형 참격 그림이 바라보는 방향에서 시작해 한 바퀴 드러나고, 이어서 충격파가 퍼진다
+        const face = Math.atan2(owner.facing[1], owner.facing[0]);
+        Vfx.spawn(new RingSlashVFX(0, 0, {
+            image: FIGHTER_KICK_RING_IMAGE, follow: owner,
+            size: (this.radius - 8) / 0.38, color: FIGHTER_COLOR,
+            rotation: 0, startAngle: face, sweepAngle: Math.PI * 2,
+            sweep: 0.16, fade: 0.3, spinTotal: 0, ghosts: 0, revealEase: 'linear', softEdge: 0.5,
+        }));
+        Vfx.spawn(new FighterKickShockVFX(owner, face, this.radius));
     }
 
     update() {
@@ -470,6 +426,15 @@ class FighterDashManager {
         this.hitPlayers = [];
         this.isDash = true;
         this.trail = []; // 잔상용 지나온 자리 (화면 전용)
+        // 돌진 바람 꼬리 그림: 지나간 만큼 드러난다
+        Vfx.spawn(new StretchSlashVFX({
+            image: FIGHTER_DASH_IMAGE, follow: owner,
+            isActive: () => Time.now - this.createdTime < this.dashDuration,
+            angle: Math.atan2(direction[1], direction[0]),
+            imageX0: 10, imageX1: 290, imageCY: 50, scaleY: 0.7,
+            back: 20, front: 25, fullDist: this.dashSpeed * this.dashDuration / (1000 / 60), softEdge: 30,
+            color: FIGHTER_COLOR, fade: 0.25,
+        }));
     }
 
     update(walls) {
@@ -500,7 +465,7 @@ class FighterDashManager {
         fighterHitSpark(target, Math.atan2(this.direction[1], this.direction[0]), 8, 22);
     }
 
-    // 돌진 잔상: 지나온 자리에 연주황 무투가 그림자 + 바람줄
+    // 돌진 잔상: 지나온 자리에 연주황 무투가 그림자 (바람 꼬리는 그림으로)
     draw(ctx) {
         const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
         const last = this.trail[this.trail.length - 1];
@@ -514,11 +479,6 @@ class FighterDashManager {
             if (ghostImg) { ctx.globalAlpha = a; ctx.drawImage(ghostImg, x - 24, y - 24, 48, 48); ctx.globalAlpha = 1; }
             else { ctx.fillStyle = fighterRgba(a); ctx.beginPath(); ctx.roundRect(x - 18, y - 18, 36, 36, 8); ctx.fill(); }
         });
-        ctx.strokeStyle = fighterRgba(0.6); ctx.lineWidth = 2; ctx.lineCap = 'round';
-        for (const off of [-14, 0, 14]) {
-            const bx = cx - this.direction[1] * off, by = cy + this.direction[0] * off;
-            ctx.beginPath(); ctx.moveTo(bx - this.direction[0] * 20, by - this.direction[1] * 20); ctx.lineTo(bx - this.direction[0] * 60, by - this.direction[1] * 60); ctx.stroke();
-        }
         ctx.restore();
     }
 }
@@ -529,7 +489,6 @@ class FighterDashSkill extends Skill {
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
         attacks.push(new FighterDashManager(owner, direction, attacks));
-        Vfx.spawn(new FighterWindVFX(owner, Math.atan2(direction[1], direction[0]), 1.2));
     }
 }
 
