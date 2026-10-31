@@ -169,6 +169,49 @@ class FighterKickVFX extends SparkVFX {
     }
 }
 
+// 바람 휙: 쓰는 순간 몸 둘레로 가는 바람결 호 세 줄이 앞쪽으로 휙 쓸고, 앞으로 바람줄이 날아간다
+class FighterWindVFX {
+    constructor(follow, angle, scale = 1) {
+        this.follow = follow; this.angle = angle; this.scale = scale;
+        this.duration = 0.22; this.elapsed = 0;
+        this.side = Math.random() < 0.5 ? 1 : -1; // 어느 쪽에서 감아 도는지
+    }
+
+    get finished() { return this.elapsed >= this.duration; }
+
+    update(dt) { this.elapsed += dt; }
+
+    draw(ctx) {
+        const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
+        const u = this.elapsed / this.duration, a = 1 - u;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 3; i++) {
+            const r = (26 + i * 9) * this.scale;
+            const span = 1.8, head = this.angle + this.side * (-span / 2 + span * Math.min(1, u * 1.6 + i * 0.1));
+            const tail = head - this.side * 0.9;
+            ctx.strokeStyle = `rgba(255,240,225,${0.75 * a})`;
+            ctx.lineWidth = 2.5 - i * 0.5;
+            ctx.beginPath(); ctx.arc(cx, cy, r, Math.min(head, tail), Math.max(head, tail)); ctx.stroke();
+        }
+        // 앞으로 날아가는 바람줄
+        const dx = Math.cos(this.angle), dy = Math.sin(this.angle);
+        for (const off of [-10, 6]) {
+            const d0 = (24 + 50 * u) * this.scale, d1 = d0 + 22 * this.scale;
+            const px = -dy * off * this.scale, py = dx * off * this.scale;
+            ctx.strokeStyle = fighterRgba(0.7 * a); ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(cx + dx * d0 + px, cy + dy * d0 + py); ctx.lineTo(cx + dx * d1 + px, cy + dy * d1 + py); ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
+
+// 맞은 자리 불꽃 (무투가 색)
+function fighterHitSpark(target, angle, count, size) {
+    Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: FIGHTER_COLOR, angle, count, size }));
+}
+
 // 연주황으로 칠한 무투가 그림 (돌진 잔상용, 한 번만 만든다)
 let fighterTinted = null;
 function fighterTintedSprite() {
@@ -218,6 +261,10 @@ class FighterBasicHitbox {
         return canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect);
     }
 
+    applyEffect(target) {
+        fighterHitSpark(target, Math.atan2(this.direction[1], this.direction[0]), 12, 28);
+    }
+
     // 내려찍는 주먹 이펙트(FighterSlamVFX)가 대신 보인다
     draw(ctx) {
         if (!isImageReady(FIGHTER_FIST_IMAGE)) drawPolygon(ctx, this.getPolygonPoints(), 'rgb(255, 180, 50)', COLOR_WHITE, 2);
@@ -232,6 +279,7 @@ class FighterBasicSkill extends Skill {
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
         owner.castTimer = FIGHTER_BASIC_WINDUP;
+        Vfx.spawn(new FighterWindVFX(owner, Math.atan2(direction[1], direction[0])));
         Vfx.spawn(new FighterSlamVFX(owner.rect.centerx + direction[0] * 30, owner.rect.centery + direction[1] * 30,
             Math.atan2(direction[1], direction[0]), FIGHTER_BASIC_WINDUP));
         owner.pendingAction = () => attacks.push(new FighterBasicHitbox(owner, direction));
@@ -281,6 +329,10 @@ class FighterChargeHitbox {
 
     collidesWith(target) {
         return canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect);
+    }
+
+    applyEffect(target) {
+        fighterHitSpark(target, Math.atan2(this.direction[1], this.direction[0]), 8, 22);
     }
 
     // 날아가는 기 주먹 + 뒤로 남는 바람줄
@@ -341,6 +393,7 @@ class FighterChargeSkill {
         this.lastUsed = Time.now;
         if (this.currentCharges === this.maxCharges - 1) this.lastChargeTime = Time.now;
         attacks.push(new FighterChargeHitbox(owner, direction));
+        Vfx.spawn(new FighterWindVFX(owner, Math.atan2(direction[1], direction[0]), 0.8));
     }
 }
 
@@ -425,6 +478,10 @@ class FighterDashManager {
         return this.owner.rect.inflate(10, 10).colliderect(target.rect);
     }
 
+    applyEffect(target) {
+        fighterHitSpark(target, Math.atan2(this.direction[1], this.direction[0]), 8, 22);
+    }
+
     // 돌진 잔상: 지나온 자리에 연주황 무투가 그림자 + 바람줄
     draw(ctx) {
         const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
@@ -454,6 +511,7 @@ class FighterDashSkill extends Skill {
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
         attacks.push(new FighterDashManager(owner, direction, attacks));
+        Vfx.spawn(new FighterWindVFX(owner, Math.atan2(direction[1], direction[0]), 1.2));
     }
 }
 
