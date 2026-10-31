@@ -2,20 +2,6 @@
 
 const SANS_IMAGE = loadImage('assets/sans.png');
 
-// 방향(dirVec) 기준으로 길이 length, 폭 width인 직사각형 꼭짓점
-function beamPoints(cx, cy, dirVec, perpVec, length, width) {
-    const hl = length / 2;
-    const hw = width / 2;
-    const [dx, dy] = dirVec;
-    const [px, py] = perpVec;
-    return [
-        [cx + dx * hl + px * hw, cy + dy * hl + py * hw],
-        [cx + dx * hl - px * hw, cy + dy * hl - py * hw],
-        [cx - dx * hl - px * hw, cy - dy * hl - py * hw],
-        [cx - dx * hl + px * hw, cy - dy * hl + py * hw],
-    ];
-}
-
 // ==========================================
 // [평타] 회전하는 뼈다귀 막대
 // ==========================================
@@ -78,48 +64,9 @@ class SansBasicAttack extends Skill {
 
 // ==========================================
 // [스킬 1] 가스터 블래스터: 짧은 경고선 뒤 벽을 뚫는 레이저 (0.4초 속박)
-// 궁극기의 거대 빔도 같은 틀을 쓴다
+// 레이저 틀(BeamLaser)은 common.js에 있고, 궁극기 거대 빔과 마법사 스킬 1도 같은 틀을 쓴다
 // ==========================================
-class SansLaser {
-    constructor(owner, direction, { damageMult, delay, activeDuration, width, length }) {
-        this.owner = owner;
-        this.damage = owner.baseAtk * damageMult;
-        this.createdTime = Time.now;
-        this.delay = delay;
-        this.activeDuration = activeDuration;
-        this.lifespan = delay + activeDuration;
-        this.hitPlayers = [];
-        this.canPenetrateWalls = true;
-        this.width = width;
-        this.length = length;
-        this.dirVec = normalizeOr(direction);
-        this.perpVec = [-this.dirVec[1], this.dirVec[0]];
-        const forward = Math.floor(length / 2) + 30;
-        this.posX = owner.rect.centerx + this.dirVec[0] * forward;
-        this.posY = owner.rect.centery + this.dirVec[1] * forward;
-    }
-
-    getPolygonPoints() {
-        return beamPoints(this.posX, this.posY, this.dirVec, this.perpVec, this.length, this.width);
-    }
-
-    corePoints() {
-        return beamPoints(this.posX, this.posY, this.dirVec, this.perpVec, this.length, this.width / 2);
-    }
-
-    isWarning() { return Time.now - this.createdTime < this.delay; }
-
-    update() {}
-
-    isExpired() { return Time.now - this.createdTime >= this.lifespan; }
-
-    collidesWith(target) {
-        if (this.isWarning() || !canBeHit(this, target)) return false;
-        return checkPolygonCollision(this.getPolygonPoints(), target.rect);
-    }
-}
-
-class SansGasterLaser extends SansLaser {
+class SansGasterLaser extends BeamLaser {
     constructor(owner, direction) {
         super(owner, direction, { damageMult: 2.2, delay: 180, activeDuration: 200, width: 40, length: 550 });
     }
@@ -254,7 +201,7 @@ class SansSkill2 extends Skill {
 const SANS_ULT_WINDUP_MS = 1000;
 const SANS_ULT_FIRE_MS = 3000;
 
-class SansMegaLaserBeam extends SansLaser {
+class SansMegaLaserBeam extends BeamLaser {
     constructor(owner, direction) {
         super(owner, direction, { damageMult: 0.5, delay: SANS_ULT_WINDUP_MS, activeDuration: SANS_ULT_FIRE_MS, width: 400, length: 1500 });
         this.interval = 100;

@@ -97,3 +97,58 @@ function normalizeOr(direction, fallback = [1, 0]) {
     const len = Math.hypot(direction[0], direction[1]);
     return len === 0 ? fallback : [direction[0] / len, direction[1] / len];
 }
+
+// 방향(dirVec) 기준으로 길이 length, 폭 width인 직사각형 꼭짓점
+function beamPoints(cx, cy, dirVec, perpVec, length, width) {
+    const hl = length / 2;
+    const hw = width / 2;
+    const [dx, dy] = dirVec;
+    const [px, py] = perpVec;
+    return [
+        [cx + dx * hl + px * hw, cy + dy * hl + py * hw],
+        [cx + dx * hl - px * hw, cy + dy * hl - py * hw],
+        [cx - dx * hl - px * hw, cy - dy * hl - py * hw],
+        [cx - dx * hl + px * hw, cy - dy * hl + py * hw],
+    ];
+}
+
+// 레이저 공통 (샌즈 블래스터, 마법사 관통 레이저):
+// 쏜 자리 앞에 길이 length·폭 width인 직사각형. delay 동안은 경고만, 그 뒤 activeDuration 동안 판정
+class BeamLaser {
+    constructor(owner, direction, { damageMult, delay, activeDuration, width, length }) {
+        this.owner = owner;
+        this.damage = owner.baseAtk * damageMult;
+        this.createdTime = Time.now;
+        this.delay = delay;
+        this.activeDuration = activeDuration;
+        this.lifespan = delay + activeDuration;
+        this.hitPlayers = [];
+        this.canPenetrateWalls = true;
+        this.width = width;
+        this.length = length;
+        this.dirVec = normalizeOr(direction);
+        this.perpVec = [-this.dirVec[1], this.dirVec[0]];
+        const forward = Math.floor(length / 2) + 30;
+        this.posX = owner.rect.centerx + this.dirVec[0] * forward;
+        this.posY = owner.rect.centery + this.dirVec[1] * forward;
+    }
+
+    getPolygonPoints() {
+        return beamPoints(this.posX, this.posY, this.dirVec, this.perpVec, this.length, this.width);
+    }
+
+    corePoints() {
+        return beamPoints(this.posX, this.posY, this.dirVec, this.perpVec, this.length, this.width / 2);
+    }
+
+    isWarning() { return Time.now - this.createdTime < this.delay; }
+
+    update() {}
+
+    isExpired() { return Time.now - this.createdTime >= this.lifespan; }
+
+    collidesWith(target) {
+        if (this.isWarning() || !canBeHit(this, target)) return false;
+        return checkPolygonCollision(this.getPolygonPoints(), target.rect);
+    }
+}

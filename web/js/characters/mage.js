@@ -290,6 +290,31 @@ class MageBasicSkillRunner extends Skill {
     }
 }
 
+// ==========================================
+// [마법사 - 스킬 1] 관통 레이저 (샌즈 블래스터와 같은 방식)
+// 짧은 경고선 뒤 벽을 뚫는 넓은 레이저가 0.2초 동안 판정, 맞으면 슬로우 25% 1.5초
+// ==========================================
+class MagePiercingLaser extends BeamLaser {
+    constructor(owner, direction) {
+        super(owner, direction, { damageMult: 2.0, delay: 150, activeDuration: 200, width: 40, length: 1000 });
+    }
+
+    applyEffect(target) {
+        slow(target, 1.5, 25);
+    }
+
+    draw(ctx) {
+        if (this.isWarning()) {
+            const hl = this.length / 2;
+            drawLine(ctx, this.posX - this.dirVec[0] * hl, this.posY - this.dirVec[1] * hl,
+                     this.posX + this.dirVec[0] * hl, this.posY + this.dirVec[1] * hl, `rgba(180, 120, 255, ${120 / 255})`, 4);
+        } else {
+            fillPolygon(ctx, this.getPolygonPoints(), `rgba(180, 120, 255, ${220 / 255})`);
+            fillPolygon(ctx, this.corePoints(), COLOR_WHITE);
+        }
+    }
+}
+
 class MageLaserSkillRunner extends Skill {
     constructor() { super('Penetrating Pulse', 2200, ['projectile']); }
 
@@ -297,10 +322,7 @@ class MageLaserSkillRunner extends Skill {
         owner.castTimer = 0.4;
         owner.pendingAction = () => {
             this.lastUsed = Time.now;
-            attacks.push(new MageEnergyPulse(owner, direction, {
-                canPenetrateWalls: true, damageMult: 2.0, speed: 55,
-                color: '#b478ff', maxTrail: 55, applySlow: true, maxRange: null,
-            }));
+            attacks.push(new MagePiercingLaser(owner, direction));
         };
     }
 }
@@ -371,7 +393,7 @@ function applyMageToPlayer(player) {
 const MAGE_CHARACTER_DATA = {
     id: 'MAGE',
     name: '마법사',
-    desc: '평타: 마법빔을 멀리 쏩니다(15), 스킬 1: 강한 마법빔을 쏩니다(슬로우 25% 1.5초, 30), 스킬 2: 2초간 벽을 뚫고 이동속도가 30% 증가합니다, 궁극기: 하늘로 날아가 강하게 마법빔을 아래로 쏩니다(30, 3연발)',
+    desc: '평타: 마법빔을 멀리 쏩니다(15), 스킬 1: 짧게 조준한 뒤 벽을 뚫는 레이저를 쏩니다(슬로우 25% 1.5초, 30), 스킬 2: 2초간 벽을 뚫고 이동속도가 30% 증가합니다, 궁극기: 하늘로 날아가 강하게 마법빔을 아래로 쏩니다(30, 3연발)',
     apply: applyMageToPlayer,
     thumbnail: MAGE_IMAGE,
 };
