@@ -1,5 +1,8 @@
 // 검사 (abilities/swordman.py를 옮김)
 
+// 검사 이펙트 색: 은빛 칼날 (팀과 상관없이 같은 색, 캐릭터마다 고유 색을 쓴다)
+const SWORDMAN_COLOR = '#c4d0e0';
+
 // ==========================================
 // [검사 - 기본 참격] 부채꼴 근접 베기 (플레이어를 따라다님)
 // ==========================================
@@ -73,7 +76,7 @@ function spawnSwordmanSlashVfx(owner, direction) {
         height: 222 * k,
         anchorX: SWORDMAN_SLASH_APEX[0],
         anchorY: SWORDMAN_SLASH_APEX[1],
-        color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+        color: SWORDMAN_COLOR,
         rotation: faceAngle - SWORDMAN_SLASH_CENTER,
         // 판정처럼 오른쪽(바라보는 방향 +60도 쪽)에서 왼쪽으로 쓸고 지나간다
         startAngle: SWORDMAN_SLASH_RIGHT,
@@ -90,7 +93,7 @@ function spawnSwordmanSlashVfx(owner, direction) {
     const rotation = faceAngle - SWORDMAN_SLASH_CENTER;
     Vfx.spawn(new SweepSparkVFX({
         follow: owner,
-        color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+        color: SWORDMAN_COLOR,
         radius: SWORDMAN_SLASH_RADIUS,
         fromAngle: rotation + SWORDMAN_SLASH_RIGHT,
         toAngle: rotation + SWORDMAN_SLASH_LEFT,
@@ -148,7 +151,7 @@ class SwordmanProjectileAttack {
         // 맞은 자리 불꽃 (화면 효과라 게임 결과와는 무관)
         Vfx.spawn(new HitSparkVFX(
             (this.posX + target.rect.centerx) / 2, (this.posY + target.rect.centery) / 2,
-            { color: this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+            { color: SWORDMAN_COLOR,
               angle: Math.atan2(this.direction[1], this.direction[0]), count: 12, size: 22 },
         ));
     }
@@ -163,7 +166,7 @@ class SwordmanProjectileAttack {
         const k = this.height / SWORDMAN_WAVE_SPAN;            // 화면 px / 그림 px
         const w = SWORDMAN_WAVE_W * k, h = SWORDMAN_WAVE_H * k;
         const anchorX = SWORDMAN_WAVE_FRONT - (this.width / 2) / k; // 판정 가운데 = 앞날에서 두께 절반 뒤
-        const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
+        const color = SWORDMAN_COLOR;
         ctx.save();
         ctx.translate(this.posX, this.posY);
         ctx.rotate(-this.angle * Math.PI / 180); // angle은 위쪽이 + 기준이라 화면 회전은 반대
@@ -229,7 +232,7 @@ class SwordmanDashAttack {
             // 그림은 끝까지 돌진한 크기(18px x 12틱)로 고정하고, 지나간 만큼 천천히 드러낸다
             fullDist: this.dashSpeed * this.duration / (1000 / 60),
             softEdge: 40,
-            color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+            color: SWORDMAN_COLOR,
             fade: 0.3,
         }));
     }
@@ -275,15 +278,11 @@ const SWORDMAN_ULT_STUN_AFTER = 0.5; // 마지막 참격 뒤에도 남는 기절
 const SWORDMAN_ULT_HITS = 9;         // 납도 끝에 빠바박 들어가는 참격 수 (피해를 나눠서)
 const SWORDMAN_ULT_HIT_GAP = 60;     // 참격 간격(ms)
 
-// 궁극기 그림 (tools/swordman_ult_gen.js로 생성, 팀 색이 이미 들어 있고 글리치만 다른 2장씩)
+// 궁극기 그림 (tools/swordman_ult_gen.js로 생성, 은색과 색 번짐이 이미 들어 있고 글리치만 다른 2장씩)
 //   돌진: 800x210, 길 x 60~690, 가운데 y 105 / 베기: 800x400, 길 x 40~760, 가운데 y 200
-const swordmanUltImages = (kind) => ({
-    red: [0, 1].map(i => loadImage(`assets/swordman_ult_${kind}_red_${i}.png`)),
-    blue: [0, 1].map(i => loadImage(`assets/swordman_ult_${kind}_blue_${i}.png`)),
-});
+const swordmanUltImages = (kind) => [0, 1].map(i => loadImage(`assets/swordman_ult_${kind}_silver_${i}.png`));
 const SWORDMAN_ULT_DASH_IMAGES = swordmanUltImages('dash');
 const SWORDMAN_ULT_CUT_IMAGES = swordmanUltImages('cut');
-const swordmanTeam = (owner) => owner.playerNum === 2 ? 'blue' : 'red';
 
 class SwordmanUltDashAttack {
     constructor(owner, direction, color) {
@@ -316,7 +315,7 @@ class SwordmanUltDashAttack {
         // 돌진 자국: 가는 가로줄 + 글리치, 지나간 만큼 드러난다
         const fullDist = this.dashSpeed * this.duration / (1000 / 60);
         Vfx.spawn(new StretchSlashVFX({
-            images: SWORDMAN_ULT_DASH_IMAGES[swordmanTeam(owner)],
+            images: SWORDMAN_ULT_DASH_IMAGES,
             frameTime: 0.05,
             colored: true,
             follow: owner,
@@ -367,7 +366,7 @@ class SwordmanUltDashAttack {
         this.owner.castTimer = SWORDMAN_ULT_SHEATH;          // 납도하는 동안 아무것도 못 함
         defenseMod(this.owner, SWORDMAN_ULT_SHEATH, 100);    // 무적
         Vfx.spawn(new SheathVFX(this.owner, Math.atan2(this.direction[1], this.direction[0]), {
-            color: this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+            color: SWORDMAN_COLOR,
             duration: SWORDMAN_ULT_SHEATH,
         }));
     }
@@ -383,7 +382,7 @@ class SwordmanUltDashAttack {
             return;
         }
         Vfx.spawn(new CutBurstVFX(this.startX, this.startY, this.posX, this.posY, {
-            images: SWORDMAN_ULT_CUT_IMAGES[swordmanTeam(this.owner)],
+            images: SWORDMAN_ULT_CUT_IMAGES,
             frameTime: 0.04,
             imageX0: 40, imageX1: 760, imageCY: 200,
             margin: 35, scaleY: 0.8, duration: 0.55, darken: 0.4,
@@ -394,7 +393,7 @@ class SwordmanUltDashAttack {
     // 참격 한 번: 맞힌 적마다 직선 참격 이펙트 + 피해 (전체 피해를 참격 수로 나눔)
     slashHit() {
         this.hitsDone++;
-        const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
+        const color = SWORDMAN_COLOR;
         for (const target of this.marked) {
             if (!canBeHit(this, target)) continue;
             const finalDamage = target.takeDamage(this.damage / SWORDMAN_ULT_HITS);
