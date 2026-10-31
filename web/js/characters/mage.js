@@ -131,86 +131,110 @@ MageEnergyPulse.prototype.drawBolt = function (ctx) {
 };
 
 // ==========================================
-// [마법사 - 궁극기] 3연속 조준 저격
-// 하늘로 날아올라(보이지 않음, 무적, 벽 통과) 조준원을 움직이다가 3번 내리꽂는다.
-// 1단계: 조준 (최대 3초, 궁극기 키를 다시 누르면 바로 발사)
-// 2단계: 0.5초 경고 (제자리 고정)   3단계: 0.2초 동안 피해
+// [마법사 - 궁극기] 하늘 폭격
+// 1) 떠오름 0.5초 (제자리)  2) 0.5초 뒤부터 최대 3초 동안 조준원 안 아무 곳에 작은 폭발을 계속 떨어뜨림
+// 3) 궁극기 키를 다시 누르거나 시간이 다 되면: 0.4초 모은 뒤 조준원 전체에 큰 피해를 주며 내려와 끝
+// 하늘에 있는 동안은 보이지 않고(그림자만), 무적, 벽 통과, 조준원(=마법사 위치)은 움직일 수 있다
 // ==========================================
-class SniperUltManager {
+const MAGE_ULT = {
+    radius: 140,         // 조준원(전범위 피해) 반지름
+    rise: 500, delay: 500, bombard: 3000, warn: 400, strike: 200, // ms
+    bombGap: 180,        // 작은 폭발 간격(ms)
+    bombDelay: 250,      // 표시 후 터지기까지(ms)
+    bombRadius: 38,
+    bombDamage: 0.4,     // baseAtk 배수 (작은 폭발 하나)
+    strikeDamage: 2.0,   // baseAtk 배수 (전범위)
+};
+
+class MageSkyBombardment {
     constructor(owner, color) {
         this.owner = owner;
         this.color = color;
-        this.shotsRemaining = 3;
-        this.phase = 1;
+        this.phase = 'rise';
         this.phaseStartTime = Time.now;
         this.expired = false;
         this.canPenetrateWalls = true;
         this.hitPlayers = [];
         this.damage = 0;
-
-        this.radius = 85;
-        this.lastKeyDown = true; // 처음 시전할 때 누른 키가 바로 발사로 이어지지 않게
+        this.radius = MAGE_ULT.radius;
+        this.startX = owner.rect.centerx;
+        this.startY = owner.rect.centery;
+        this.bombs = [];         // { x, y, at } at: 터지는 시각
+        this.justExploded = [];  // 이번 틱에 터진 폭발 (collidesWith에서 피해)
+        this.nextBombAt = 0;
+        this.lastKeyDown = true; // 처음 시전할 때 누른 키가 바로 재사용으로 이어지지 않게
 
         this.originalChargeRate = owner.ultChargeRate;
         owner.ultChargeRate = 0.0;
-
         owner.invincible = true;
         owner.hidden = true;
-
         silence(owner, 15.0);
         ghost(owner, 15.0);
+        slow(owner, MAGE_ULT.rise / 1000, 100); // 떠오르는 동안 제자리
     }
 
-    triggerShot() {
-        if (this.phase === 1) {
-            this.phase = 2;
-            this.phaseStartTime = Time.now;
-            slow(this.owner, 0.5, 100);
-        }
+    setPhase(phase) {
+        this.phase = phase;
+        this.phaseStartTime = Time.now;
+    }
+
+    startStrike() {
+        this.setPhase('warn');
+        this.bombs = [];
+        slow(this.owner, (MAGE_ULT.warn + MAGE_ULT.strike) / 1000, 100);
     }
 
     update() {
-        if (this.owner.hp <= 0) {
-            this.finish();
-            return;
-        }
+        this.justExploded = [];
+        if (this.owner.hp <= 0) { this.finish(); return; }
 
-        // 궁극기 키를 새로 누르면 즉시 발사
         const keyDown = this.owner.input.skills[3];
-        if (!this.lastKeyDown && keyDown) this.triggerShot();
+        const pressed = !this.lastKeyDown && keyDown;
         this.lastKeyDown = keyDown;
-
         const elapsed = Time.now - this.phaseStartTime;
-        if (this.phase === 1) {
-            this.damage = 0;
-            if (elapsed >= 3000) {
-                this.phase = 2;
-                this.phaseStartTime = Time.now;
-                slow(this.owner, 0.5, 100);
-            }
-        } else if (this.phase === 2) {
-            this.damage = 0;
-            if (elapsed >= 500) {
-                this.phase = 3;
-                this.damage = this.owner.baseAtk * 2.0;
-                this.phaseStartTime = Time.now;
-            }
-        } else if (this.phase === 3) {
-            if (elapsed >= 200) {
-                this.shotsRemaining -= 1;
-                if (this.shotsRemaining > 0) {
-                    this.phase = 1;
-                    this.damage = 0;
-                    this.phaseStartTime = Time.now;
-                    this.hitPlayers = [];
-                } else {
-                    this.finish();
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+
+        if (this.phase === 'rise') {
+            if (elapsed >= MAGE_ULT.rise) this.setPhase('delay');
+        } else if (this.phase === 'delay' || this.phase === 'bombard') {
+            if (pressed) { this.startStrike(); return; }
+            if (this.phase === 'delay' && elapsed >= MAGE_ULT.delay) { this.setPhase('bombard'); this.nextBombAt = Time.now; }
+            if (this.phase === 'bombard') {
+                // 조준원 안 아무 곳에 작은 폭발 예약 (게임 난수라 두 기기가 같다)
+                while (Time.now >= this.nextBombAt) {
+                    const ang = gameRandom() * Math.PI * 2, d = Math.sqrt(gameRandom()) * (this.radius - 20);
+                    this.bombs.push({ x: cx + Math.cos(ang) * d, y: cy + Math.sin(ang) * d, at: this.nextBombAt + MAGE_ULT.bombDelay });
+                    this.nextBombAt += MAGE_ULT.bombGap;
                 }
+                if (Time.now - this.phaseStartTime >= MAGE_ULT.bombard) this.startStrike();
+            }
+        } else if (this.phase === 'warn') {
+            if (elapsed >= MAGE_ULT.warn) {
+                this.setPhase('strike');
+                this.damage = this.owner.baseAtk * MAGE_ULT.strikeDamage;
+                this.hitPlayers = [];
+                Vfx.spawn(new BlastVFX(cx, cy, { radius: this.radius, color: '#b478ff', color2: '#64dcff', duration: 0.45, count: 26 }));
+                Vfx.shake(8, 0.3);
+            }
+        } else if (this.phase === 'strike') {
+            if (elapsed >= MAGE_ULT.strike) {
+                Vfx.spawn(new BlastVFX(cx, cy, { radius: 45, color: '#64dcff', color2: '#ffffff', count: 8 })); // 내려옴
+                this.finish();
             }
         }
+
+        // 터질 시각이 된 작은 폭발
+        this.bombs = this.bombs.filter(b => {
+            if (Time.now < b.at) return true;
+            this.justExploded.push(b);
+            Vfx.spawn(new BlastVFX(b.x, b.y, { radius: MAGE_ULT.bombRadius, color: '#b478ff', color2: '#64dcff' }));
+            Vfx.shake(2, 0.06);
+            return false;
+        });
     }
 
     finish() {
+        if (this.expired) return;
         this.owner.invincible = false;
         this.owner.hidden = false;
         this.owner.ultChargeRate = this.originalChargeRate;
@@ -218,57 +242,100 @@ class SniperUltManager {
         delete this.owner.statusEffects.ghost;
         this.owner.silenced = false;
         this.expired = true;
+        this.damage = 0;
     }
-
 
     isExpired() { return this.expired; }
 
+    canHitTarget(target) {
+        return target !== this.owner && !target.invincible && target.defense < 100.0;
+    }
+
+    // 작은 폭발은 여기서 바로 피해를 주고, 전범위 피해만 true로 돌려 game.js가 처리하게 한다
     collidesWith(target) {
-        if (this.phase !== 3 || target === this.owner) return false;
-        if (target.invincible || target.defense >= 100.0) return false;
-        const cx = this.owner.rect.centerx;
-        const cy = this.owner.rect.centery;
+        if (!this.canHitTarget(target)) return false;
+        for (const b of this.justExploded) {
+            if (Math.hypot(target.rect.centerx - b.x, target.rect.centery - b.y) <= MAGE_ULT.bombRadius + 15) {
+                const finalDamage = target.takeDamage(this.owner.baseAtk * MAGE_ULT.bombDamage);
+                this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+            }
+        }
+        if (this.phase !== 'strike') return false;
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
         return (target.rect.centerx - cx) ** 2 + (target.rect.centery - cy) ** 2 <= this.radius ** 2;
     }
 
     draw(ctx) {
         if (this.expired) return;
-        const cx = this.owner.rect.centerx;
-        const cy = this.owner.rect.centery;
-        const r = this.radius;
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        const elapsed = Time.now - this.phaseStartTime;
+        const C = MAGE_CYAN, P = MAGE_PURPLE;
+        ctx.save();
 
-        const circle = (radius, fill, stroke, width) => {
-            ctx.beginPath();
-            ctx.arc(cx, cy, Math.max(0, radius), 0, Math.PI * 2);
-            if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-            if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.stroke(); }
-        };
-
-        if (this.phase === 2) {
-            const pulse = (Math.sin(Time.now * 0.02) + 1) * 0.5;
-            circle(r, `rgba(140, 100, 255, ${(180 + 75 * pulse) / 255})`);
-            circle(Math.trunc(r * 0.5), `rgba(100, 220, 255, ${220 / 255})`);
-            circle(r - 2, null, 'rgb(200, 150, 255)', 4);
-        } else if (this.phase === 3) {
-            circle(r, `rgba(180, 120, 255, ${200 / 255})`);
-            circle(Math.trunc(r * 0.7), `rgba(100, 220, 255, ${220 / 255})`);
-            circle(Math.trunc(r * 0.35), COLOR_WHITE);
-        } else {
-            // 조준 중: 숨 쉬듯 커졌다 작아지는 조준원 + 십자선
-            const pulse = (Math.sin(Time.now * 0.015) + 1) * 0.5;
-            const cur = Math.trunc(r * (0.9 + 0.1 * pulse));
-            circle(cur, null, `rgba(100, 220, 255, ${180 / 255})`, 2);
-            circle(Math.trunc(cur * 0.4), null, `rgba(180, 120, 255, ${120 / 255})`, 1);
-            const len = cur + 8;
-            ctx.strokeStyle = `rgba(100, 220, 255, ${220 / 255})`;
+        if (this.phase === 'rise') {
+            // 떠오름: 빛기둥 + 발밑 마법진 + 작아지며 사라지는 마법사
+            const e = Math.min(1, elapsed / MAGE_ULT.rise);
+            ctx.globalCompositeOperation = 'lighter';
+            const pillar = ctx.createLinearGradient(0, cy + 20, 0, cy - 300);
+            pillar.addColorStop(0, mageRgba(C, 0.7 * (1 - e * 0.5))); pillar.addColorStop(1, mageRgba(P, 0));
+            ctx.fillStyle = pillar; ctx.fillRect(cx - 22 * (1 - e * 0.6), cy - 300, 44 * (1 - e * 0.6), 320);
             ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(cx - len, cy);
-            ctx.lineTo(cx + len, cy);
-            ctx.moveTo(cx, cy - len);
-            ctx.lineTo(cx, cy + len);
-            ctx.stroke();
+            ctx.strokeStyle = mageRgba(C, 0.9 * (1 - e)); ctx.beginPath(); ctx.ellipse(cx, cy + 24, 40, 14, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = mageRgba(P, 0.7 * (1 - e)); ctx.beginPath(); ctx.ellipse(cx, cy + 24, 28, 10, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalCompositeOperation = 'source-over';
+            if (isImageReady(MAGE_IMAGE)) {
+                const s = 44 * (1 - 0.45 * e);
+                ctx.globalAlpha = 1 - e;
+                ctx.drawImage(MAGE_IMAGE, cx - s / 2, cy - s / 2 - 90 * e * e, s, s);
+                ctx.globalAlpha = 1;
+            }
+            ctx.restore();
+            return;
         }
+
+        // 바닥 그림자 (하늘 높이 있어서 작고 흐리게)
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath(); ctx.ellipse(cx, cy, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+        ctx.globalCompositeOperation = 'lighter';
+        const r = this.radius;
+        const spin = Time.now * 0.0008;
+        const warnT = this.phase === 'warn' ? Math.min(1, elapsed / MAGE_ULT.warn) : 0;
+        // 마법진: 바깥 두 겹 고리 + 돌아가는 룬(별) + 안쪽 육각형
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = mageRgba(C, 0.75 + 0.25 * warnT); ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = mageRgba(P, 0.5 + 0.4 * warnT); ctx.beginPath(); ctx.arc(cx, cy, r - 10, 0, Math.PI * 2); ctx.stroke();
+        for (let k = 0; k < 12; k++) {
+            const a = spin + k / 12 * Math.PI * 2;
+            mageStar(ctx, cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5), 4, 0.9, k % 2 ? C : P);
+        }
+        ctx.strokeStyle = mageRgba(P, 0.4 + 0.4 * warnT);
+        ctx.beginPath();
+        for (let k = 0; k <= 6; k++) { const a = -spin * 1.5 + k / 6 * Math.PI * 2; ctx.lineTo(cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55); }
+        ctx.stroke();
+
+        if (this.phase === 'warn' || this.phase === 'strike') {
+            // 모으기: 안쪽이 차오르고, 하늘에서 빛기둥이 내려온다
+            const fill = this.phase === 'strike' ? 1 : warnT;
+            ctx.fillStyle = mageRgba(P, 0.25 * fill); ctx.beginPath(); ctx.arc(cx, cy, r * fill, 0, Math.PI * 2); ctx.fill();
+            const beamW = 30 + 50 * fill;
+            const beam = ctx.createLinearGradient(0, cy - 720, 0, cy);
+            beam.addColorStop(0, mageRgba(P, 0)); beam.addColorStop(1, mageRgba(C, 0.6 * fill));
+            ctx.fillStyle = beam; ctx.fillRect(cx - beamW / 2, cy - 720, beamW, 720);
+        } else {
+            // 조준 십자선
+            ctx.strokeStyle = mageRgba(C, 0.6);
+            ctx.beginPath(); ctx.moveTo(cx - 14, cy); ctx.lineTo(cx + 14, cy); ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy + 14); ctx.stroke();
+        }
+
+        // 떨어질 자리 표시: 줄어드는 고리
+        for (const b of this.bombs) {
+            const t = 1 - Math.max(0, (b.at - Time.now) / MAGE_ULT.bombDelay);
+            ctx.strokeStyle = mageRgba(P, 0.4 + 0.5 * t);
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(b.x, b.y, MAGE_ULT.bombRadius * (1.2 - 0.6 * t), 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
     }
 }
 
@@ -362,13 +429,13 @@ class MageGhostSkill extends Skill {
 
 class MageUltSkill extends Skill {
     constructor() {
-        super('Triple Sniper', 500, ['ult', 'projectile'], -99999);
+        super('Sky Bombardment', 500, ['ult', 'projectile'], -99999);
         this.ultChargeRate = 8.0;
     }
 
     use(owner, direction, attacks, color) {
         this.lastUsed = Time.now;
-        attacks.push(new SniperUltManager(owner, color));
+        attacks.push(new MageSkyBombardment(owner, color));
     }
 }
 
@@ -402,6 +469,130 @@ function drawMageStaff(ctx) {
 }
 
 // ==========================================
+// [마법사 - 스킬 2] 비행 이펙트 (화면 효과 전용, 게임 계산과 무관)
+// 떠오름(마법진 + 솟는 빛 고리) → 나는 동안 그림자·둥실거림·반투명·빛 테두리·날개·잔상·가루, 벽 위에선 파문
+// ==========================================
+const MAGE_GHOST_TIME = 2.0;
+const MAGE_CYAN = [100, 220, 255], MAGE_PURPLE = [180, 120, 255];
+const mageRgba = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
+const mageFloatTrail = new WeakMap(); // 플레이어 → 최근 위치들 (잔상·가루용, 화면 전용)
+let mageAuraCanvas = null;
+
+// 스킬 2로 떠 있는 정도 (0~1). 궁극기 중(숨김)에는 0
+function mageLift(p) {
+    const g = p.statusEffects.ghost;
+    if (!g || p.hidden || g.duration > MAGE_GHOST_TIME + 0.01) return 0; // 궁극기의 긴 망령화는 제외
+    const elapsed = MAGE_GHOST_TIME - g.duration;
+    return Math.min(1, elapsed / 0.15) * Math.min(1, g.duration / 0.15);
+}
+
+function mageInWall(p) {
+    return CURRENT_WALLS.some(w => p.rect.colliderect(w.rect));
+}
+
+function mageBodyStyle(p) {
+    const lift = mageLift(p);
+    if (lift <= 0) return null;
+    const bob = Math.sin(Time.now * 0.008) * 2;
+    return { alpha: 1 - (mageInWall(p) ? 0.45 : 0.28) * lift, offsetY: (-8 + bob) * lift };
+}
+
+// 색을 입혀 흐리게 만든 마법사 그림 (빛 테두리, 한 번만 만든다)
+function mageAura() {
+    if (mageAuraCanvas || !isImageReady(MAGE_IMAGE)) return mageAuraCanvas;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const x = c.getContext('2d');
+    const t = document.createElement('canvas'); t.width = 64; t.height = 64;
+    const tx = t.getContext('2d');
+    tx.drawImage(MAGE_IMAGE, 7, 7, 50, 50); tx.globalCompositeOperation = 'source-in';
+    tx.fillStyle = mageRgba(MAGE_CYAN, 1); tx.fillRect(0, 0, 64, 64);
+    x.filter = 'blur(3px)'; x.drawImage(t, 0, 0); x.drawImage(t, 0, 0);
+    mageAuraCanvas = c;
+    return c;
+}
+
+function mageStar(ctx, x, y, r, a, col) {
+    ctx.fillStyle = mageRgba(col, a);
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) { const ang = k * Math.PI / 4, rr = k % 2 === 0 ? r : r * 0.25; ctx.lineTo(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr); }
+    ctx.closePath(); ctx.fill();
+}
+
+function drawMageFloatUnder(ctx) {
+    const p = this;
+    const cx = p.rect.centerx, cy = p.rect.centery;
+    const g = p.statusEffects.ghost;
+    let trail = mageFloatTrail.get(p);
+    if (!trail) { trail = []; mageFloatTrail.set(p, trail); }
+    const lift = mageLift(p);
+    if (lift <= 0) { trail.length = 0; return; }
+    const elapsed = MAGE_GHOST_TIME - g.duration;
+    const last = trail[trail.length - 1];
+    if (!last || Math.hypot(last[0] - cx, last[1] - cy) > 6) trail.push([cx, cy]);
+    if (trail.length > 12) trail.shift();
+    const bodyY = cy + mageBodyStyle(p).offsetY;
+
+    ctx.save();
+    // 그림자: 바닥에 그대로 (몸만 떠오른다)
+    ctx.fillStyle = `rgba(0,0,0,${0.38 * lift})`;
+    ctx.beginPath(); ctx.ellipse(cx, cy + 24, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.globalCompositeOperation = 'lighter';
+    // 떠오름: 처음 0.35초 동안 발밑 마법진 + 위로 솟는 빛 고리
+    if (elapsed < 0.35) {
+        const t = elapsed / 0.35, a = 1 - t;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = mageRgba(MAGE_CYAN, 0.9 * a);
+        ctx.beginPath(); ctx.ellipse(cx, cy + 24, 34, 12, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = mageRgba(MAGE_PURPLE, 0.7 * a);
+        ctx.beginPath(); ctx.ellipse(cx, cy + 24, 24, 8, 0, 0, Math.PI * 2); ctx.stroke();
+        for (let k = 0; k < 3; k++) {
+            const u = (t + k / 3) % 1;
+            ctx.strokeStyle = mageRgba(MAGE_CYAN, 0.6 * (1 - u) * a);
+            ctx.beginPath(); ctx.ellipse(cx, cy + 24 - u * 50, 28 - u * 8, (28 - u * 8) * 0.35, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+    }
+    // 잔상 + 가루: 지나온 자리
+    const n = trail.length;
+    for (let i = 0; i < n - 1; i++) {
+        const [tx, ty] = trail[i], age = (n - 1 - i) / n;
+        if (i >= n - 4 && isImageReady(MAGE_IMAGE)) {
+            ctx.globalAlpha = 0.28 * (1 - age) * lift;
+            ctx.drawImage(mageAura() || MAGE_IMAGE, tx - 32, ty - 32 + (bodyY - cy), 64, 64);
+            ctx.globalAlpha = 1;
+        }
+        mageStar(ctx, tx + Math.sin(i * 12.9) * 12, ty + Math.cos(i * 7.3) * 12, 2.5, 0.8 * (1 - age) * lift, i % 2 ? MAGE_CYAN : MAGE_PURPLE);
+    }
+    // 날개: 바라보는 방향의 수직으로 펼치고 뒤로 젖힌 빛 깃털 3장씩 (천천히 퍼덕임)
+    const face = Math.atan2(p.facing[1], p.facing[0]);
+    const flap = Math.sin(Time.now * 0.012);
+    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
+        const len = 58 - i * 10, ang = face + Math.PI + side * (Math.PI / 2 - 0.55 - i * 0.3 + flap * 0.12);
+        ctx.save();
+        ctx.translate(cx, bodyY);
+        ctx.rotate(ang);
+        const gr = ctx.createLinearGradient(0, 0, len + 14, 0);
+        gr.addColorStop(0, mageRgba(MAGE_CYAN, 0.9 * lift)); gr.addColorStop(0.6, mageRgba(MAGE_PURPLE, 0.55 * lift)); gr.addColorStop(1, mageRgba(MAGE_PURPLE, 0));
+        ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.ellipse(len / 2 + 14, 0, len / 2, 8 - i * 1.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+    // 빛 테두리 (몸 뒤)
+    const aura = mageAura();
+    if (aura) { ctx.globalAlpha = 0.9 * lift; ctx.drawImage(aura, cx - 32, bodyY - 32, 64, 64); ctx.globalAlpha = 1; }
+    // 벽 통과 중: 벽 위에 동심원 파문
+    if (mageInWall(p)) {
+        for (let k = 0; k < 3; k++) {
+            const u = (Time.now / 500 + k / 3) % 1;
+            ctx.strokeStyle = mageRgba(MAGE_CYAN, 0.8 * (1 - u));
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.ellipse(cx, bodyY, 8 + u * 18, 16 + u * 30, face, 0, Math.PI * 2); ctx.stroke();
+        }
+    }
+    ctx.restore();
+}
+
+// ==========================================
 // 캐릭터 등록
 // ==========================================
 function applyMageToPlayer(player) {
@@ -411,6 +602,8 @@ function applyMageToPlayer(player) {
     player.speed = 3.6;
     player.spriteImage = MAGE_IMAGE;
     player.drawDotTemplate = drawMageStaff;
+    player.bodyStyle = mageBodyStyle;
+    player.preDrawHooks.push((ctx) => drawMageFloatUnder.call(player, ctx));
     player.dotMargin = 32; // 이미지(44px)가 히트박스보다 커서 더 띄운다
 
     player.abilities = [
@@ -425,7 +618,7 @@ function applyMageToPlayer(player) {
 const MAGE_CHARACTER_DATA = {
     id: 'MAGE',
     name: '마법사',
-    desc: '평타: 마법빔을 멀리 쏩니다(15), 스킬 1: 짧게 조준한 뒤 벽을 뚫는 레이저를 쏩니다(슬로우 25% 1.5초, 30), 스킬 2: 2초간 벽을 뚫고 이동속도가 30% 증가합니다, 궁극기: 하늘로 날아가 강하게 마법빔을 아래로 쏩니다(30, 3연발)',
+    desc: '평타: 마법빔을 멀리 쏩니다(15), 스킬 1: 짧게 조준한 뒤 벽을 뚫는 레이저를 쏩니다(슬로우 25% 1.5초, 30), 스킬 2: 2초간 벽을 뚫고 이동속도가 30% 증가합니다, 궁극기: 하늘로 날아올라 조준원 안에 작은 폭발을 계속 떨어뜨리고(6씩), 다시 누르거나 3초가 지나면 조준원 전체를 강타하며 내려옵니다(30)',
     apply: applyMageToPlayer,
     thumbnail: MAGE_IMAGE,
 };
