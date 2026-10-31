@@ -308,12 +308,35 @@ class MagePiercingLaser extends BeamLaser {
             const hl = this.length / 2;
             drawLine(ctx, this.posX - this.dirVec[0] * hl, this.posY - this.dirVec[1] * hl,
                      this.posX + this.dirVec[0] * hl, this.posY + this.dirVec[1] * hl, `rgba(180, 120, 255, ${120 / 255})`, 4);
+        } else if (isImageReady(MAGE_LASER_IMAGES[0]) && isImageReady(MAGE_LASER_IMAGES[1])) {
+            this.drawImageBeam(ctx);
         } else {
             fillPolygon(ctx, this.getPolygonPoints(), `rgba(180, 120, 255, ${220 / 255})`);
             fillPolygon(ctx, this.corePoints(), COLOR_WHITE);
         }
     }
+
+    // 레이저 그림: 처음 0.04초 동안 굵어지며 열리고, 마지막 0.06초 동안 가늘어지며 사라진다. 그림 2장을 번갈아(일렁임)
+    drawImageBeam(ctx) {
+        const t = Time.now - this.createdTime - this.delay; // 0 ~ activeDuration(ms)
+        const open = Math.min(1, t / 40);
+        const close = Math.min(1, Math.max(0, (this.activeDuration - t) / 60));
+        const thick = (0.3 + 0.7 * open) * (0.2 + 0.8 * close);
+        const img = MAGE_LASER_IMAGES[Math.floor(t / 50) % 2];
+        const w = img.naturalWidth, h = img.naturalHeight;
+        ctx.save();
+        ctx.translate(this.posX, this.posY);
+        ctx.rotate(Math.atan2(this.dirVec[1], this.dirVec[0]));
+        ctx.scale(this.length / w, thick);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.min(1, 0.4 + close);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
+    }
 }
+
+// 스킬 1 레이저 그림 (tools/mage_laser_gen.js로 생성, 1000x120, 보라가 이미 들어 있음, 2장 번갈아)
+const MAGE_LASER_IMAGES = [0, 1].map(i => loadImage(`assets/mage_laser_${i}.png`));
 
 class MageLaserSkillRunner extends Skill {
     constructor() { super('Penetrating Pulse', 2200, ['projectile']); }
