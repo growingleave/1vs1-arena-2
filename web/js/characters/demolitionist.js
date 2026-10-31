@@ -6,11 +6,133 @@ function hitsInCircle(attack, target, x, y, radius) {
     return Math.hypot(target.rect.centerx - x, target.rect.centery - y) <= radius;
 }
 
+// 기본 색 (fxColor 기준 주황, 변신 중엔 색은 유지하고 화려함만 키운다)
+const DMX_ORANGE = '255, 150, 60';
+const DMX_RED = '255, 60, 30';
+
+// 이펙트 그림 (tools/demolitionist_gen.js로 생성)
+const DMX_BLAST_IMAGE = loadImage('assets/dmx_blast.png'); // 250x250 흰 빛, 가운데=그림 가운데 (색 입혀 'lighter')
+const DMX_SHOCK_IMAGE = loadImage('assets/dmx_shock.png'); // 280x150 흰 빛, 뒤쪽 기준점 (20,75) → 오른쪽으로 뻗음 (색 입혀 'lighter')
+const DMX_DUST_IMAGE = loadImage('assets/dmx_dust.png');   // 150x150 옅은 회갈색 먼지, 가운데=그림 가운데 (보통으로)
+
+// 색 입힌 글로우 그림을 (x,y) 중심에 angle 회전, size(지름)로 그린다 ('lighter')
+function dmxDrawGlow(ctx, img, color, x, y, size, angle, alpha) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y); ctx.rotate(angle);
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(vfxTinted(img, color), -size / 2, -size / 2, size, size);
+    ctx.restore();
+}
+
+// 충격파 그림: 뒤쪽 기준점(그림의 20,75)을 (x,y)에 맞춰 angle 방향으로 뻗어나가게 그린다
+function dmxDrawShock(ctx, color, x, y, angle, scale, alpha) {
+    if (!isImageReady(DMX_SHOCK_IMAGE) || alpha <= 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y); ctx.rotate(angle); ctx.scale(scale, scale);
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(vfxTinted(DMX_SHOCK_IMAGE, color), -20, -75);
+    ctx.restore();
+}
+
+// 먼지바람 (보통으로, 밝기 조절만)
+function dmxDrawDust(ctx, x, y, size, alpha) {
+    if (!isImageReady(DMX_DUST_IMAGE) || alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(DMX_DUST_IMAGE, x - size / 2, y - size / 2, size, size);
+    ctx.restore();
+}
+
+// 폭발/충격 뒤에 은은하게 퍼지는 먼지바람 (화면 전용)
+class DmxDustVFX {
+    constructor(x, y, baseSize = 90) {
+        this.x = x; this.y = y; this.duration = 0.9; this.elapsed = 0; this.baseSize = baseSize;
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = this.elapsed / this.duration;
+        dmxDrawDust(ctx, this.x, this.y, this.baseSize * (0.6 + 0.8 * t), 0.5 * (1 - t));
+    }
+}
+
+// 폭발 중심에서 튀는 불똥 (화면 전용)
+class DmxBlastSparkVFX extends SparkVFX {
+    constructor(x, y, color, radius, vivid) {
+        super(color);
+        this.duration = 0.4;
+        const n = vivid ? 18 : 10;
+        for (let i = 0; i < n; i++) this.addSpark(x, y, vfxRand(0, Math.PI * 2), vfxRand(80, radius * 2.2), vfxRand(0.2, 0.45), vfxRand(1.5, 3));
+    }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+    draw(ctx) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); }
+}
+
+// 스킬1 사용 순간 앞으로 튀는 불똥 (화면 전용)
+class DmxShockBurstVFX extends SparkVFX {
+    constructor(x, y, angle, color, vivid) {
+        super(color);
+        this.duration = 0.3;
+        const n = vivid ? 20 : 12;
+        for (let i = 0; i < n; i++) this.addSpark(x, y, angle + vfxRand(-0.5, 0.5), vfxRand(150, vivid ? 480 : 340), vfxRand(0.18, 0.4), vfxRand(1.5, 3));
+    }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+    draw(ctx) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); }
+}
+
+// 스킬1에 밀려나는 상대 뒤로 남는 먼지 궤적 (화면 전용, forcedMove 지속시간과 비슷하게 짧음)
+class DmxPushTrailVFX {
+    constructor(target, direction) {
+        this.target = target; this.direction = direction; this.duration = 0.3; this.elapsed = 0;
+    }
+    get finished() { return this.elapsed >= this.duration || this.target.hidden; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        if (this.target.hidden) return;
+        const r = this.target.rect, t = this.elapsed / this.duration;
+        for (let i = 0; i < 3; i++) {
+            const back = 10 + i * 14 + t * 10;
+            dmxDrawDust(ctx, r.centerx - this.direction[0] * back, r.centery - this.direction[1] * back, 34 - i * 6, 0.35 * (1 - t));
+        }
+    }
+}
+
+// 변신 스킬2 폭발 전: 위에서 폭탄이 빠르게 떨어져 땅에 닿는 느낌의 짧은 선딜 연출 (화면 전용, 실제 폭발 타이밍은 그대로)
+class DmxFallingBombVFX {
+    constructor(x, y) {
+        this.x = x; this.y = y; this.duration = 0.14; this.elapsed = 0; this.dropHeight = 130;
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = Math.min(1, this.elapsed / this.duration);
+        const fall = 1 - t;
+        const y = this.y - this.dropHeight * fall;
+        const shadowScale = 0.3 + 0.7 * t;
+        ctx.save();
+        ctx.globalAlpha = 0.35 * (0.5 + 0.5 * t);
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.ellipse(this.x, this.y, 16 * shadowScale, 7 * shadowScale, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = 0.9 * t + 0.1;
+        ctx.fillStyle = '#2b2b30';
+        ctx.beginPath(); ctx.arc(this.x, y, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = `rgba(255, 150, 60, ${0.5 * fall})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(this.x, y - 14 * fall); ctx.lineTo(this.x, y); ctx.stroke();
+        ctx.restore();
+    }
+}
+
 // ==========================================
 // 폭발 이펙트 (벽 관통)
 // ==========================================
 class DemolitionistExplosionEffect {
-    constructor(owner, x, y, damage, radius, color = '255, 69, 0', maxAlpha = 200, lifespan = 300) {
+    constructor(owner, x, y, damage, radius, color = DMX_ORANGE, maxAlpha = 200, lifespan = 300, { vivid = false } = {}) {
         this.owner = owner;
         this.posX = x;
         this.posY = y;
@@ -22,6 +144,10 @@ class DemolitionistExplosionEffect {
         this.lifespan = lifespan;
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
+        this.vivid = vivid; // 변신 중: 색은 그대로, 파티클·하이라이트만 화려하게
+
+        Vfx.spawn(new DmxBlastSparkVFX(x, y, `rgb(${color})`, radius, vivid));
+        Vfx.spawn(new DmxDustVFX(x, y, radius * (vivid ? 2.0 : 1.6)));
     }
 
     update() {}
@@ -34,8 +160,12 @@ class DemolitionistExplosionEffect {
 
     draw(ctx) {
         const progress = Math.min(1.0, Math.max(0.0, (Time.now - this.createdTime) / this.lifespan));
-        const alpha = Math.max(0, Math.trunc(this.maxAlpha * (1.0 - progress))) / 255;
-        drawCircle(ctx, this.posX, this.posY, Math.trunc(this.radius * progress), `rgba(${this.color}, ${alpha})`);
+        const tint = `rgb(${this.color})`;
+        const grow = 1 - (1 - progress) ** 2; // 빠르게 커졌다가 서서히 사라짐
+        const size = this.radius * 2.6 * (0.4 + 0.6 * grow);
+        const alpha = (this.maxAlpha / 255) * (1 - progress) * (this.vivid ? 1.3 : 1);
+        dmxDrawGlow(ctx, DMX_BLAST_IMAGE, tint, this.posX, this.posY, size, 0, alpha);
+        if (this.vivid) dmxDrawGlow(ctx, DMX_BLAST_IMAGE, '#fff3c8', this.posX, this.posY, size * 0.55, 0, alpha * 0.8);
     }
 }
 
@@ -136,6 +266,9 @@ class DemolitionistSkill1Effect {
         this.posX = owner.rect.centerx + direction[0] * 35;
         this.posY = owner.rect.centery + direction[1] * 35;
         this.angle = directionToAngle(direction);
+        this.screenAngle = Math.atan2(direction[1], direction[0]);
+
+        Vfx.spawn(new DmxShockBurstVFX(owner.rect.centerx, owner.rect.centery, this.screenAngle, `rgb(${DMX_ORANGE})`, this.isTransformed));
     }
 
     getTrapPoints() {
@@ -155,12 +288,23 @@ class DemolitionistSkill1Effect {
     }
 
     applyEffect(target) {
-        if (!this.isTransformed) forcedMove(target, 0.3, 350.0, this.direction);
+        const pushed = !this.isTransformed;
+        if (pushed) forcedMove(target, 0.3, 350.0, this.direction);
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, {
+            color: this.isTransformed ? '#ffd27a' : `rgb(${DMX_ORANGE})`,
+            angle: this.screenAngle, count: pushed ? 16 : 10, size: pushed ? 26 : 18,
+        }));
+        if (pushed) Vfx.spawn(new DmxPushTrailVFX(target, this.direction));
     }
 
     draw(ctx) {
-        const fill = this.isTransformed ? `rgba(180, 50, 255, ${200 / 255})` : `rgba(255, 140, 0, ${200 / 255})`;
-        drawPolygon(ctx, this.getTrapPoints(), fill, `rgba(255, 255, 255, ${240 / 255})`, 2);
+        const progress = Math.min(1, Math.max(0, (Time.now - this.createdTime) / this.lifespan));
+        const fade = 1 - progress;
+        const tint = `rgb(${DMX_ORANGE})`;
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        const scale = (this.isTransformed ? 0.58 : 0.42) * (0.85 + 0.3 * progress);
+        dmxDrawShock(ctx, tint, cx, cy, this.screenAngle, scale, 1.1 * fade);
+        if (this.isTransformed) dmxDrawShock(ctx, '#fff3c8', cx, cy, this.screenAngle, scale * 0.8, 0.6 * fade);
     }
 }
 
@@ -194,6 +338,43 @@ class DemolitionistRecoilManager {
 
     collidesWith() { return false; }
 
+    // 뒤로 튕겨나가는 동안 본인 몸 뒤로 밀려나는 먼지 (화면 전용)
+    draw(ctx) {
+        const t = Math.min(1, (Time.now - this.createdTime) / this.dashDuration);
+        if (t >= 1 || this.owner.hidden) return;
+        const r = this.owner.rect;
+        for (let i = 0; i < 3; i++) {
+            const back = 6 + i * 12 + t * 14;
+            dmxDrawDust(ctx, r.centerx - this.direction[0] * back, r.centery - this.direction[1] * back, 30 - i * 5, 0.3 * (1 - t));
+        }
+    }
+}
+
+// 변신 중 스킬1: 반동이 없는 대신 짧은 후딜레이(이동 불가·침묵)를 둔다
+class DemolitionistSkill1PostDelay {
+    constructor(owner) {
+        this.owner = owner;
+        this.createdTime = Time.now;
+        this.postDelay = 220; // 후딜레이(ms)
+        this.damage = 0;
+        this.hitPlayers = [];
+    }
+
+    update() {
+        if (Time.now - this.createdTime < this.postDelay) {
+            slow(this.owner, 0.1, 100);
+            silence(this.owner, 0.1);
+        }
+    }
+
+    isExpired() {
+        const expired = Time.now - this.createdTime >= this.postDelay;
+        if (expired) clearDashLock(this.owner, { silenceLock: true });
+        return expired;
+    }
+
+    collidesWith() { return false; }
+
     draw() {}
 }
 
@@ -204,6 +385,7 @@ class DemolitionistSkill1 extends Skill {
         this.lastUsed = Time.now;
         attacks.push(new DemolitionistSkill1Effect(owner, direction));
         if (!owner.isTransformed) attacks.push(new DemolitionistRecoilManager(owner, direction));
+        else attacks.push(new DemolitionistSkill1PostDelay(owner));
     }
 }
 
@@ -227,8 +409,11 @@ class DemolitionistSkill2DashManager {
     }
 
     spawnExplosion(mult, radius) {
+        // 폭탄이 위에서 떨어져 내려오는 짧은 선딜 연출 (화면 전용, 폭발 타이밍·판정은 그대로)
+        Vfx.spawn(new DmxFallingBombVFX(this.owner.rect.centerx, this.owner.rect.centery));
         this.attacks.push(new DemolitionistExplosionEffect(
-            this.owner, this.owner.rect.centerx, this.owner.rect.centery, this.owner.baseAtk * mult, radius));
+            this.owner, this.owner.rect.centerx, this.owner.rect.centery, this.owner.baseAtk * mult, radius,
+            DMX_ORANGE, 200, 300, { vivid: true }));
     }
 
     update(walls) {
@@ -332,13 +517,15 @@ class DemolitionistUltDelayField {
         this.damage = 0;
         this.hitPlayers = [];
         this.startTime = Time.now;
-        this.duration = 2000;
+        this.duration = 3000;      // 경고 지속시간 (2000 → 3000ms, 터지기 전 긴장감)
+        this.maxRadius = 180;
+        this.expandPortion = 0.25; // 앞쪽 25% 구간에서 빠르게 최대범위까지 확장, 나머지는 유지하며 깜빡임
         this.triggered = false;
         this.forceExpire = false;
     }
 
     update() {
-        // 2초간 무적 + 이동 불가 + 침묵
+        // 3초간 무적 + 이동 불가 + 침묵
         defenseMod(this.owner, 0.2, 100);
         slow(this.owner, 0.1, 100);
         silence(this.owner, 0.1);
@@ -352,7 +539,7 @@ class DemolitionistUltDelayField {
 
             const owner = this.owner;
             this.attacks.push(new DemolitionistExplosionEffect(
-                owner, owner.rect.centerx, owner.rect.centery, 45.0, 180, '255, 0, 0', 220, 400));
+                owner, owner.rect.centerx, owner.rect.centery, 45.0, this.maxRadius, DMX_RED, 220, 400, { vivid: true }));
 
             owner.isTransformed = true;
             if (owner.originalColor === undefined) owner.originalColor = owner.color;
@@ -369,10 +556,47 @@ class DemolitionistUltDelayField {
 
     collidesWith() { return false; }
 
+    // 현재 반지름과 깜빡임 진행도(0~1, 확장 구간이면 0) — 화면 전용 계산
+    radiusAndFlicker() {
+        const elapsed = Time.now - this.startTime;
+        const expandTime = this.duration * this.expandPortion;
+        if (elapsed < expandTime) {
+            const e = elapsed / expandTime;
+            return { radius: this.maxRadius * (1 - (1 - e) ** 3), flickerT: 0 };
+        }
+        return { radius: this.maxRadius, flickerT: (elapsed - expandTime) / (this.duration - expandTime) };
+    }
+
     draw(ctx) {
-        const progress = Math.min(1.0, (Time.now - this.startTime) / this.duration);
-        drawCircle(ctx, this.owner.rect.centerx, this.owner.rect.centery, Math.trunc(180 * progress) - 1.5,
-                   null, `rgba(255, 69, 0, ${60 / 255})`, 3);
+        const { radius, flickerT } = this.radiusAndFlicker();
+        if (radius <= 0) return;
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+
+        // 점점 빨라지는 깜빡임 (터지기 직전이 가장 급박)
+        const freq = 1.1 + flickerT * flickerT * 5.5;
+        const pulse = flickerT > 0 ? (0.55 + 0.45 * Math.sin(Time.now * 0.001 * Math.PI * 2 * freq)) : 1;
+        const baseAlpha = flickerT > 0 ? (0.45 + 0.4 * flickerT) : 0.35;
+        const alpha = baseAlpha * pulse;
+
+        drawCircle(ctx, cx, cy, radius - 1.5, null, `rgba(255, 90, 40, ${alpha})`, flickerT > 0.7 ? 4 : 3);
+
+        // 가운데 코어 글로우 (구운 그림, 색 입혀 'lighter') — 깜빡일수록 밝아짐
+        const coreAlpha = (flickerT > 0 ? 0.5 + 0.6 * flickerT * pulse : 0.3) * (radius / this.maxRadius);
+        dmxDrawGlow(ctx, DMX_BLAST_IMAGE, '#ff5a30', cx, cy, radius * 1.1, 0, coreAlpha);
+
+        // 터지기 직전: 범위 안에서만 안쪽으로 모여드는 불꽃 (화면 전체 번쩍임 없음)
+        if (flickerT > 0.35) {
+            const k = (flickerT - 0.35) / 0.65;
+            const n = 10;
+            for (let i = 0; i < n; i++) {
+                const ph = (Time.now / (420 - 250 * k) + i / n) % 1;
+                const ang = i / n * Math.PI * 2 + Time.now * 0.0015;
+                const d = radius * (1 - ph) * 0.95;
+                const a = (1 - ph) * 0.8 * k;
+                ctx.fillStyle = `rgba(255, 170, 90, ${a})`;
+                ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * d, cy + Math.sin(ang) * d, 2.5 + 2 * ph, 0, Math.PI * 2); ctx.fill();
+            }
+        }
     }
 }
 
