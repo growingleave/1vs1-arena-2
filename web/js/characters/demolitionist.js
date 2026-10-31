@@ -88,8 +88,9 @@ class DemolitionistBasicGrenade {
             this.explode();
             return;
         }
+        const core = wallCoreRect(this.rect); // 가운데 작은 판정이 벽에 닿을 때만
         for (const wall of CURRENT_WALLS) {
-            if (wall.rect.colliderect(this.rect)) {
+            if (wall.rect.colliderect(core)) {
                 this.explode();
                 return;
             }
