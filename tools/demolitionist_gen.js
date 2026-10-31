@@ -8,8 +8,8 @@
 //   dmx_smoke2.png     280x350  위로 치솟는 검은 연기 뭉치 (바닥 기준점: 그림 가운데 아래쪽, x=140,y=325) — 보통
 //   dmx_crater.png     280x280  바닥 크레이터/균열 (가운데=그림 가운데) — 보통
 //   dmx_shock.png      280x150  평소 충격파 글로우 (흰 빛, 뒤쪽 기준점 x=20,y=75) — 색 입혀 'lighter'
-//   dmx_shock_red.png  280x150  변신 스킬1 균열형 충격파 (멀티컬러 빨강, 뒤쪽 기준점 x=20,y=75) — 'lighter'
 //   dmx_pillar.png     100x200  변신 스킬2 착탄 불기둥 (바닥 기준점: 그림 가운데 아래쪽, x=50,y=195) — 'lighter'
+//   변신 스킬1은 전용 그림 없이 dmx_blast_red/dmx_rocks/dmx_smoke2를 연쇄 폭발처럼 겹쳐 그린다 (demolitionist.js)
 //   dmx_dust.png       150x150  먼지바람 (옅은 회갈색, 가운데=그림 가운데, 밀림/후딜 궤적용) — 보통
 //   preview_dmx.png (확인용)
 // 실행: node tools/demolitionist_gen.js <저장할 폴더>  (Playwright 필요)
@@ -60,29 +60,30 @@ const OUT = process.argv[2] || __dirname;
       const cv = mk(560, 560), fx = cv.getContext('2d'); const CX = 280;
       fx.globalCompositeOperation = 'lighter';
       const gCore = fx.createRadialGradient(CX, CX, 0, CX, CX, 150);
-      gCore.addColorStop(0, `rgba(${WHITE},1)`); gCore.addColorStop(0.25, `rgba(${WHITE},0.9)`); gCore.addColorStop(0.55, `rgba(${A},0.55)`); gCore.addColorStop(1, `rgba(${B},0)`);
+      gCore.addColorStop(0, `rgba(${WHITE},1)`); gCore.addColorStop(0.25, `rgba(${WHITE},0.95)`); gCore.addColorStop(0.55, `rgba(${A},0.75)`); gCore.addColorStop(1, `rgba(${B},0)`);
       fx.fillStyle = gCore; fx.beginPath(); fx.arc(CX, CX, 150, 0, Math.PI * 2); fx.fill();
       for (let i = 0; i < 18; i++) {
         const a = R(0, Math.PI * 2), len = R(70, 160), w = R(10, 22);
         fx.save(); fx.translate(CX, CX); fx.rotate(a);
         const g = fx.createLinearGradient(0, 0, len, 0);
         const col = PICK([WHITE, A, B]);
-        g.addColorStop(0, `rgba(${col},0.9)`); g.addColorStop(1, `rgba(${C},0)`);
+        g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(1, `rgba(${C},0)`);
         fx.fillStyle = g;
         fx.beginPath(); fx.moveTo(-w / 2, 0); fx.lineTo(w / 2, 0); fx.lineTo(w * 0.1, len); fx.lineTo(-w * 0.1, len); fx.closePath(); fx.fill();
         fx.restore();
       }
-      fx.globalAlpha = 1; fx.lineWidth = 7; fx.strokeStyle = `rgba(${WHITE},0.95)`;
+      // 충격파 링: 두껍고 진하게 — 블러로 번져도 핵심 테두리가 또렷하게 보이도록
+      fx.globalAlpha = 1; fx.lineWidth = 9; fx.strokeStyle = `rgba(${WHITE},1)`;
       fx.beginPath(); fx.arc(CX, CX, 195, 0, Math.PI * 2); fx.stroke();
-      fx.lineWidth = 4; fx.strokeStyle = `rgba(${C},0.6)`;
+      fx.lineWidth = 6; fx.strokeStyle = `rgba(${C},0.85)`;
       fx.beginPath(); fx.arc(CX, CX, 250, 0, Math.PI * 2); fx.stroke();
       fx.globalAlpha = 1;
       for (let i = 0; i < 50; i++) {
         const a = R(0, Math.PI * 2), d = R(40, 230);
-        fx.fillStyle = `rgba(${PICK([WHITE, A, B, C])},${R(0.3, 1)})`;
+        fx.fillStyle = `rgba(${PICK([WHITE, A, B, C])},${R(0.5, 1)})`;
         fx.beginPath(); fx.arc(CX + Math.cos(a) * d, CX + Math.sin(a) * d, R(1.5, 4), 0, Math.PI * 2); fx.fill();
       }
-      return bakeGlowColor(cv, [[20, 0.75], [8, 0.55], [3, 0.35]]);
+      return bakeGlowColor(cv, [[16, 0.6], [6, 0.45], [2, 0.3]]);
     };
     const WHITE = '255,255,255';
     // 평소: 흰-노랑-주황-빨강 (fxColor 주황 계열이 주가 되게)
@@ -97,7 +98,7 @@ const OUT = process.argv[2] || __dirname;
       const cx2 = RC + Math.cos(ang) * dist, cy2 = RC + Math.sin(ang) * dist;
       const shade = R(35, 70);
       dx.save(); dx.translate(cx2, cy2); dx.rotate(R(0, Math.PI * 2));
-      dx.fillStyle = `rgba(${shade},${shade - 8},${shade - 12},${R(0.6, 0.95)})`;
+      dx.fillStyle = `rgba(${shade},${shade - 8},${shade - 12},${R(0.8, 1)})`;
       const pts = 5 + Math.floor(R(0, 3));
       dx.beginPath();
       for (let k = 0; k < pts; k++) {
@@ -105,21 +106,21 @@ const OUT = process.argv[2] || __dirname;
         k === 0 ? dx.moveTo(Math.cos(a2) * r2, Math.sin(a2) * r2) : dx.lineTo(Math.cos(a2) * r2, Math.sin(a2) * r2);
       }
       dx.closePath(); dx.fill();
-      dx.strokeStyle = `rgba(${PICK(['255,138,60', '214,60,30'])},0.5)`; dx.lineWidth = 1.2; dx.stroke();
+      dx.strokeStyle = `rgba(${PICK(['255,138,60', '214,60,30'])},0.85)`; dx.lineWidth = 1.5; dx.stroke();
       dx.restore();
-      dx.strokeStyle = `rgba(60,50,45,${R(0.15, 0.35)})`; dx.lineWidth = R(1.5, 3);
+      dx.strokeStyle = `rgba(70,58,50,${R(0.25, 0.5)})`; dx.lineWidth = R(1.5, 3);
       dx.beginPath(); dx.moveTo(RC + Math.cos(ang) * dist * 0.3, RC + Math.sin(ang) * dist * 0.3); dx.lineTo(cx2, cy2); dx.stroke();
     }
-    const rocks = bakeSoft(rocksCv, 2);
+    const rocks = bakeSoft(rocksCv, 1);
 
     // 바닥 크레이터/균열 (어두운 그림자 + 갈라지는 균열) — 보통
     const craterCv = mk(560, 560), gx = craterCv.getContext('2d'); const GC = 280;
     const gcr = gx.createRadialGradient(GC, GC, 0, GC, GC, 230);
-    gcr.addColorStop(0, 'rgba(15,10,9,0.85)'); gcr.addColorStop(0.5, 'rgba(25,18,15,0.5)'); gcr.addColorStop(1, 'rgba(25,18,15,0)');
+    gcr.addColorStop(0, 'rgba(15,10,9,0.95)'); gcr.addColorStop(0.5, 'rgba(25,18,15,0.68)'); gcr.addColorStop(1, 'rgba(25,18,15,0)');
     gx.fillStyle = gcr; gx.beginPath(); gx.arc(GC, GC, 230, 0, Math.PI * 2); gx.fill();
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2 + R(-0.2, 0.2), len = R(120, 320);
-      gx.strokeStyle = `rgba(20,14,12,${R(0.3, 0.55)})`; gx.lineWidth = R(2, 5);
+      gx.strokeStyle = `rgba(20,14,12,${R(0.45, 0.72)})`; gx.lineWidth = R(2, 5);
       gx.beginPath(); gx.moveTo(GC, GC);
       let x = GC, y = GC;
       for (let s = 1; s <= 5; s++) { x += Math.cos(a) * (len / 5) + R(-14, 14); y += Math.sin(a) * (len / 5) + R(-14, 14); gx.lineTo(x, y); }
@@ -135,13 +136,13 @@ const OUT = process.argv[2] || __dirname;
       const cx2 = SMX + R(-120, 120) * (1 - t * 0.3);
       const cy2 = SMY - t * 460 + R(-20, 20);
       const r = R(45, 100) * (0.6 + t * 0.6);
-      puff(cx2, cy2, r, R(0.35, 0.6));
+      puff(cx2, cy2, r, R(0.5, 0.78));
     }
     sx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 10; i++) {
       const t = R(0, 0.5);
       const cx2 = SMX + R(-150, 150) * (1 - t * 0.3), cy2 = SMY - t * 400 + R(-10, 10);
-      sx.fillStyle = `rgba(${PICK(['255,138,60', '214,60,30'])},${R(0.08, 0.18)})`;
+      sx.fillStyle = `rgba(${PICK(['255,138,60', '214,60,30'])},${R(0.12, 0.25)})`;
       sx.beginPath(); sx.arc(cx2, cy2, R(50, 90), 0, Math.PI * 2); sx.fill();
     }
     sx.globalCompositeOperation = 'source-over';
@@ -159,64 +160,12 @@ const OUT = process.argv[2] || __dirname;
     }
     const g2 = sx2.createRadialGradient(60, SY, 0, 60, SY, 110); g2.addColorStop(0, 'rgba(255,255,255,1)'); g2.addColorStop(1, 'rgba(255,255,255,0)');
     sx2.fillStyle = g2; sx2.beginPath(); sx2.arc(60, SY, 110, 0, Math.PI * 2); sx2.fill();
-    sx2.globalAlpha = 0.5;
-    const g3 = sx2.createLinearGradient(40, SY, 480, SY); g3.addColorStop(0, 'rgba(255,255,255,0.6)'); g3.addColorStop(1, 'rgba(255,255,255,0)');
+    sx2.globalAlpha = 0.68;
+    const g3 = sx2.createLinearGradient(40, SY, 480, SY); g3.addColorStop(0, 'rgba(255,255,255,0.75)'); g3.addColorStop(1, 'rgba(255,255,255,0)');
     sx2.fillStyle = g3; sx2.beginPath(); sx2.moveTo(40, SY - 110); sx2.lineTo(480, SY - 170); sx2.lineTo(480, SY + 170); sx2.lineTo(40, SY + 110); sx2.closePath(); sx2.fill();
     sx2.globalAlpha = 1;
-    const shock = bakeGlowColor(sk, [[14, 0.7], [4, 0.5]]);
-
-    // ---------- 충격파 글로우 (변신 스킬1 — 균열형 쐐기, 멀티컬러 빨강) ----------
-    const skr = mk(560, 300), sxr = skr.getContext('2d'); const SYR = 150, SXR = 40;
-    sxr.globalCompositeOperation = 'lighter';
+    const shock = bakeGlowColor(sk, [[14, 0.6], [4, 0.4]]);
     const T_WHITE = WHITE, T_ORANGE = '255,110,50', T_RED = '230,40,25', T_DEEPRED = '170,20,15', T_EMBER = '110,15,10';
-    const gR = sxr.createRadialGradient(SXR, SYR, 0, SXR, SYR, 110);
-    gR.addColorStop(0, `rgba(${T_WHITE},1)`); gR.addColorStop(0.4, `rgba(${T_RED},0.8)`); gR.addColorStop(1, `rgba(${T_DEEPRED},0)`);
-    sxr.fillStyle = gR; sxr.beginPath(); sxr.arc(SXR, SYR, 110, 0, Math.PI * 2); sxr.fill();
-    // 쐐기 가장자리를 톱니처럼 갈라지게
-    const edge = (y0, y1, jagAmt) => {
-      const pts = [[SXR, SYR + y0]]; const N = 7;
-      for (let i = 1; i <= N; i++) {
-        const t = i / N; const x = SXR + t * 480;
-        const baseY = SYR + y0 + (y1 - y0) * t;
-        pts.push([x, baseY + (i % 2 === 0 ? -jagAmt * t : jagAmt * t)]);
-      }
-      return pts;
-    };
-    const top = edge(-80, -165, 16), bot = edge(80, 165, 16).reverse();
-    sxr.globalAlpha = 0.6;
-    const g4 = sxr.createLinearGradient(SXR, SYR, SXR + 480, SYR);
-    g4.addColorStop(0, `rgba(${T_RED},0.75)`); g4.addColorStop(0.55, `rgba(${T_DEEPRED},0.4)`); g4.addColorStop(1, `rgba(${T_EMBER},0)`);
-    sxr.fillStyle = g4; sxr.beginPath();
-    [...top, ...bot].forEach(([x, y], i) => i === 0 ? sxr.moveTo(x, y) : sxr.lineTo(x, y));
-    sxr.closePath(); sxr.fill();
-    sxr.globalAlpha = 1;
-    for (let i = 0; i < 9; i++) {
-      const t = i / 8, ang = (t - 0.5) * 0.95;
-      const col = PICK([T_WHITE, T_RED, T_ORANGE]);
-      sxr.save(); sxr.translate(SXR, SYR); sxr.rotate(ang);
-      let x = 0, y = 0; sxr.beginPath(); sxr.moveTo(0, 0);
-      const len = R(350, 450), steps = 6;
-      for (let s = 1; s <= steps; s++) { x += len / steps; y += R(-16, 16); sxr.lineTo(x, y); }
-      const g = sxr.createLinearGradient(0, 0, len, 0);
-      g.addColorStop(0, `rgba(${col},0.05)`); g.addColorStop(0.5, `rgba(${col},0.55)`); g.addColorStop(1, `rgba(${T_DEEPRED},0)`);
-      sxr.strokeStyle = g; sxr.lineWidth = R(2, 5); sxr.stroke(); sxr.restore();
-    }
-    for (let i = 0; i < 14; i++) {
-      const ang = R(-0.45, 0.45), dist = R(140, 460);
-      const cx = SXR + Math.cos(ang) * dist, cy = SYR + Math.sin(ang) * dist;
-      const col = PICK([T_ORANGE, T_RED, T_DEEPRED]);
-      sxr.save(); sxr.translate(cx, cy); sxr.rotate(R(0, Math.PI * 2));
-      sxr.fillStyle = `rgba(${col},${R(0.35, 0.8)})`;
-      const s = R(4, 10);
-      sxr.beginPath(); sxr.moveTo(0, -s); sxr.lineTo(s * 0.9, s * 0.7); sxr.lineTo(-s * 0.7, s); sxr.closePath(); sxr.fill();
-      sxr.restore();
-    }
-    for (let i = 0; i < 35; i++) {
-      const ang = R(-0.5, 0.5), dist = R(40, 430);
-      sxr.fillStyle = `rgba(${PICK([T_ORANGE, T_RED])},${R(0.3, 0.9)})`;
-      sxr.beginPath(); sxr.arc(SXR + Math.cos(ang) * dist, SYR + Math.sin(ang) * dist * 0.9, R(1.5, 4), 0, Math.PI * 2); sxr.fill();
-    }
-    const shockRed = bakeGlowColor(skr, [[14, 0.7], [4, 0.5]]);
 
     // ---------- 변신 스킬2 착탄 불기둥 (바닥 기준점: 가운데 아래) ----------
     const pil = mk(200, 400), px2 = pil.getContext('2d'); const PX = 100, PY = 390;
@@ -227,16 +176,16 @@ const OUT = process.argv[2] || __dirname;
       const col = PICK([T_WHITE, T_RED, T_ORANGE]);
       px2.save(); px2.rotate(ang);
       const g = px2.createLinearGradient(0, 0, 0, -h);
-      g.addColorStop(0, `rgba(${col},0.95)`); g.addColorStop(0.3, `rgba(${T_RED},0.7)`); g.addColorStop(1, `rgba(${T_DEEPRED},0)`);
+      g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(0.3, `rgba(${T_RED},0.88)`); g.addColorStop(1, `rgba(${T_DEEPRED},0)`);
       px2.fillStyle = g;
       px2.beginPath(); px2.moveTo(-w / 2, 0); px2.lineTo(w / 2, 0); px2.lineTo(w * 0.15, -h); px2.lineTo(-w * 0.15, -h); px2.closePath(); px2.fill();
       px2.restore();
     }
     px2.restore();
     const gp = px2.createRadialGradient(PX, PY, 0, PX, PY, 90);
-    gp.addColorStop(0, `rgba(${T_WHITE},1)`); gp.addColorStop(0.4, `rgba(${T_RED},0.7)`); gp.addColorStop(1, `rgba(${T_EMBER},0)`);
+    gp.addColorStop(0, `rgba(${T_WHITE},1)`); gp.addColorStop(0.4, `rgba(${T_RED},0.88)`); gp.addColorStop(1, `rgba(${T_EMBER},0)`);
     px2.fillStyle = gp; px2.beginPath(); px2.arc(PX, PY, 90, 0, Math.PI * 2); px2.fill();
-    const pillar = bakeGlowColor(pil, [[12, 0.7], [4, 0.5]]);
+    const pillar = bakeGlowColor(pil, [[12, 0.6], [4, 0.4]]);
 
     // ---------- 먼지바람 (옅은 회갈색, 보통으로) — 기존 그대로, 밀림/후딜 궤적용 ----------
     const du = mk(300, 300), dc = du.getContext('2d'); const DC = 150;
@@ -260,8 +209,7 @@ const OUT = process.argv[2] || __dirname;
     stamp(blast, 460, 10, 'blast', true);
     stamp(blastRed, 620, 10, 'blast_red', true);
     stamp(tint(shock, '#ff8a3c'), 10, 310, 'shock (tinted)', true);
-    stamp(shockRed, 310, 310, 'shock_red', true);
-    stamp(pillar, 610, 310, 'pillar', true);
+    stamp(pillar, 310, 310, 'pillar', true);
     stamp(dust, 10, 500, 'dust', false);
     // 레이어 합성 샘플 (크레이터→연기→파편→번쩍임)
     pc.fillStyle = '#2a2a30'; pc.fillRect(200, 500, 280, 180);
@@ -276,7 +224,7 @@ const OUT = process.argv[2] || __dirname;
 
     return {
       blast: blast.toDataURL(), blastRed: blastRed.toDataURL(), rocks: rocks.toDataURL(), smoke2: smoke2.toDataURL(),
-      crater: crater.toDataURL(), shock: shock.toDataURL(), shockRed: shockRed.toDataURL(), pillar: pillar.toDataURL(),
+      crater: crater.toDataURL(), shock: shock.toDataURL(), pillar: pillar.toDataURL(),
       dust: dust.toDataURL(), preview: pv.toDataURL(),
     };
   });
@@ -287,7 +235,6 @@ const OUT = process.argv[2] || __dirname;
   save('dmx_smoke2.png', res.smoke2);
   save('dmx_crater.png', res.crater);
   save('dmx_shock.png', res.shock);
-  save('dmx_shock_red.png', res.shockRed);
   save('dmx_pillar.png', res.pillar);
   save('dmx_dust.png', res.dust);
   save('preview_dmx.png', res.preview);
