@@ -286,6 +286,92 @@ const SWORDMAN_ULT_STUN_AFTER = 0.5; // 마지막 참격 뒤에도 남는 기절
 const SWORDMAN_ULT_HITS = 9;         // 납도 끝에 빠바박 들어가는 참격 수 (피해를 나눠서)
 const SWORDMAN_ULT_HIT_GAP = 60;     // 참격 간격(ms)
 
+// 납도 그림 (tools/swordman_sheath_gen.js로 생성, 가로, 입구·손잡이가 오른쪽)
+//   칼집 190x30 (입구 x 185) / 칼 260x30 (칼날이 끝나는 곳 x 178)
+const SWORDMAN_SCABBARD_IMAGE = loadImage('assets/swordman_scabbard.png');
+const SWORDMAN_SWORD_IMAGE = loadImage('assets/swordman_sword.png');
+const SWORDMAN_SHEATH_SCALE = 0.45; // 그림 px → 화면 px (칼집 약 85px)
+
+// 납도: 검사 앞에 칼집과 칼이 가로로 나타나고, 칼이 처음엔 천천히·끝에서 빠르게 칼집으로 들어간다.
+// 들어가는 동안 입구에서 쇳가루 불꽃, 다 들어가면 "찰칵" 섬광·고리·불꽃 (화면 효과 전용)
+class SwordmanSheathVFX extends SparkVFX {
+    constructor(follow, duration) {
+        super(SWORDMAN_COLOR);
+        this.follow = follow;
+        this.duration = duration;      // 납도 시간 (찰칵은 80% 지점)
+        this.clickAt = duration * 0.8;
+        this.appear = 0.08;
+        this.fadeOut = 0.25;
+        this.carry = 0;
+        this.clicked = false;
+    }
+
+    get finished() { return this.elapsed >= this.duration + this.fadeOut && this.sparksDone; }
+
+    // 칼집 왼쪽 끝 x, 입구 x, 높이 y
+    layout() {
+        const k = SWORDMAN_SHEATH_SCALE;
+        const cx = this.follow.rect.centerx, y = this.follow.rect.centery + 10;
+        const x0 = cx - 190 * k / 2 - 10;
+        return { k, x0, mouth: x0 + 185 * k, y };
+    }
+
+    update(dt) {
+        super.update(dt);
+        const { mouth, y } = this.layout();
+        if (this.elapsed > this.appear && this.elapsed < this.clickAt) {
+            this.carry += 45 * dt; // 들어가는 동안 입구에서 쇳가루 불꽃
+            while (this.carry >= 1) {
+                this.carry -= 1;
+                this.addSpark(mouth + 2, y + vfxRand(-3, 3), -Math.PI / 2 + vfxRand(-1, 1) + 0.4, vfxRand(40, 140), vfxRand(0.12, 0.25), vfxRand(0.8, 1.5));
+            }
+        }
+        if (!this.clicked && this.elapsed >= this.clickAt) {
+            this.clicked = true;
+            for (let i = 0; i < 12; i++) this.addSpark(mouth, y, Math.random() * Math.PI * 2, vfxRand(80, 220), vfxRand(0.15, 0.35), vfxRand(1, 2));
+        }
+    }
+
+    draw(ctx) {
+        const { k, x0, mouth, y } = this.layout();
+        const t = this.elapsed;
+        const alpha = Math.min(1, t / this.appear) * (t > this.duration ? Math.max(0, 1 - (t - this.duration) / this.fadeOut) : 1);
+        ctx.save();
+        if (alpha > 0 && isImageReady(SWORDMAN_SWORD_IMAGE) && isImageReady(SWORDMAN_SCABBARD_IMAGE)) {
+            // 다 들어간 자리 = 칼날 끝(178)이 입구에 오는 곳. 처음엔 칼날 대부분이 밖에 나와 있다
+            const u = Math.min(1, Math.max(0, (t - this.appear) / (this.clickAt - this.appear)));
+            const out = 150 * k * (1 - u * u * u);
+            ctx.globalAlpha = alpha;
+            ctx.drawImage(SWORDMAN_SWORD_IMAGE, mouth - 178 * k + out, y - 15 * k, 260 * k, 30 * k);
+            ctx.drawImage(SWORDMAN_SCABBARD_IMAGE, x0, y - 15 * k, 190 * k, 30 * k); // 칼집이 위 → 속 칼날은 가려짐
+            ctx.globalAlpha = 1;
+            if (u < 1) { // 칼날 위를 지나가는 반짝임
+                const gx = mouth + out * (0.3 + 0.7 * ((t * 4) % 1));
+                const g = ctx.createRadialGradient(gx, y, 0, gx, y, 7);
+                g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx, y, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.globalCompositeOperation = 'source-over';
+            }
+        }
+        if (this.clicked) { // 찰칵: 입구에서 섬광 + 퍼지는 고리
+            const c = Math.min(1, (t - this.clickAt) / 0.25), a = 1 - c;
+            if (a > 0) {
+                const [r, g, b] = this.rgb;
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.9})`; ctx.lineWidth = 3 * a + 0.5;
+                ctx.beginPath(); ctx.arc(mouth, y, 6 + 34 * c, 0, Math.PI * 2); ctx.stroke();
+                const fl = ctx.createRadialGradient(mouth, y, 0, mouth, y, 22);
+                fl.addColorStop(0, `rgba(255,255,255,${a})`); fl.addColorStop(1, `rgba(${r},${g},${b},0)`);
+                ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(mouth, y, 22, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
+
 // 궁극기 그림 (tools/swordman_ult_gen.js로 생성, 은색과 색 번짐이 이미 들어 있고 글리치만 다른 2장씩)
 //   돌진: 800x210, 길 x 60~690, 가운데 y 105 / 베기: 800x400, 길 x 40~760, 가운데 y 200
 const swordmanUltImages = (kind) => [0, 1].map(i => loadImage(`assets/swordman_ult_${kind}_silver_${i}.png`));
@@ -375,10 +461,7 @@ class SwordmanUltDashAttack {
         finishDash(this.owner);
         this.owner.castTimer = SWORDMAN_ULT_SHEATH;          // 납도하는 동안 아무것도 못 함
         defenseMod(this.owner, SWORDMAN_ULT_SHEATH, 100);    // 무적
-        Vfx.spawn(new SheathVFX(this.owner, Math.atan2(this.direction[1], this.direction[0]), {
-            color: SWORDMAN_COLOR,
-            duration: SWORDMAN_ULT_SHEATH,
-        }));
+        Vfx.spawn(new SwordmanSheathVFX(this.owner, SWORDMAN_ULT_SHEATH));
     }
 
     // 납도 끝: 지나온 길이 베이고, 기절시킨 대상에게 피해

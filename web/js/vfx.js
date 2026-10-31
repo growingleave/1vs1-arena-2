@@ -5,7 +5,7 @@
 // - 실제 흐른 시간(초)으로 움직이고, 화면을 그릴 때마다 갱신된다.
 // - 동시에 남는 개수에 상한을 둬서 렉을 막는다 (넘으면 가장 오래된 것부터 지운다).
 
-const VFX_MAX_ACTIVE = 24;
+const VFX_MAX_ACTIVE = 32;
 
 const Vfx = {
     active: [],
@@ -670,78 +670,6 @@ class StretchSlashVFX {
         ctx.drawImage(tinted, x, y, w, h);
         ctx.globalAlpha = alpha * 0.55;
         ctx.drawImage(this.image, x, y, w, h); // 흰 그림을 겹쳐 칼날을 밝게
-    }
-}
-
-// ==========================================
-// 납도: 뒤쪽으로 뻗은 칼날이 천천히, 마지막에 빠르게 들어가고 "찰칵" 하며 고리와 불꽃
-//   follow: 검사, angle: 돌진 방향(라디안), duration: 납도 시간(초)
-// ==========================================
-class SheathVFX extends SparkVFX {
-    constructor(follow, angle, options) {
-        super(options.color ?? '#ffffff');
-        this.follow = follow;
-        this.angle = angle;
-        this.duration = options.duration ?? 0.6;
-        this.bladeLength = options.length ?? 56;
-        this.clickAt = 0.8;   // 이 비율에서 칼이 다 들어간다
-        this.clicked = false;
-    }
-
-    get finished() {
-        return this.elapsed >= this.duration + 0.25 && this.sparksDone;
-    }
-
-    update(dt) {
-        super.update(dt);
-        if (!this.clicked && this.elapsed >= this.duration * this.clickAt) {
-            this.clicked = true;
-            const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
-            for (let i = 0; i < 10; i++) {
-                this.addSpark(cx, cy, Math.random() * Math.PI * 2, vfxRand(80, 220), vfxRand(0.15, 0.35), vfxRand(1, 2));
-            }
-        }
-    }
-
-    draw(ctx) {
-        const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
-        const [r, g, b] = this.rgb;
-        const t = this.elapsed / this.duration;
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.lineCap = 'round';
-
-        const inT = Math.min(1, t / this.clickAt);
-        if (inT < 1) {
-            // 칼날: 돌진 반대쪽으로 뻗어 있다가 몸 쪽으로 들어간다 (처음엔 느리게, 끝에서 빠르게)
-            const len = this.bladeLength * (1 - inT * inT * inT);
-            const dx = -Math.cos(this.angle), dy = -Math.sin(this.angle);
-            const hx = cx + Math.cos(this.angle) * 6, hy = cy + Math.sin(this.angle) * 6; // 칼집 입구
-            const tx = hx + dx * len, ty = hy + dy * len;
-            ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty);
-            ctx.strokeStyle = `rgba(${r},${g},${b},0.45)`; ctx.lineWidth = 9; ctx.stroke();
-            ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2.5; ctx.stroke();
-            // 칼날을 따라 미끄러지는 반짝임
-            const gu = (this.elapsed * 3) % 1;
-            const gx = hx + dx * len * gu, gy = hy + dy * len * gu;
-            const glint = ctx.createRadialGradient(gx, gy, 0, gx, gy, 8);
-            glint.addColorStop(0, 'rgba(255,255,255,0.9)'); glint.addColorStop(1, 'rgba(255,255,255,0)');
-            ctx.fillStyle = glint; ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI * 2); ctx.fill();
-        } else {
-            // 찰칵: 퍼지는 고리 + 섬광
-            const k = Math.min(1, (this.elapsed - this.duration * this.clickAt) / 0.25);
-            const a = 1 - k;
-            if (a > 0) {
-                ctx.strokeStyle = `rgba(${r},${g},${b},${a * 0.9})`;
-                ctx.lineWidth = 3 * a + 0.5;
-                ctx.beginPath(); ctx.arc(cx, cy, 8 + 40 * k, 0, Math.PI * 2); ctx.stroke();
-                const flash = ctx.createRadialGradient(cx, cy, 0, cx, cy, 26);
-                flash.addColorStop(0, `rgba(255,255,255,${a})`); flash.addColorStop(1, `rgba(${r},${g},${b},0)`);
-                ctx.fillStyle = flash; ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2); ctx.fill();
-            }
-        }
-        this.drawSparks(ctx);
-        ctx.restore();
     }
 }
 
