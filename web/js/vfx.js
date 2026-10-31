@@ -5,7 +5,7 @@
 // - 실제 흐른 시간(초)으로 움직이고, 화면을 그릴 때마다 갱신된다.
 // - 동시에 남는 개수에 상한을 둬서 렉을 막는다 (넘으면 가장 오래된 것부터 지운다).
 
-const VFX_MAX_ACTIVE = 24;
+const VFX_MAX_ACTIVE = 32;
 
 const Vfx = {
     active: [],
