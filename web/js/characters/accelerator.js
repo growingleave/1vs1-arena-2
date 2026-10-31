@@ -9,6 +9,10 @@ const ACC_SYRINGE_IMAGE = loadImage('assets/acc_syringe.png'); // 200x50, 유리
 const ACC_PLUNGER_IMAGE = loadImage('assets/acc_plunger.png'); // 110x50, 고무 마개 앞면 x 108 (보통)
 const ACC_HEAL_IMAGE = loadImage('assets/acc_heal.png');       // 150x150, 고리 반지름 = 크기의 0.36 (초록, 'lighter')
 const ACC_CYAN = '#64dcff';
+const ACC_CLOCK_IMAGE = loadImage('assets/acc_clock.png');             // 200x200 흰 빛, 가운데 = 그림 가운데 (색을 입혀 'lighter')
+const ACC_CLOCK_BREAK_IMAGE = loadImage('assets/acc_clock_break.png'); // 160x160 흰 빛 (색을 입혀 'lighter')
+const ACC_CLOCK_ICON_IMAGE = loadImage('assets/acc_clock_icon.png');   // 24x24, 시계판 가운데 (12, 13) (보통)
+const ACC_RAINBOW = ['#64dcff', '#50ff9a', '#b478ff', '#ff70c8'];      // 궁극기 잔상 색 (차례대로 돌아감)
 
 // 그림을 (x, y)에 기준점(ax, ay)을 맞춰 angle로 돌려 k배로 그린다
 function accDraw(ctx, img, x, y, ax, ay, angle, k, alpha, lighter = true) {
@@ -38,17 +42,90 @@ class AccMuzzleVFX extends SparkVFX {
     }
 }
 
-// 잔상: 지나간 자리에 색 사각형이 잠깐 남는다
-function drawAfterimages(ctx, afterimages, life, maxAlpha, outline) {
+// 흰 그림(시계 등)에 색을 입혀 'lighter'로 그린다. size = 지름, flat = 세로 배율 (바닥에 눕히면 0.4쯤)
+// 색 입힌 그림은 vfxTinted가 한 번 만들어 두고 계속 쓴다 (매 프레임 새로 만들지 않음)
+function accDrawClock(ctx, img, color, x, y, size, flat, angle, alpha) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y); ctx.scale(1, flat); ctx.rotate(angle);
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(vfxTinted(img, color), -size / 2, -size / 2, size, size);
+    ctx.globalAlpha = Math.min(1, alpha) * 0.35;
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.restore();
+}
+
+// 잔상: 지나간 자리에 색 입힌 캐릭터 실루엣이 잠깐 남는다 (실루엣도 색별로 한 번만 만들어 둠)
+function accDrawSilhouette(ctx, player, x, y, facingX, color, alpha) {
+    if (!isImageReady(player.spriteImage) || alpha <= 0) return;
+    const s = player.spriteSize;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.translate(x, y);
+    if (facingX < 0) ctx.scale(-1, 1);
+    ctx.drawImage(vfxTinted(player.spriteImage, color), -s / 2, -s / 2, s, s);
+    ctx.restore();
+}
+
+function drawAfterimages(ctx, player, afterimages, life, maxAlpha) {
     for (const img of afterimages) {
-        const alpha = Math.max(0, Math.trunc(maxAlpha * (1.0 - (Time.now - img.time) / life))) / 255;
-        if (alpha <= 0) continue;
-        const r = img.rect;
-        ctx.fillStyle = `rgba(${img.color[0]}, ${img.color[1]}, ${img.color[2]}, ${alpha})`;
-        ctx.fillRect(r.x, r.y, r.w, r.h);
-        ctx.strokeStyle = `rgba(${outline}, ${alpha})`;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+        const a = maxAlpha * (1 - (Time.now - img.time) / life);
+        accDrawSilhouette(ctx, player, img.x, img.y, img.fx, img.color, a);
+    }
+}
+
+// 과열 정도(0~1)에 따른 색: 청록 → 주황 → 빨강 (8단계로 끊어서 색 입힌 그림이 9장까지만 생기게)
+function accHeatColor(ratio) {
+    const q = Math.round(Math.max(0, Math.min(1, ratio)) * 8) / 8;
+    const lerp = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    const c = q < 0.6 ? lerp([100, 220, 255], [255, 150, 60], q / 0.6) : lerp([255, 150, 60], [255, 60, 60], (q - 0.6) / 0.4);
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// 시계 문양이 퍼지거나(켤 때) 줄어들며(끌 때) 사라짐
+class AccClockBurstVFX {
+    constructor(x, y, { color = ACC_CYAN, from = 60, to = 200, flat = 1, duration = 0.35, spin = 1.5 } = {}) {
+        Object.assign(this, { x, y, color, from, to, flat, duration, spin });
+        this.elapsed = 0;
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = Math.min(1, this.elapsed / this.duration), e = 1 - (1 - t) * (1 - t);
+        accDrawClock(ctx, ACC_CLOCK_IMAGE, this.color, this.x, this.y, this.from + (this.to - this.from) * e, this.flat, this.spin * e, 1.2 * (1 - t));
+    }
+}
+
+// 과열로 꺼질 때: 깨진 시계(그림) + 파편 불똥(코드)
+class AccClockBreakVFX extends SparkVFX {
+    constructor(owner) {
+        super('#ff8040');
+        this.owner = owner; this.duration = 0.55;
+        const cx = owner.rect.centerx, cy = owner.rect.centery;
+        for (let i = 0; i < 14; i++) this.addSpark(cx, cy, vfxRand(0, Math.PI * 2), vfxRand(120, 300), vfxRand(0.2, 0.45), vfxRand(1, 2.2));
+    }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+    draw(ctx) {
+        const t = Math.min(1, this.elapsed / this.duration);
+        accDrawClock(ctx, ACC_CLOCK_BREAK_IMAGE, '#ff7040', this.owner.rect.centerx, this.owner.rect.centery, 90 + 50 * t, 1, 0, 1.3 * (1 - t));
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
+    }
+}
+
+// 궁극기가 끝날 때: 남아 있던 잔상들이 몸으로 빨려 들어오며 사라짐
+class AccCollapseVFX {
+    constructor(owner, afterimages) {
+        this.owner = owner; this.duration = 0.25; this.elapsed = 0;
+        this.items = afterimages.map((a) => ({ x: a.x, y: a.y, fx: a.fx, color: a.color }));
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = Math.min(1, this.elapsed / this.duration), e = t * t;
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        for (const a of this.items) accDrawSilhouette(ctx, this.owner, a.x + (cx - a.x) * e, a.y + (cy - a.y) * e, a.fx, a.color, 0.6 * (1 - t));
     }
 }
 
@@ -151,6 +228,19 @@ class AcceleratorBasicSkill extends Skill {
 // ==========================================
 // [스킬 1] 맵 전체 시간 지연 필드 (켜기/끄기). 켜둘수록 과열 게이지가 찬다
 // ==========================================
+// 감속이 걸린 상대 머리 옆에 작은 시계 (판은 그림, 느리게 도는 바늘은 코드)
+function drawSlowClockIcon(ctx, target) {
+    if (!target || target.hidden || !isImageReady(ACC_CLOCK_ICON_IMAGE)) return;
+    const x = target.rect.right + 4, y = target.rect.top - 2;
+    ctx.drawImage(ACC_CLOCK_ICON_IMAGE, x - 12, y - 13);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+    const m = Time.now * 0.002, h = Time.now * 0.0003;
+    ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(m) * 6, y + Math.sin(m) * 6);
+    ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(h) * 4, y + Math.sin(h) * 4);
+    ctx.stroke();
+}
+
 class AcceleratorTimeField {
     constructor(owner, skill) {
         this.owner = owner;
@@ -160,9 +250,11 @@ class AcceleratorTimeField {
         this.forceExpire = false;
         this.afterimages = [];
         this.lastAfterimageTime = 0;
+        this.slowTarget = null; // 감속이 걸린 상대 (머리 위 시계 아이콘용, 화면 전용)
     }
 
     update() {
+        this.slowTarget = null;
         if (!this.skill.isActive || this.owner.isUltActive) {
             this.forceExpire = true;
             return;
@@ -171,7 +263,7 @@ class AcceleratorTimeField {
         speedUp(this.owner, 0.3, 20);
 
         if (Time.now - this.lastAfterimageTime >= 80) {
-            this.afterimages.push({ rect: this.owner.rect.copy(), time: Time.now, color: [100, 220, 255] });
+            this.afterimages.push({ x: this.owner.rect.centerx, y: this.owner.rect.centery, fx: this.owner.facing[0], time: Time.now, color: ACC_CYAN });
             this.lastAfterimageTime = Time.now;
         }
         this.afterimages = this.afterimages.filter(img => Time.now - img.time < 220);
@@ -184,14 +276,33 @@ class AcceleratorTimeField {
         if (target && !target.invincible && target.defense < 100.0) {
             timeSlow(target, 0.3, 40);
             slow(target, 0.3, 40);
+            this.slowTarget = target;
         }
         return false;
+    }
+
+    // 몸 아래: 잔상 3개 + 발밑에서 도는 시계 (과열될수록 주황 → 빨강) + 70% 넘으면 김
+    drawUnder(ctx) {
+        drawAfterimages(ctx, this.owner, this.afterimages, 220, 0.5);
+        const r = this.owner.rect;
+        const heat = this.skill.charge / this.skill.maxCharge;
+        accDrawClock(ctx, ACC_CLOCK_IMAGE, accHeatColor(heat), r.centerx, r.bottom - 2, 66, 0.38, Time.now * 0.0012, 0.75);
+        if (heat > 0.7) {
+            const k = (heat - 0.7) / 0.3;
+            for (let i = 0; i < 3; i++) {
+                const ph = (Time.now / 700 + i / 3) % 1;
+                ctx.fillStyle = `rgba(235, 235, 240, ${0.35 * (1 - ph) * k})`;
+                ctx.beginPath();
+                ctx.arc(r.centerx + (i - 1) * 12 + Math.sin(ph * 6 + i) * 3, r.top + 2 - ph * 26, 3 + ph * 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
     }
 
     draw(ctx) {
         ctx.fillStyle = `rgba(100, 200, 255, ${12 / 255})`;
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
-        drawAfterimages(ctx, this.afterimages, 220, 160, '220, 245, 255');
+        drawSlowClockIcon(ctx, this.slowTarget);
     }
 }
 
@@ -216,6 +327,7 @@ class AcceleratorTimeSkill extends Skill {
                 player.takeDamage(15.0);
                 slow(player, 1.5, 100);
                 silence(player, 1.5);
+                Vfx.spawn(new AccClockBreakVFX(player));
             }
         } else {
             this.charge -= 40.0 * dtSec;
@@ -233,7 +345,14 @@ class AcceleratorTimeSkill extends Skill {
         if (owner.isUltActive) return;
         this.lastUsed = Time.now;
         this.isActive = !this.isActive;
-        if (this.isActive) attacks.push(new AcceleratorTimeField(owner, this));
+        const r = owner.rect;
+        if (this.isActive) {
+            owner.accTimeField = new AcceleratorTimeField(owner, this);
+            attacks.push(owner.accTimeField);
+            Vfx.spawn(new AccClockBurstVFX(r.centerx, r.bottom - 2, { from: 60, to: 230, flat: 0.38, duration: 0.35 }));
+        } else {
+            Vfx.spawn(new AccClockBurstVFX(r.centerx, r.bottom - 2, { from: 120, to: 30, flat: 0.38, duration: 0.25, spin: -1.5 }));
+        }
     }
 }
 
@@ -340,11 +459,6 @@ class AcceleratorHealSkill extends Skill {
 // ==========================================
 // [궁극기] 산데비스탄 오버드라이브: 공격력·속도 증가, 상대 감속. 시간이 지날수록 자기 체력이 깎인다
 // ==========================================
-const ACCELERATOR_BLUE_PALETTE = [
-    [100, 220, 255], [0, 255, 200], [50, 150, 255],
-    [140, 120, 255], [200, 240, 255], [0, 120, 255],
-];
-
 class AcceleratorUltField {
     constructor(owner) {
         this.owner = owner;
@@ -360,18 +474,21 @@ class AcceleratorUltField {
 
         this.afterimages = [];
         this.lastAfterimageTime = 0;
+        this.afterimageCount = 0;
         this.flashTimer = 0;
+        this.ended = false;
     }
 
     update() {
+        this.slowTarget = null;
         if (this.forceExpire) return;
         const elapsed = Time.now - this.startTime;
 
         speedUp(this.owner, 0.3, 30);
 
         if (Time.now - this.lastAfterimageTime >= 50) {
-            const color = ACCELERATOR_BLUE_PALETTE[randomInt(0, ACCELERATOR_BLUE_PALETTE.length - 1)];
-            this.afterimages.push({ rect: this.owner.rect.copy(), time: Time.now, color });
+            const color = ACC_RAINBOW[this.afterimageCount++ % ACC_RAINBOW.length];
+            this.afterimages.push({ x: this.owner.rect.centerx, y: this.owner.rect.centery, fx: this.owner.facing[0], time: Time.now, color });
             this.lastAfterimageTime = Time.now;
         }
         this.afterimages = this.afterimages.filter(img => Time.now - img.time < 240);
@@ -380,6 +497,7 @@ class AcceleratorUltField {
         if (elapsed >= this.delayBeforeDamage && Time.now - this.lastDamageTick >= this.damageInterval) {
             this.owner.takeDamage(4.0);
             this.lastDamageTick = Time.now;
+            Vfx.spawn(new HitSparkVFX(this.owner.rect.centerx, this.owner.rect.centery, { color: '#ff5050', angle: -Math.PI / 2, count: 8, size: 16 }));
             this.flashTimer = 180;
             this.damageInterval = Math.max(200, this.damageInterval - 150);
         }
@@ -389,6 +507,10 @@ class AcceleratorUltField {
 
     isExpired() {
         if (this.forceExpire || Time.now - this.startTime >= this.lifespan) {
+            if (!this.ended) {
+                this.ended = true;
+                Vfx.spawn(new AccCollapseVFX(this.owner, this.afterimages));
+            }
             this.owner.isUltActive = false;
             if (this.owner.originalBaseAtk !== undefined) this.owner.baseAtk = this.owner.originalBaseAtk;
             this.owner.activeUltField = null;
@@ -401,20 +523,33 @@ class AcceleratorUltField {
         if (target && !target.invincible && target.defense < 100.0) {
             timeSlow(target, 0.3, 50);
             slow(target, 0.3, 50);
+            this.slowTarget = target;
         }
         return false;
+    }
+
+    // 몸 아래: 무지개 실루엣 잔상 + 발밑에서 빠르게 도는 시계
+    drawUnder(ctx) {
+        drawAfterimages(ctx, this.owner, this.afterimages, 240, 0.6);
+        const r = this.owner.rect;
+        accDrawClock(ctx, ACC_CLOCK_IMAGE, ACC_RAINBOW[Math.floor(Time.now / 120) % ACC_RAINBOW.length], r.centerx, r.bottom - 2, 76, 0.38, Time.now * 0.004, 0.8);
     }
 
     draw(ctx) {
         ctx.fillStyle = `rgba(40, 100, 200, ${20 / 255})`;
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-        if (this.flashTimer > 0) {
-            ctx.fillStyle = `rgba(255, 40, 40, ${Math.trunc(100 * (this.flashTimer / 180)) / 255})`;
-            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        // 자기 피해를 받을 때: 화면 전체 대신 몸에만 빨간 지지직 줄
+        if (this.flashTimer > 0 && !this.owner.hidden) {
+            const r = this.owner.rect, k = this.flashTimer / 180, f = Math.floor(Time.now / 40);
+            ctx.fillStyle = `rgba(255, 60, 60, ${0.7 * k})`;
+            for (let i = 0; i < 3; i++) {
+                const y = r.top + ((i * 17 + f * 7) % r.h);
+                const dx = ((i * 13 + f * 5) % 12) - 6;
+                ctx.fillRect(r.x - 8 + dx, y, r.w + 16, 3);
+            }
         }
-
-        drawAfterimages(ctx, this.afterimages, 240, 180, '255, 255, 255');
+        drawSlowClockIcon(ctx, this.slowTarget);
     }
 }
 
@@ -444,6 +579,9 @@ class AcceleratorUltSkill extends Skill {
         const field = new AcceleratorUltField(owner);
         owner.activeUltField = field;
         attacks.push(field);
+        const r = owner.rect;
+        Vfx.spawn(new AccClockBurstVFX(r.centerx, r.centery, { from: 80, to: 420, duration: 0.45, spin: 2 }));
+        Vfx.spawn(new AccClockBurstVFX(r.centerx, r.bottom - 2, { color: '#b478ff', from: 60, to: 260, flat: 0.38, duration: 0.4, spin: -2 }));
     }
 }
 
@@ -466,6 +604,12 @@ function applyAccelerator(player) {
     ultSkill.owner = player;
 
     player.abilities = [new AcceleratorBasicSkill(), timeSkill, healSkill, ultSkill];
+
+    // 잔상·발밑 시계는 몸보다 아래에 그린다 (궁극기 중이면 궁극기 것만)
+    player.preDrawHooks.push((ctx) => {
+        if (player.activeUltField) player.activeUltField.drawUnder(ctx);
+        else if (player.accTimeField && !player.accTimeField.forceExpire && timeSkill.isActive) player.accTimeField.drawUnder(ctx);
+    });
 
     // 과열 게이지는 기본 update 전에 계산
     player.preUpdateHooks.push((dtSec) => timeSkill.updateCharge(player, dtSec));
