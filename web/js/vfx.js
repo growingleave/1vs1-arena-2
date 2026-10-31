@@ -5,7 +5,7 @@
 // - 실제 흐른 시간(초)으로 움직이고, 화면을 그릴 때마다 갱신된다.
 // - 동시에 남는 개수에 상한을 둬서 렉을 막는다 (넘으면 가장 오래된 것부터 지운다).
 
-const VFX_MAX_ACTIVE = 16;
+const VFX_MAX_ACTIVE = 24;
 
 const Vfx = {
     active: [],
@@ -908,6 +908,49 @@ class BlastVFX extends SparkVFX {
             ctx.strokeStyle = `rgba(${r2},${g2},${b2},${a * 0.8})`;
             ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * (0.2 + 0.6 * t), 0, Math.PI * 2); ctx.stroke();
         }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
+
+// ==========================================
+// 따라다니며 뿌리는 불꽃: isActive()인 동안 follow 자리에서 뒤쪽(angle 반대)으로 불꽃을 계속 흩뿌린다 (돌진 꼬리)
+//   rate: 초당 불꽃 수, spread: 퍼지는 각도(라디안), side: 몸 옆으로 흩어지는 폭(px)
+// ==========================================
+class TrailSparkVFX extends SparkVFX {
+    constructor(follow, isActive, options) {
+        super(options.color ?? '#ffffff');
+        this.follow = follow;
+        this.isActive = isActive;
+        this.angle = options.angle ?? 0;
+        this.rate = options.rate ?? 60;
+        this.spread = options.spread ?? 0.6;
+        this.side = options.side ?? 16;
+        this.size = options.size ?? 1;
+        this.carry = 0;
+        this.active = true;
+    }
+
+    get finished() { return !this.active && this.sparksDone; }
+
+    update(dt) {
+        super.update(dt);
+        if (this.active && !this.isActive()) this.active = false;
+        if (!this.active) return;
+        this.carry += this.rate * dt;
+        const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
+        const nx = -Math.sin(this.angle), ny = Math.cos(this.angle);
+        while (this.carry >= 1) {
+            this.carry -= 1;
+            const off = vfxRand(-1, 1) * this.side;
+            this.addSpark(cx + nx * off, cy + ny * off, this.angle + Math.PI + vfxRand(-this.spread, this.spread),
+                vfxRand(80, 260), vfxRand(0.15, 0.35), vfxRand(1, 2.2) * this.size);
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
         this.drawSparks(ctx);
         ctx.restore();
     }

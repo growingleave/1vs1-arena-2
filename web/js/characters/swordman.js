@@ -235,6 +235,9 @@ class SwordmanDashAttack {
             color: SWORDMAN_COLOR,
             fade: 0.3,
         }));
+        // 돌진 꼬리: 뒤로 흩날리는 은빛 불꽃
+        Vfx.spawn(new TrailSparkVFX(owner, () => Time.now - this.startTime < this.duration,
+            { color: SWORDMAN_COLOR, angle: Math.atan2(direction[1], direction[0]), rate: 90, side: 18 }));
     }
 
     update(walls) {
@@ -255,6 +258,11 @@ class SwordmanDashAttack {
 
     collidesWith(target) {
         return canBeHit(this, target) && this.rect.colliderect(target.rect);
+    }
+
+    applyEffect(target) {
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+            { color: SWORDMAN_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]), count: 14, size: 30 }));
     }
 
     // 돌진 베기 그림(StretchSlashVFX)이 대신 보여서, 그림이 아직 안 불러와졌을 때만 상자를 그린다
@@ -328,6 +336,8 @@ class SwordmanUltDashAttack {
             softEdge: 50,
             fade: SWORDMAN_ULT_SHEATH, // 납도하는 동안 서서히 사라진다
         }));
+        Vfx.spawn(new TrailSparkVFX(owner, () => this.phase === 'dash',
+            { color: SWORDMAN_COLOR, angle: Math.atan2(direction[1], direction[0]), rate: 160, side: 60, spread: 0.4, size: 1.3 }));
     }
 
     update(walls) {
@@ -387,6 +397,12 @@ class SwordmanUltDashAttack {
             imageX0: 40, imageX1: 760, imageCY: 200,
             margin: 35, scaleY: 0.8, duration: 0.55, darken: 0.4,
         }));
+        // 지나온 길을 따라 은빛 불꽃이 터진다
+        for (let n = 0; n < 6; n++) {
+            const u = (n + 0.5) / 6;
+            Vfx.spawn(new HitSparkVFX(this.startX + (this.posX - this.startX) * u, this.startY + (this.posY - this.startY) * u,
+                { color: SWORDMAN_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]) + (n % 2 ? 1.2 : -1.2), count: 10, size: 24 }));
+        }
         Vfx.shake(7, 0.2);
     }
 
@@ -418,6 +434,8 @@ class SwordmanUltDashAttack {
             slow(target, stunTime, 100);
             silence(target, stunTime); // 이동 불가 + 침묵 = 기절
             this.marked.push(target);
+            Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+                { color: SWORDMAN_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]), count: 16, size: 34 }));
         }
         return false;
     }
