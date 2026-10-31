@@ -1,7 +1,7 @@
 // 무투가 기(氣) 주먹·발 그림 생성: 반투명 연주황, 앞(주먹 마디 / 발바닥)이 오른쪽
 // 결과 (게임용 1/2 크기, 'lighter'로 그림) → web/assets/에 복사
-//   fighter_fist.png 110x100, 주먹 가운데 x 60 y 50, 내용 영역 x 9~95 y 23~79
-//   fighter_kick.png 110x100, 내용 영역 x 6~100 y 10~90 (다리가 왼쪽, 발바닥이 오른쪽)
+//   fighter_fist.png 110x100 (손등 쪽에서 본 주먹), 내용 영역 x 3~101 y 10~84
+//   fighter_kick.png 110x100, 내용 영역 x 6~100 y 10~90 (다리가 왼쪽, 발바닥이 오른쪽) — 지금 게임에선 안 씀
 //       preview_fist.png (확인용)
 // 실행: node tools/fighter_fist_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
@@ -17,25 +17,27 @@ const OUT = process.argv[2] || __dirname;
     const white = mk(W, H), c = white.getContext('2d');
     const rr = (x, y, w, h, r) => { c.beginPath(); c.roundRect(x, y, w, h, r); };
 
-    // 주먹 모양 (흰색 선 + 반투명 면). 면은 옅게, 윤곽은 밝게 → 기로 만든 주먹
+    // 주먹을 손등 쪽에서 본 모양 (손목이 왼쪽, 주먹 마디가 오른쪽)
+    // 손목 → 넓은 손등 → 앞쪽에 세로로 늘어선 주먹 마디 4개 → 그 앞에 접힌 손가락 마디, 위쪽에 엄지
     const shapes = [];
-    shapes.push(() => rr(18, 68, 60, 64, 18));      // 손목
-    shapes.push(() => rr(58, 46, 92, 108, 26));     // 손등
-    for (let i = 0; i < 4; i++) shapes.push(() => rr(128, 48 + i * 26, 58, 26, 12)); // 접은 손가락 4개
-    shapes.push(() => rr(92, 128, 76, 30, 14));     // 엄지
+    shapes.push(() => rr(10, 70, 64, 60, 16));                   // 손목
+    shapes.push(() => { c.beginPath(); c.moveTo(62, 62); c.lineTo(160, 36); c.quadraticCurveTo(178, 100, 160, 164); c.lineTo(62, 138); c.closePath(); }); // 손등 (앞으로 넓어짐)
+    for (let i = 0; i < 4; i++) shapes.push(() => rr(164, 40 + i * 30, 34, 28, 12)); // 접힌 손가락 마디 4개
+    shapes.push(() => rr(84, 24, 64, 24, 12));                    // 엄지 (위쪽)
     c.fillStyle = 'rgba(255,255,255,0.28)';
-    for (const s of shapes) { s(); c.fill(); }
+    for (const sh of shapes) { sh(); c.fill(); }
     c.strokeStyle = 'rgba(255,255,255,0.95)'; c.lineWidth = 4;
-    for (const s of shapes) { s(); c.stroke(); }
-    // 주먹 마디 반짝임
+    for (const sh of shapes) { sh(); c.stroke(); }
+    // 주먹 마디 (뼈 튀어나온 곳) 반짝임
     for (let i = 0; i < 4; i++) {
-      const g = c.createRadialGradient(182, 61 + i * 26, 0, 182, 61 + i * 26, 14);
-      g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-      c.fillStyle = g; c.beginPath(); c.arc(182, 61 + i * 26, 14, 0, Math.PI * 2); c.fill();
+      const y = 54 + i * 30;
+      const g = c.createRadialGradient(162, y, 0, 162, y, 15);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(162, y, 15, 0, Math.PI * 2); c.fill();
     }
-    // 손등 힘줄 선
+    // 손등 힘줄: 손목에서 각 마디로 퍼지는 선
     c.strokeStyle = 'rgba(255,255,255,0.45)'; c.lineWidth = 2;
-    for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(78, 78 + i * 22); c.quadraticCurveTo(105, 74 + i * 24, 128, 74 + i * 26); c.stroke(); }
+    for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(72, 92 + i * 6); c.quadraticCurveTo(110, 90 + i * 8, 150, 54 + i * 30); c.stroke(); }
 
     // 발차기: 다리(정강이) + 발등 + 발바닥(앞) + 발가락 (위에서 본 앞차기)
     const kickW = mk(W, H), k = kickW.getContext('2d');
