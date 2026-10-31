@@ -78,45 +78,107 @@ class FighterSlamVFX extends SparkVFX {
     }
 }
 
-// 돌려차기 이펙트: 플레이어 둘레를 한 바퀴 쓸고 지나가는 굵은 호 + 퍼지는 바람 고리
-class FighterKickVFX {
+// 돌려차기 이펙트: 발끝(빛나는 머리)이 플레이어 둘레를 한 바퀴 쓸고 지나간다
+// - 굵은 호(꼬리일수록 옅고 가늘게) + 안팎의 가는 바람결 호 + 흰 날
+// - 발끝에서 바깥(접선) 방향으로 튀는 불꽃
+// - 다 돌면 충격파 고리 두 겹 + 바깥으로 뻗는 바람줄 + 바닥 먼지 고리
+class FighterKickVFX extends SparkVFX {
     constructor(follow, startAngle, radius) {
+        super(FIGHTER_COLOR);
         this.follow = follow; this.start = startAngle; this.radius = radius;
-        this.sweep = 0.16; this.duration = 0.36; this.elapsed = 0;
+        this.sweep = 0.16; this.duration = 0.45;
+        this.emitted = 0;
+        this.winds = [];
+        for (let i = 0; i < 10; i++) this.winds.push({ a: i / 10 * Math.PI * 2 + vfxRand(-0.2, 0.2), len: vfxRand(18, 34) });
     }
 
-    get finished() { return this.elapsed >= this.duration; }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
 
-    update(dt) { this.elapsed += dt; }
+    update(dt) {
+        super.update(dt);
+        // 쓸고 지나가는 동안 발끝에서 불꽃 (접선 방향으로)
+        const u = Math.min(1, this.elapsed / this.sweep);
+        const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
+        while (this.emitted < Math.round(16 * u)) {
+            const a = this.start + Math.PI * 2 * (this.emitted / 16);
+            const r = this.radius - 10;
+            this.addSpark(cx + Math.cos(a) * r, cy + Math.sin(a) * r, a + Math.PI / 2 + vfxRand(-0.4, 0.4), vfxRand(120, 260), vfxRand(0.15, 0.3), vfxRand(1.2, 2.2));
+            this.emitted++;
+        }
+    }
 
     draw(ctx) {
         const cx = this.follow.rect.centerx, cy = this.follow.rect.centery;
         const u = Math.min(1, this.elapsed / this.sweep);
         const fade = 1 - Math.max(0, (this.elapsed - this.sweep) / (this.duration - this.sweep));
         const head = this.start + Math.PI * 2 * u;
+        const R = this.radius - 10;
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
         ctx.lineCap = 'round';
-        // 꼬리일수록 옅고 가는 호 (조각 12개)
-        for (let i = 0; i < 12; i++) {
-            const a0 = head - (i + 1) * 0.35, a1 = head - i * 0.35;
+        // 바닥 먼지 고리 (다 돈 뒤)
+        if (this.elapsed > this.sweep) {
+            const w = Math.min(1, (this.elapsed - this.sweep) / 0.25);
+            for (let i = 0; i < 12; i++) {
+                const a = i / 12 * Math.PI * 2, d = R + 6 + 22 * w;
+                ctx.fillStyle = `rgba(210,190,170,${0.3 * (1 - w)})`;
+                ctx.beginPath(); ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 4 + 5 * w, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        // 굵은 호: 조각 14개, 꼬리일수록 옅고 가늘게
+        for (let i = 0; i < 14; i++) {
+            const a0 = head - (i + 1) * 0.3, a1 = head - i * 0.3;
             if (a1 < this.start) break;
-            const k = 1 - i / 12;
-            ctx.strokeStyle = fighterRgba(0.85 * k * fade);
-            ctx.lineWidth = 4 + 16 * k;
-            ctx.beginPath(); ctx.arc(cx, cy, this.radius - 10, Math.max(this.start, a0), a1); ctx.stroke();
+            const k = 1 - i / 14;
+            ctx.strokeStyle = fighterRgba(0.8 * k * fade);
+            ctx.lineWidth = 3 + 18 * k;
+            ctx.beginPath(); ctx.arc(cx, cy, R, Math.max(this.start, a0), a1); ctx.stroke();
         }
-        ctx.strokeStyle = `rgba(255,255,255,${0.9 * fade})`;
-        ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(cx, cy, this.radius - 10, Math.max(this.start, head - 1.2), head); ctx.stroke();
-        if (this.elapsed > this.sweep * 0.6) {
-            const w = Math.min(1, (this.elapsed - this.sweep * 0.6) / 0.2);
-            ctx.strokeStyle = fighterRgba(0.7 * (1 - w));
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.arc(cx, cy, this.radius * (0.8 + 0.5 * w), 0, Math.PI * 2); ctx.stroke();
+        // 안팎의 가는 바람결 호
+        for (const [dr, len, a] of [[-16, 2.2, 0.55], [-8, 3.0, 0.7], [10, 2.6, 0.6], [18, 1.6, 0.4]]) {
+            ctx.strokeStyle = fighterRgba(a * fade); ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(cx, cy, R + dr, Math.max(this.start, head - len), head - 0.15); ctx.stroke();
         }
+        // 흰 날
+        ctx.strokeStyle = `rgba(255,255,255,${0.9 * fade})`; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, R, Math.max(this.start, head - 1.2), head); ctx.stroke();
+        // 발끝 빛
+        if (u < 1) {
+            const hx = cx + Math.cos(head) * R, hy = cy + Math.sin(head) * R;
+            const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 18);
+            g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, fighterRgba(0.8)); g.addColorStop(1, fighterRgba(0));
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 18, 0, Math.PI * 2); ctx.fill();
+        }
+        // 다 돈 뒤: 충격파 고리 두 겹 + 바깥으로 뻗는 바람줄
+        if (this.elapsed > this.sweep * 0.7) {
+            const w = Math.min(1, (this.elapsed - this.sweep * 0.7) / 0.25), a = 1 - w;
+            ctx.lineWidth = 3 * a + 0.5;
+            ctx.strokeStyle = fighterRgba(0.8 * a);
+            ctx.beginPath(); ctx.arc(cx, cy, this.radius * (0.8 + 0.6 * w), 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = `rgba(255,255,255,${0.5 * a})`;
+            ctx.beginPath(); ctx.arc(cx, cy, this.radius * (0.7 + 0.4 * w), 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = fighterRgba(0.7 * a); ctx.lineWidth = 2;
+            for (const wd of this.winds) {
+                const r0 = this.radius * (0.9 + 0.5 * w);
+                ctx.beginPath(); ctx.moveTo(cx + Math.cos(wd.a) * r0, cy + Math.sin(wd.a) * r0);
+                ctx.lineTo(cx + Math.cos(wd.a) * (r0 + wd.len), cy + Math.sin(wd.a) * (r0 + wd.len)); ctx.stroke();
+            }
+        }
+        this.drawSparks(ctx);
         ctx.restore();
     }
+}
+
+// 연주황으로 칠한 무투가 그림 (돌진 잔상용, 한 번만 만든다)
+let fighterTinted = null;
+function fighterTintedSprite() {
+    if (fighterTinted || !isImageReady(FIGHTER_IMAGE)) return fighterTinted;
+    const c = document.createElement('canvas'); c.width = 48; c.height = 48;
+    const x = c.getContext('2d');
+    x.drawImage(FIGHTER_IMAGE, 2, 2, 44, 44);
+    x.globalCompositeOperation = 'source-in'; x.fillStyle = FIGHTER_COLOR; x.fillRect(0, 0, 48, 48);
+    fighterTinted = c;
+    return c;
 }
 
 // 가운데 기준 w x h 사각형의 로컬 꼭짓점
@@ -193,8 +255,8 @@ class FighterChargeHitbox {
         this.createdTime = Time.now;
         this.lifespan = 800;
 
-        this.width = 50;
-        this.height = 40;
+        this.width = 70;  // 기 주먹 크기에 맞춤 (원래 50x40)
+        this.height = 56;
         this.posX = owner.rect.centerx;
         this.posY = owner.rect.centery;
         this.startX = this.posX;
@@ -233,14 +295,14 @@ class FighterChargeHitbox {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.lineCap = 'round';
-        for (const [off, len] of [[-9, 26], [0, 36], [9, 26]]) {
-            const bx = this.posX - this.direction[0] * 14 - this.direction[1] * off;
-            const by = this.posY - this.direction[1] * 14 + this.direction[0] * off;
-            ctx.strokeStyle = fighterRgba(0.5 * fade); ctx.lineWidth = 2;
+        for (const [off, len] of [[-14, 34], [0, 48], [14, 34]]) {
+            const bx = this.posX - this.direction[0] * 22 - this.direction[1] * off;
+            const by = this.posY - this.direction[1] * 22 + this.direction[0] * off;
+            ctx.strokeStyle = fighterRgba(0.55 * fade); ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - this.direction[0] * Math.min(len, traveled), by - this.direction[1] * Math.min(len, traveled)); ctx.stroke();
         }
         ctx.restore();
-        drawFighterFist(ctx, this.posX, this.posY, ang, 40, fade);
+        drawFighterFist(ctx, this.posX, this.posY, ang, 62, fade);
     }
 }
 
@@ -371,10 +433,11 @@ class FighterDashManager {
         if (this.trail.length > 6) this.trail.shift();
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
+        const ghostImg = fighterTintedSprite();
         this.trail.forEach(([x, y], i) => {
-            const a = (i + 1) / this.trail.length * 0.35;
-            ctx.fillStyle = fighterRgba(a);
-            ctx.beginPath(); ctx.roundRect(x - 18, y - 18, 36, 36, 8); ctx.fill();
+            const a = (i + 1) / this.trail.length * 0.45;
+            if (ghostImg) { ctx.globalAlpha = a; ctx.drawImage(ghostImg, x - 24, y - 24, 48, 48); ctx.globalAlpha = 1; }
+            else { ctx.fillStyle = fighterRgba(a); ctx.beginPath(); ctx.roundRect(x - 18, y - 18, 36, 36, 8); ctx.fill(); }
         });
         ctx.strokeStyle = fighterRgba(0.6); ctx.lineWidth = 2; ctx.lineCap = 'round';
         for (const off of [-14, 0, 14]) {
