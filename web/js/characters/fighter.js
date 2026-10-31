@@ -800,6 +800,7 @@ function applyFighter(player) {
 
 const FIGHTER_CHARACTER_DATA = {
     id: 'FIGHTER',
+    fxColor: FIGHTER_COLOR,
     name: '무투가',
     desc: '평타: 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1: 기 주먹을 날립니다(8), 10개까지 모을 수 있습니다, 스킬 2: 돌진하며 부딪히면 피해(8)를 주고 돌려차기로 주변 상대를 바깥으로 밉니다(23), 1초간 기절, 궁극기: 거대한 기 주먹을 세 번 날립니다(20씩), 맞으면 강하게 밀칩니다, 타격마다 범위를 좌우 키로 돌린 뒤 고정되면 들어가고, 밀려 벽에 부딪히면 추가 피해(10)',
     apply: applyFighter,

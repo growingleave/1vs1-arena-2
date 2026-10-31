@@ -11,6 +11,7 @@ class MageEnergyPulse {
         this.owner = owner;
         this.direction = direction;
         this.color = opts.color;
+        this.fizzleColor = opts.color;
         this.damage = owner.baseAtk * opts.damageMult;
         this.speed = opts.speed;
         this.canPenetrateWalls = opts.canPenetrateWalls;
@@ -691,6 +692,7 @@ function applyMageToPlayer(player) {
 
 const MAGE_CHARACTER_DATA = {
     id: 'MAGE',
+    fxColor: '#64dcff',
     name: '마법사',
     desc: '평타: 마법빔을 멀리 쏩니다(15), 스킬 1: 짧게 조준한 뒤 벽을 뚫는 레이저를 쏩니다(슬로우 25% 1.5초, 30), 스킬 2: 2초간 벽을 뚫고 이동속도가 30% 증가합니다, 궁극기: 하늘로 날아올라 조준원 안에 작은 폭발을 계속 떨어뜨리고(6씩), 다시 누르거나 3초가 지나면 조준원 전체를 강타하며 내려옵니다(30)',
     apply: applyMageToPlayer,

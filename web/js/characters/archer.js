@@ -502,6 +502,7 @@ function applyArcher(player) {
 
 const ARCHER_CHARACTER_DATA = {
     id: 'ARCHER',
+    fxColor: '#a8e070',
     name: '궁수',
     desc: '평타: 활을 쏩니다(최대 26, 최소 7), 스킬 1: 화살 종류를 바꿀 수 있습니다(감속 화살, 폭발 화살, 철 화살), 스킬 2: 화살을 3개로 바꿔주고 벽에 닿으면 3번 튕깁니다, 궁극기: 부채꼴로 유도 화살 5개를 쏩니다(한발당 8)',
     apply: applyArcher,

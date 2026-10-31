@@ -492,6 +492,7 @@ function applyAccelerator(player) {
 
 const ACCELERATOR_CHARACTER_DATA = {
     id: 'ACCELERATOR',
+    fxColor: '#64dcff',
     name: '가속자',
     desc: '평타: 투사체를 빠르게 쏩니다(6, 2발 연속), 스킬 1: 가속을 하며 상대보다 이동속도가 증가합니다(상대 슬로우/쿨타임 지연 40%), 스킬 2: 체력을 일정 채워주며 가속을 멈출 수 있습니다(25%), 궁극기: 폭주를 하며 대미지와 속도가 증가합니다(각 30%, 상대 슬로우/쿨타임 지연 50%), 스킬 2를 눌러 취소할 수 있습니다',
     apply: applyAccelerator,

@@ -332,7 +332,9 @@ class Player {
 // 캐릭터를 입힌 새 플레이어를 만든다
 function spawnCharacterPlayer(x, y, color, charIdx, playerNum) {
     const p = new Player(x, y, color, playerNum);
-    getCharacterData(charIdx).apply(p);
+    const data = getCharacterData(charIdx);
+    data.apply(p);
+    p.fxColor = data.fxColor || '#ffffff'; // 캐릭터별 이펙트 색 (투사체 소멸 파티클 등)
     return p;
 }
 

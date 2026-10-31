@@ -510,6 +510,7 @@ function applyDio(player) {
 
 const DIO_CHARACTER_DATA = {
     id: 'DIO',
+    fxColor: '#ffd84a',
     name: 'DIO',
     desc: '전방에 스탠드를 소환해 그 자리에서 계속 잽을 날리는 평타(재사용 시 위치 이동), 충전형 칼 던지기(스킬 1), 5초간 시간 정지(스킬 2), 하늘로 날아올라 무적 상태로 자유롭게 이동하다 단 한 번 강타하는 궁극기를 지닌 흡혈귀',
     apply: applyDio,

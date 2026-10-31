@@ -394,6 +394,7 @@ function applyGrinder(player) {
 
 const GRINDER_CHARACTER_DATA = {
     id: 'GRINDER',
+    fxColor: '#e0b060',
     name: '분쇄자',
     desc: '평타: 톱을 돌려 범위 내에 대미지를 줍니다(9, 0.3초마다), 스킬 1: 그랩을 써 상대를 끌고 대미지를 줍니다(24), 약 1초간 이동불가+침묵, 스킬 2: 전방에 제어 슬램을 쓰고 대미지를 줍니다(32), 1초간 기절, 궁극기: 부채꼴로 투사체를 난사합니다(15발, 한발당 5)',
     apply: applyGrinder,

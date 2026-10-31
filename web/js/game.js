@@ -129,6 +129,7 @@ class Game {
     updateAttacks(walls, getTarget) {
         for (const attack of [...this.attacks]) {
             attack.update(walls);
+            let hitNow = false;
 
             const target = getTarget(attack);
             if (target && !attack.hitPlayers.includes(target) && attack.collidesWith(target)) {
@@ -137,10 +138,13 @@ class Game {
                 attack.hitPlayers.push(target);
                 attack.owner.addUltGauge(finalDamage * attack.owner.ultChargeMultiplier);
                 if (attack.applyEffect) attack.applyEffect(target);
+                hitNow = true;
             }
 
             if (attack.isExpired()) {
                 this.attacks.splice(this.attacks.indexOf(attack), 1);
+                // 맞혀서 사라진 게 아니면(벽·사거리 끝·시간 끝) 사라진 자리에 파티클 (화면용)
+                if (!hitNow) spawnProjectileFizzle(attack);
             }
         }
         handleAttackWallCollisions(this.attacks, walls);

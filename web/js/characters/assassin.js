@@ -519,6 +519,7 @@ function applyAssassinToPlayer(player) {
 
 const ASSASSIN_CHARACTER_DATA = {
     id: 'ASSASSIN',
+    fxColor: '#c080ff',
     name: '어쌔신',
     desc: '평타: 단검으로 적을 찌릅니다(14), 스킬 1: 짧게 돌진하고 평타를 강화합니다(최대 3번), 강화 평타: 원형으로 검을 돌립니다(17), 스킬 2: 갈고리를 던져 벽이나 상대로 이동할 수 있습니다, 상대를 맞추면 1초간 기절시킵니다, 궁극기: x자로 크게 그어 큰 대미지를 줍니다(42)',
     apply: applyAssassinToPlayer,

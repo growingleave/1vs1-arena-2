@@ -416,6 +416,7 @@ function applyDemolitionist(player) {
 
 const DEMOLITIONIST_CHARACTER_DATA = {
     id: 'DEMOLITIONIST',
+    fxColor: '#ff8a3c',
     name: '폭파광',
     desc: '평타: 폭발물을 쏩니다(10), 강화 평타: 공속이 빨라집니다, 스킬 1: 사다리꼴 범위로 적을 밉니다(18), 강화 평타: 더 넓은 범위와 강한 대미지로 적을 공격합니다(29), 스킬 2(변신 중에만 사용 가능): 돌진하며 경로에 연속 폭발을 일으킵니다(20/20/26), 궁극기: 무적 상태가 되며 변신을 하며 폭발하고 스킬이 강화됩니다(45)',
     apply: applyDemolitionist,
