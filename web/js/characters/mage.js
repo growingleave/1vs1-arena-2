@@ -131,6 +131,69 @@ MageEnergyPulse.prototype.drawBolt = function (ctx) {
 };
 
 // ==========================================
+// [마법사 - 궁극기] 착지 이펙트: 하늘에서 빛줄기가 꽂히고, 바닥에 마법진 고리 세 겹이 차례로 퍼지며
+// 빛살이 사방으로 뻗고 별가루가 솟는다 (화면 효과 전용)
+// ==========================================
+class MageLandingVFX extends SparkVFX {
+    constructor(x, y) {
+        super('#64dcff');
+        this.x = x; this.y = y;
+        this.duration = 0.7;
+        this.rays = [];
+        for (let i = 0; i < 10; i++) this.rays.push({ a: i / 10 * Math.PI * 2 + vfxRand(-0.15, 0.15), len: vfxRand(60, 110) });
+        for (let i = 0; i < 22; i++) this.addSpark(x + vfxRand(-30, 30), y + vfxRand(-8, 8), -Math.PI / 2 + vfxRand(-0.9, 0.9), vfxRand(80, 220), vfxRand(0.3, 0.6), vfxRand(1.2, 2.4));
+    }
+
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+
+    draw(ctx) {
+        const t = this.elapsed, x = this.x, y = this.y;
+        const C = MAGE_CYAN, P = MAGE_PURPLE;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        // 하늘에서 꽂히는 빛줄기 (처음 0.25초)
+        if (t < 0.25) {
+            const a = 1 - t / 0.25, w = 46 * a + 6;
+            const beam = ctx.createLinearGradient(0, y - 720, 0, y);
+            beam.addColorStop(0, mageRgba(P, 0)); beam.addColorStop(0.7, mageRgba(C, 0.5 * a)); beam.addColorStop(1, `rgba(255,255,255,${a})`);
+            ctx.fillStyle = beam; ctx.fillRect(x - w / 2, y - 720, w, 720);
+        }
+        // 가운데 섬광
+        if (t < 0.3) {
+            const a = 1 - t / 0.3;
+            const g = ctx.createRadialGradient(x, y, 0, x, y, 70);
+            g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.4, mageRgba(C, 0.6 * a)); g.addColorStop(1, mageRgba(P, 0));
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 70, 0, Math.PI * 2); ctx.fill();
+        }
+        // 사방으로 뻗는 빛살
+        if (t < 0.35) {
+            const u = t / 0.35, a = 1 - u;
+            ctx.lineCap = 'round';
+            for (const r of this.rays) {
+                const l = r.len * (0.3 + 0.7 * u);
+                ctx.strokeStyle = mageRgba(C, 0.8 * a); ctx.lineWidth = 3 * a + 0.5;
+                ctx.beginPath(); ctx.moveTo(x + Math.cos(r.a) * l * 0.3, y + Math.sin(r.a) * l * 0.3 * 0.6);
+                ctx.lineTo(x + Math.cos(r.a) * l, y + Math.sin(r.a) * l * 0.6); ctx.stroke();
+            }
+        }
+        // 바닥 마법진 고리 세 겹 (차례로 퍼짐) + 고리 위 룬
+        for (let k = 0; k < 3; k++) {
+            const u = (t - k * 0.08) / 0.5;
+            if (u <= 0 || u >= 1) continue;
+            const a = 1 - u, rad = 20 + 110 * u;
+            ctx.strokeStyle = mageRgba(k === 1 ? P : C, 0.9 * a); ctx.lineWidth = 3 * a + 0.5;
+            ctx.beginPath(); ctx.ellipse(x, y, rad, rad * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+            if (k === 0) for (let i = 0; i < 8; i++) {
+                const ang = i / 8 * Math.PI * 2 + t * 2;
+                mageStar(ctx, x + Math.cos(ang) * rad, y + Math.sin(ang) * rad * 0.45, 4, a, i % 2 ? C : P);
+            }
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
+
+// ==========================================
 // [마법사 - 궁극기] 하늘 폭격
 // 1) 떠오름 0.5초 (제자리)  2) 0.5초 뒤부터 최대 3초 동안 조준원 안 아무 곳에 작은 폭발을 계속 떨어뜨림
 // 3) 궁극기 키를 다시 누르거나 시간이 다 되면: 0.4초 모은 뒤 조준원 전체에 큰 피해를 주며 내려와 끝
@@ -218,7 +281,8 @@ class MageSkyBombardment {
             }
         } else if (this.phase === 'strike') {
             if (elapsed >= MAGE_ULT.strike) {
-                Vfx.spawn(new BlastVFX(cx, cy, { radius: 45, color: '#64dcff', color2: '#ffffff', count: 8 })); // 내려옴
+                Vfx.spawn(new MageLandingVFX(cx, cy)); // 내려옴
+                Vfx.shake(6, 0.25);
                 this.finish();
             }
         }
