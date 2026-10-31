@@ -2,6 +2,42 @@
 
 const ACCELERATOR_IMAGE = loadImage('assets/accelerator.png');
 
+// 이펙트 그림 (tools/accelerator_gen.js로 생성)
+const ACC_BULLET_IMAGE = loadImage('assets/acc_bullet.png');   // 80x20, 머리 x 72, 가운데 y 10 (하늘색, 'lighter')
+const ACC_MUZZLE_IMAGE = loadImage('assets/acc_muzzle.png');   // 80x60, 총구 x 4, 가운데 y 30 (하늘색, 'lighter')
+const ACC_SYRINGE_IMAGE = loadImage('assets/acc_syringe.png'); // 200x50, 유리통 속 x 52~148 y 18~32, 바늘 끝 x 195 (보통)
+const ACC_PLUNGER_IMAGE = loadImage('assets/acc_plunger.png'); // 110x50, 고무 마개 앞면 x 108 (보통)
+const ACC_HEAL_IMAGE = loadImage('assets/acc_heal.png');       // 150x150, 고리 반지름 = 크기의 0.36 (초록, 'lighter')
+const ACC_CYAN = '#64dcff';
+
+// 그림을 (x, y)에 기준점(ax, ay)을 맞춰 angle로 돌려 k배로 그린다
+function accDraw(ctx, img, x, y, ax, ay, angle, k, alpha, lighter = true) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(angle);
+    if (lighter) ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(img, -ax * k, -ay * k, img.naturalWidth * k, img.naturalHeight * k);
+    ctx.restore();
+}
+
+// 총구 불꽃: 잠깐 번쩍이고 사라짐 + 앞쪽으로 작은 불꽃 몇 개
+class AccMuzzleVFX extends SparkVFX {
+    constructor(x, y, angle) {
+        super(ACC_CYAN);
+        this.x = x; this.y = y; this.angle = angle; this.duration = 0.09;
+        for (let i = 0; i < 4; i++) this.addSpark(x, y, angle + vfxRand(-0.5, 0.5), vfxRand(150, 320), vfxRand(0.06, 0.14), vfxRand(0.8, 1.4));
+    }
+
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+
+    draw(ctx) {
+        const t = this.elapsed / this.duration;
+        if (t < 1) accDraw(ctx, ACC_MUZZLE_IMAGE, this.x, this.y, 4, 30, this.angle, 0.5 * (0.8 + 0.4 * t), 1 - t * t);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
+    }
+}
+
 // 잔상: 지나간 자리에 색 사각형이 잠깐 남는다
 function drawAfterimages(ctx, afterimages, life, maxAlpha, outline) {
     for (const img of afterimages) {
@@ -42,6 +78,7 @@ class AcceleratorBullet {
         this.startX = this.posX;
         this.startY = this.posY;
         this.maxRange = 300;
+        Vfx.spawn(new AccMuzzleVFX(this.posX, this.posY, Math.atan2(direction[1], direction[0])));
     }
 
     getPolygonPoints() {
@@ -63,8 +100,16 @@ class AcceleratorBullet {
         return canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect);
     }
 
+    // 맞으면 바로 사라지고 맞은 자리에서 불꽃
+    applyEffect(target) {
+        this.lifespan = 0;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
+            { color: ACC_CYAN, angle: Math.atan2(this.direction[1], this.direction[0]), count: 8, size: 18 }));
+    }
+
     draw(ctx) {
-        drawPolygon(ctx, this.getPolygonPoints(), 'rgb(100, 220, 255)', COLOR_WHITE, 1);
+        if (!isImageReady(ACC_BULLET_IMAGE)) { drawPolygon(ctx, this.getPolygonPoints(), 'rgb(100, 220, 255)', COLOR_WHITE, 1); return; }
+        accDraw(ctx, ACC_BULLET_IMAGE, this.posX, this.posY, 72, 10, Math.atan2(this.direction[1], this.direction[0]), 0.5, 1);
     }
 }
 
@@ -195,26 +240,80 @@ class AcceleratorTimeSkill extends Skill {
 // ==========================================
 // [스킬 2] 시간 안정화: 체력 회복 + 과열 감소 + 궁극기 종료
 // ==========================================
-class AcceleratorHealEffect {
+// 치료 이펙트: 플레이어 뒤·위에서 대각선으로 주사기가 꽂히고(그림), 초록 약이 줄어들며 들어간 뒤(코드),
+// 주사기가 빠지면서 초록 치료 빛(그림)과 올라가는 + 표시·반짝이(코드)
+class AccHealVFX extends SparkVFX {
     constructor(owner) {
+        super('#46ff82');
         this.owner = owner;
-        this.createdTime = Time.now;
-        this.lifespan = 500;
-        this.damage = 0;
-        this.hitPlayers = [];
+        this.duration = 0.95;
+        const back = owner.facing[0] > 0 ? -1 : 1;              // 바라보는 쪽의 반대 (위·아래를 보면 왼쪽 뒤)
+        const len = Math.hypot(back, -1.2);
+        this.out = [back / len, -1.2 / len];                    // 몸에서 주사기 쪽(뒤·위)으로 향하는 방향
+        this.angle = Math.atan2(-this.out[1], -this.out[0]);    // 바늘이 몸을 향하는 각도
+        this.tip = [back * 10, -14];                            // 몸 가운데에서 바늘 끝까지 (어깨 뒤쪽)
+        this.crosses = [];
+        this.healed = false;
     }
 
-    update() {}
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
 
-    isExpired() { return Time.now - this.createdTime >= this.lifespan; }
-
-    collidesWith() { return false; }
+    update(dt) {
+        super.update(dt);
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        if (!this.healed && this.elapsed >= 0.42) {
+            this.healed = true;
+            for (let i = 0; i < 14; i++) this.addSpark(cx + vfxRand(-14, 14), cy + vfxRand(-6, 10), -Math.PI / 2 + vfxRand(-0.8, 0.8), vfxRand(40, 120), vfxRand(0.3, 0.6), vfxRand(1, 2));
+            for (let i = 0; i < 6; i++) this.crosses.push({ x: vfxRand(-22, 22), y: vfxRand(-6, 14), vy: vfxRand(30, 60), t: vfxRand(0, 0.15), size: vfxRand(5, 9) });
+        }
+        for (const c of this.crosses) { c.t += dt; c.y -= c.vy * dt; }
+    }
 
     draw(ctx) {
-        const progress = (Time.now - this.createdTime) / this.lifespan;
-        const radius = Math.trunc(25 + 45 * progress);
-        const alpha = Math.max(0, Math.trunc(220 * (1.0 - progress))) / 255;
-        drawCircle(ctx, this.owner.rect.centerx, this.owner.rect.centery, radius - 2, null, `rgba(50, 255, 120, ${alpha})`, 4);
+        const t = this.elapsed;
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        const k = 0.4;
+        // 주사기: 0~0.15초 꽂힘 → 0.15~0.45초 약 들어감 → 0.45~0.62초 빠지며 사라짐
+        if (t < 0.62 && isImageReady(ACC_SYRINGE_IMAGE) && isImageReady(ACC_PLUNGER_IMAGE)) {
+            const slideIn = Math.min(1, t / 0.15), slideOut = Math.max(0, (t - 0.45) / 0.17);
+            const away = 26 * (1 - slideIn * slideIn) + 22 * slideOut;
+            const alpha = Math.min(1, t / 0.08) * (1 - slideOut);
+            const liquid = 1 - Math.min(1, Math.max(0, (t - 0.15) / 0.3)); // 남은 약 (1 → 0)
+            const tx = cx + this.tip[0] + this.out[0] * away, ty = cy + this.tip[1] + this.out[1] * away;
+            ctx.save();
+            ctx.translate(tx, ty); ctx.rotate(this.angle); ctx.scale(k, k); ctx.translate(-195, -25); // 바늘 끝이 원점
+            ctx.globalAlpha = alpha;
+            // 밀대: 약이 줄어드는 만큼 앞으로 밀려 들어간다 (마개 앞면 = 약의 뒤쪽 끝)
+            const front = 52 + (1 - liquid) * 96;
+            ctx.drawImage(ACC_PLUNGER_IMAGE, front - 108, 0);
+            // 약 (코드): 마개 앞면부터 유리통 앞쪽 끝(148)까지, 초록 + 위쪽 빛
+            if (liquid > 0) {
+                const g = ctx.createLinearGradient(0, 18, 0, 32);
+                g.addColorStop(0, 'rgba(150,255,180,0.95)'); g.addColorStop(0.5, 'rgba(70,255,130,0.9)'); g.addColorStop(1, 'rgba(30,170,80,0.9)');
+                ctx.fillStyle = g; ctx.fillRect(front, 18, 148 - front, 14);
+                ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(front + 8 + (t * 60) % Math.max(1, 140 - front), 23, 1.6, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.drawImage(ACC_SYRINGE_IMAGE, 0, 0);
+            ctx.restore();
+        }
+        // 치료 빛 (그림): 0.42초부터 커지며 사라짐
+        if (t >= 0.42) {
+            const u = Math.min(1, (t - 0.42) / 0.5);
+            const size = 110 * (0.6 + 0.6 * u);
+            accDraw(ctx, ACC_HEAL_IMAGE, cx, cy, 75, 75, 0, size / 150, 1.3 * (1 - u));
+        }
+        // 올라가는 + 표시 (코드)
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const c of this.crosses) {
+            const a = Math.max(0, 1 - c.t / 0.5);
+            if (a <= 0) continue;
+            const x = cx + c.x, y = cy + c.y, sz = c.size;
+            ctx.fillStyle = `rgba(110,255,150,${a})`;
+            ctx.fillRect(x - sz / 2, y - sz / 6, sz, sz / 3); ctx.fillRect(x - sz / 6, y - sz / 2, sz / 3, sz);
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
     }
 }
 
@@ -234,7 +333,7 @@ class AcceleratorHealSkill extends Skill {
         if (timeSkill && timeSkill.charge !== undefined) timeSkill.charge = Math.max(0.0, timeSkill.charge - 45.0);
 
         owner.hp = Math.min(owner.maxHp, owner.hp + 25.0);
-        attacks.push(new AcceleratorHealEffect(owner));
+        Vfx.spawn(new AccHealVFX(owner));
     }
 }
 
