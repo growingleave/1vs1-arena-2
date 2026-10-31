@@ -271,7 +271,9 @@ class SwordmanDashAttack {
 // ==========================================
 const SWORDMAN_ULT_WINDUP = 0.6;  // 선딜(초), 무적
 const SWORDMAN_ULT_SHEATH = 0.6;  // 납도 연출(초), 못 움직이고 무적
-const SWORDMAN_ULT_STUN_AFTER = 0.5; // 베인 뒤에도 남는 기절(초)
+const SWORDMAN_ULT_STUN_AFTER = 0.5; // 마지막 참격 뒤에도 남는 기절(초)
+const SWORDMAN_ULT_HITS = 5;         // 납도 끝에 빠바박 들어가는 참격 수 (피해를 나눠서)
+const SWORDMAN_ULT_HIT_GAP = 80;     // 참격 간격(ms)
 
 // 궁극기 그림 (tools/swordman_ult_gen.js로 생성, 팀 색이 이미 들어 있고 글리치만 다른 2장씩)
 //   돌진: 800x210, 길 x 60~690, 가운데 y 105 / 베기: 800x400, 길 x 40~760, 가운데 y 200
@@ -295,7 +297,9 @@ class SwordmanUltDashAttack {
         this.startTime = Time.now;
         this.hitPlayers = [];
         this.marked = [];      // 돌진에 닿아 기절한 대상 (납도가 끝나면 피해)
-        this.phase = 'dash';   // 'dash' → 'sheath'
+        this.phase = 'dash';   // 'dash' → 'sheath' → 'cut'
+        this.cutStart = 0;
+        this.hitsDone = 0;
         this.sheathStart = 0;
 
         this.width = 70;
@@ -345,9 +349,15 @@ class SwordmanUltDashAttack {
             this.startSheath();
             return false;
         }
-        if (Time.now - this.sheathStart < SWORDMAN_ULT_SHEATH * 1000) return false;
-        this.cut();
-        return true;
+        if (this.phase === 'sheath') {
+            if (Time.now - this.sheathStart < SWORDMAN_ULT_SHEATH * 1000) return false;
+            this.startCut();
+        }
+        // 참격: 간격마다 한 번씩, 다 들어가면 끝
+        while (this.hitsDone < SWORDMAN_ULT_HITS && Time.now - this.cutStart >= this.hitsDone * SWORDMAN_ULT_HIT_GAP) {
+            this.slashHit();
+        }
+        return this.hitsDone >= SWORDMAN_ULT_HITS;
     }
 
     startSheath() {
@@ -363,35 +373,49 @@ class SwordmanUltDashAttack {
     }
 
     // 납도 끝: 지나온 길이 베이고, 기절시킨 대상에게 피해
-    cut() {
-        const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
+    // 납도 끝: 맞힌 적이 있을 때만 지나온 길이 베이는 그림 (빗나가면 아무것도 안 나온다)
+    startCut() {
+        this.phase = 'cut';
+        this.cutStart = Time.now;
+        this.hitsDone = 0;
+        if (this.marked.length === 0) {
+            this.hitsDone = SWORDMAN_ULT_HITS; // 빗나감: 참격 없이 끝
+            return;
+        }
         Vfx.spawn(new CutBurstVFX(this.startX, this.startY, this.posX, this.posY, {
             images: SWORDMAN_ULT_CUT_IMAGES[swordmanTeam(this.owner)],
             frameTime: 0.04,
             imageX0: 40, imageX1: 760, imageCY: 200,
             margin: 35, scaleY: 0.8, duration: 0.55, darken: 0.4,
         }));
-        Vfx.shake(this.marked.length > 0 ? 7 : 4, 0.25); // 맞혔으면 더 세게
+        Vfx.shake(7, 0.2);
+    }
+
+    // 참격 한 번: 맞힌 적마다 직선 참격 이펙트 + 피해 (전체 피해를 참격 수로 나눔)
+    slashHit() {
+        this.hitsDone++;
+        const color = this.owner.playerNum === 2 ? '#3c8cff' : '#ff4d40';
         for (const target of this.marked) {
             if (!canBeHit(this, target)) continue;
-            const finalDamage = target.takeDamage(this.damage);
+            const finalDamage = target.takeDamage(this.damage / SWORDMAN_ULT_HITS);
             this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
-            Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
-                { color, angle: Math.atan2(this.direction[1], this.direction[0]), count: 16, size: 34 }));
+            Vfx.spawn(new StraightSlashVFX(target.rect.centerx, target.rect.centery, { color, length: 190 }));
         }
+        Vfx.shake(4, 0.08);
     }
 
     getPolygonPoints() {
         return rotatedRectPoints(this.posX, this.posY, this.width, this.height, this.angle);
     }
 
-    // 돌진 중 닿으면 피해 없이 기절만 건다 (피해는 납도가 끝날 때 cut()에서).
+    // 돌진 중 닿으면 피해 없이 기절만 건다 (피해는 납도가 끝난 뒤 slashHit()에서 나눠서).
     // 그래서 game.js가 바로 피해를 주지 않도록 항상 false를 돌려준다
     collidesWith(target) {
         if (this.phase !== 'dash' || this.marked.includes(target)) return false;
         if (canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect)) {
             const remain = Math.max(0, this.duration - (Time.now - this.startTime)) / 1000;
-            const stunTime = remain + SWORDMAN_ULT_SHEATH + SWORDMAN_ULT_STUN_AFTER;
+            const hitsTime = (SWORDMAN_ULT_HITS - 1) * SWORDMAN_ULT_HIT_GAP / 1000;
+            const stunTime = remain + SWORDMAN_ULT_SHEATH + hitsTime + SWORDMAN_ULT_STUN_AFTER;
             slow(target, stunTime, 100);
             silence(target, stunTime); // 이동 불가 + 침묵 = 기절
             this.marked.push(target);
@@ -480,7 +504,7 @@ function applySwordmanToPlayer(player) {
 const SWORDMAN_CHARACTER_DATA = {
     id: 'SWORDMAN',
     name: '검사',
-    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 검을 넣는 순간 지나온 길을 베어냅니다(45)',
+    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 검을 넣는 순간 지나온 길이 베이며 5번 연속 참격이 들어갑니다(9x5)',
     apply: applySwordmanToPlayer,
     thumbnail: null,
 };
