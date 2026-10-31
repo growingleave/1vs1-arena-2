@@ -10,6 +10,26 @@ const fighterRgba = (a) => `rgba(${FIGHTER_RGB[0]},${FIGHTER_RGB[1]},${FIGHTER_R
 // 기(氣) 주먹 그림 (tools/fighter_fist_gen.js로 생성, 110x100, 주먹 마디가 오른쪽, 가운데 x 60 y 50, 색이 들어 있음)
 const FIGHTER_FIST_IMAGE = loadImage('assets/fighter_fist.png');
 
+// 발차기 그림 (110x100, 다리가 왼쪽·발바닥이 오른쪽)
+const FIGHTER_KICK_IMAGE = loadImage('assets/fighter_kick.png');
+// 그림 속 내용이 있는 영역 (빛 번짐 여백 조금 포함) — 범위를 꽉 채울 때 이 영역을 늘려 그린다
+const FIGHTER_FIST_BOX = [5, 19, 94, 64], FIGHTER_KICK_BOX = [2, 6, 102, 88];
+
+// 그림을 시작점(x, y)에서 angle 방향으로 길이 length·폭 width인 사각형에 꽉 채워 그린다
+// reach(0~1): 앞으로 뻗은 정도 (앞쪽 끝은 고정, 뒤쪽이 따라온다), flip: 위아래 뒤집기(왼손)
+function drawFighterFill(ctx, img, box, x, y, angle, length, width, alpha, { flip = false, reach = 1 } = {}) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    const len = length * reach;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    if (flip) ctx.scale(1, -1);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(img, box[0], box[1], box[2], box[3], length - len, -width / 2, len, width);
+    ctx.restore();
+}
+
 // 주먹 그림을 (x, y)에 angle(라디안) 방향으로, 가로 size px 크기로
 function drawFighterFist(ctx, x, y, angle, size, alpha) {
     if (!isImageReady(FIGHTER_FIST_IMAGE) || alpha <= 0) return;
@@ -522,8 +542,8 @@ class FighterDashSkill extends Skill {
 // 펀치 20, 발차기 30 + 강하게 밀침. 밀려서 벽(맵 끝 포함)에 부딪히면 추가 피해
 // ==========================================
 const FIGHTER_ULT = {
-    aim: 700, lock: 350,            // ms (한 번에 1.05초)
-    turnSpeed: 150,                 // 조준 중 회전 속도(도/초)
+    aim: 1000, lock: 550,           // ms (한 번에 1.55초)
+    turnSpeed: 90,                  // 조준 중 회전 속도(도/초)
     length: 500,                    // 앞으로 뻗는 길이
     punchWidth: 220, kickWidth: 400, // 좌우 폭 (펀치는 좁게)
     punchDamage: 20 / 15, kickDamage: 2.0, // baseAtk 배수 (15 기준 20 / 30)
@@ -699,17 +719,11 @@ class FighterUltManager {
             ctx.strokeStyle = fighterRgba(0.7); ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(this.posX, this.posY, 52, ang - 0.6, ang + 0.6); ctx.stroke();
         }
-        // 다음 타격 표시: 범위 가운데에 반투명 주먹(왼손은 뒤집어서) / 발차기는 큰 초승달
-        const mx = this.posX + Math.cos(ang) * FIGHTER_ULT.length * 0.55, my = this.posY + Math.sin(ang) * FIGHTER_ULT.length * 0.55;
-        if (this.strikesDone < 2) {
-            ctx.save(); ctx.translate(mx, my); if (this.strikesDone === 0) ctx.scale(1, -1);
-            drawFighterFist(ctx, 0, 0, this.strikesDone === 0 ? -ang : ang, 90, 0.25 + 0.4 * fill);
-            ctx.restore();
-        } else {
-            ctx.globalCompositeOperation = 'lighter';
-            ctx.strokeStyle = fighterRgba(0.3 + 0.5 * fill); ctx.lineWidth = 6;
-            ctx.beginPath(); ctx.arc(mx - Math.cos(ang) * 60, my - Math.sin(ang) * 60, 90, ang - 1.0, ang + 1.0); ctx.stroke();
-        }
+        // 다음 타격 표시: 범위를 꽉 채운 옅은 주먹(왼손은 뒤집힘) / 발
+        const img = this.strikesDone < 2 ? FIGHTER_FIST_IMAGE : FIGHTER_KICK_IMAGE;
+        const box = this.strikesDone < 2 ? FIGHTER_FIST_BOX : FIGHTER_KICK_BOX;
+        drawFighterFill(ctx, img, box, this.posX, this.posY, ang, FIGHTER_ULT.length, this.strikeWidth(this.strikesDone),
+            0.12 + 0.3 * fill, { flip: this.strikesDone === 0 });
         ctx.restore();
     }
 }
@@ -746,21 +760,12 @@ class FighterUltStrikeVFX extends SparkVFX {
                 ctx.beginPath(); ctx.moveTo(this.x + dx * d0 - dy * side, this.y + dy * d0 + dx * side);
                 ctx.lineTo(this.x + dx * d1 - dy * side, this.y + dy * d1 + dx * side); ctx.stroke();
             }
-            const hx = this.x + dx * this.length * go * 0.85, hy = this.y + dy * this.length * go * 0.85;
-            if (this.index < 2) {
-                // 거대한 기 주먹 (왼손은 위아래 뒤집기)
-                ctx.save(); ctx.translate(hx, hy); ctx.rotate(this.angle); if (this.index === 0) ctx.scale(1, -1);
-                drawFighterFist(ctx, 0, 0, 0, this.width * 0.9, a * 1.2);
-                ctx.restore();
-            } else {
-                // 넓은 초승달 바람 (발차기)
-                for (const [dr, w, al] of [[0, 16, 0.8], [-14, 6, 0.6], [12, 4, 0.5]]) {
-                    ctx.strokeStyle = fighterRgba(al * a); ctx.lineWidth = w;
-                    ctx.beginPath(); ctx.arc(hx - dx * 120, hy - dy * 120, 120 + dr, this.angle - 1.1, this.angle + 1.1); ctx.stroke();
-                }
-                ctx.strokeStyle = `rgba(255,255,255,${0.8 * a})`; ctx.lineWidth = 3;
-                ctx.beginPath(); ctx.arc(hx - dx * 120, hy - dy * 120, 120, this.angle - 0.8, this.angle + 0.8); ctx.stroke();
-            }
+            // 범위를 꽉 채운 거대한 주먹(왼손은 뒤집힘) / 발: 뒤에서 앞으로 순식간에 뻗고, 잠깐 밝게 남았다 사라진다
+            const img = this.index < 2 ? FIGHTER_FIST_IMAGE : FIGHTER_KICK_IMAGE;
+            const box = this.index < 2 ? FIGHTER_FIST_BOX : FIGHTER_KICK_BOX;
+            const bright = t < 0.25 ? 1.4 : a * 1.4;
+            drawFighterFill(ctx, img, box, this.x, this.y, this.angle, this.length, this.width, bright, { flip: this.index === 0, reach: 0.35 + 0.65 * go });
+            if (t < 0.2) drawFighterFill(ctx, img, box, this.x, this.y, this.angle, this.length, this.width, 0.8, { flip: this.index === 0, reach: 0.35 + 0.65 * go });
             // 시작점 충격파
             ctx.strokeStyle = fighterRgba(0.8 * a); ctx.lineWidth = 4 * a + 1;
             ctx.beginPath(); ctx.arc(this.x, this.y, 20 + 60 * t, 0, Math.PI * 2); ctx.stroke();
