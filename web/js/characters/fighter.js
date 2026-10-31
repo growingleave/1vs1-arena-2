@@ -537,15 +537,15 @@ class FighterDashSkill extends Skill {
 // [궁극기] 왼손 펀치 → 오른손 펀치 → 발차기
 // 한 번마다: 조준(범위 표시, 오른쪽 키 = 시계 방향 / 왼쪽 키 = 반시계 방향으로 돌릴 수 있음)
 //          → 고정(돌릴 수 없고 경고만) → 타격. 쓰는 동안 무적 + 제자리
-// 펀치 20, 발차기 30 + 강하게 밀침. 밀려서 벽(맵 끝 포함)에 부딪히면 추가 피해
+// 세 번 모두 같은 주먹: 20 + 강하게 밀침. 밀려서 벽(맵 끝 포함)에 부딪히면 추가 피해
 // ==========================================
 const FIGHTER_ULT = {
     aim: 1000, lock: 550,           // ms (한 번에 1.55초)
     turnSpeed: 90,                  // 조준 중 회전 속도(도/초)
     length: 500,                    // 앞으로 뻗는 길이
-    punchWidth: 220, kickWidth: 220, // 좌우 폭 (세 번 모두 같은 주먹)
-    punchDamage: 20 / 15, kickDamage: 2.0, // baseAtk 배수 (15 기준 20 / 30)
-    knockTime: 0.3, knockPower: 1000, // 발차기 밀치기 (초, px/초) → 약 300px
+    width: 220,                     // 좌우 폭
+    damage: 20 / 15,                // baseAtk 배수 (15 기준 20)
+    knockTime: 0.3, knockPower: 1000, // 밀치기 (초, px/초) → 약 300px
     wallDamage: 10,
 };
 
@@ -556,13 +556,12 @@ function fighterUltPoints(posX, posY, angle, width, height) {
 }
 
 class FighterUltHitbox {
-    constructor(owner, angle, posX, posY, { width, damage, kick, manager }) {
+    constructor(owner, angle, posX, posY, { width, damage, manager }) {
         this.owner = owner;
         this.angle = angle;
         this.posX = posX;
         this.posY = posY;
         this.damage = owner.baseAtk * damage;
-        this.kick = kick;
         this.manager = manager;
         this.createdTime = Time.now;
         this.lifespan = 150;
@@ -586,14 +585,10 @@ class FighterUltHitbox {
 
     applyEffect(target) {
         const rad = this.angle * Math.PI / 180, dir = [Math.cos(rad), -Math.sin(rad)];
-        fighterHitSpark(target, Math.atan2(dir[1], dir[0]), this.kick ? 18 : 12, this.kick ? 38 : 28);
-        if (this.kick) {
-            forcedMove(target, FIGHTER_ULT.knockTime, FIGHTER_ULT.knockPower, dir);
-            this.manager.trackKnockback(target, dir);
-            Vfx.shake(7, 0.2);
-        } else {
-            Vfx.shake(4, 0.12);
-        }
+        fighterHitSpark(target, Math.atan2(dir[1], dir[0]), 16, 34);
+        forcedMove(target, FIGHTER_ULT.knockTime, FIGHTER_ULT.knockPower, dir);
+        this.manager.trackKnockback(target, dir);
+        Vfx.shake(7, 0.2);
     }
 
     draw() {}
@@ -614,7 +609,7 @@ class FighterUltManager {
         this.knock = null; // 발차기로 밀리는 대상 { target, dir, until, lastX, lastY }
     }
 
-    strikeWidth(i) { return i === 2 ? FIGHTER_ULT.kickWidth : FIGHTER_ULT.punchWidth; }
+    strikeWidth() { return FIGHTER_ULT.width; }
 
     getPolygonPoints(i = this.strikesDone) {
         return fighterUltPoints(this.posX, this.posY, this.angle, FIGHTER_ULT.length, this.strikeWidth(i));
@@ -653,9 +648,8 @@ class FighterUltManager {
 
     strike() {
         const i = this.strikesDone;
-        const kick = i === 2;
         this.attacks.push(new FighterUltHitbox(this.owner, this.angle, this.posX, this.posY, {
-            width: this.strikeWidth(i), damage: kick ? FIGHTER_ULT.kickDamage : FIGHTER_ULT.punchDamage, kick, manager: this,
+            width: this.strikeWidth(i), damage: FIGHTER_ULT.damage, manager: this,
         }));
         const rad = this.angle * Math.PI / 180;
         Vfx.spawn(new FighterUltStrikeVFX(this.posX, this.posY, Math.atan2(-Math.sin(rad), Math.cos(rad)), FIGHTER_ULT.length, this.strikeWidth(i), i));
@@ -848,7 +842,7 @@ function applyFighter(player) {
 const FIGHTER_CHARACTER_DATA = {
     id: 'FIGHTER',
     name: '무투가',
-    desc: '평타: 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1: 기 주먹을 날립니다(8), 10개까지 모을 수 있습니다, 스킬 2: 돌진하며 부딪히면 피해(8)를 주고 돌려차기로 주변 상대를 바깥으로 밉니다(23), 1초간 기절, 궁극기: 거대한 기 주먹을 세 번 날립니다(20, 20, 30), 마지막 주먹은 강하게 밀칩니다, 타격마다 범위를 좌우 키로 돌린 뒤 고정되면 들어가고, 밀려 벽에 부딪히면 추가 피해(10)',
+    desc: '평타: 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1: 기 주먹을 날립니다(8), 10개까지 모을 수 있습니다, 스킬 2: 돌진하며 부딪히면 피해(8)를 주고 돌려차기로 주변 상대를 바깥으로 밉니다(23), 1초간 기절, 궁극기: 거대한 기 주먹을 세 번 날립니다(20씩), 맞으면 강하게 밀칩니다, 타격마다 범위를 좌우 키로 돌린 뒤 고정되면 들어가고, 밀려 벽에 부딪히면 추가 피해(10)',
     apply: applyFighter,
     thumbnail: FIGHTER_IMAGE,
 };
