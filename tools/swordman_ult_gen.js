@@ -1,11 +1,11 @@
 // 검사 궁극기 그림 생성 (미리 구워두는 용도라 무거워도 됨): (1) 가볍게 돌진  (2) 확 베어버림
 // 가는 가로줄 + 글리치(가로로 어긋난 띠, 색 번짐) / 화면을 가로지르는 긴 직선 칼자국 여러 개
-// 색 번짐(빨강·청록)까지 구워야 해서 흰 그림에 색을 입히지 않고 팀 색(red/blue)별로 따로 만든다.
+// 색 번짐(빨강·청록)까지 구워야 해서 흰 그림에 색을 입히지 않고 색별로 따로 만든다 (지금은 검사 은색만).
 // 글리치 띠만 다른 그림을 2장씩 만들어 게임에서 번갈아 보여준다 (지지직 움직이는 느낌)
 // 결과 (1/2 크기, 검은 배경 → 투명, 'lighter'로 그림):
-//   swordman_ult_dash_{red,blue}_{0,1}.png (800x210, 길: x 60~690, 가운데 y 105)
-//   swordman_ult_cut_{red,blue}_{0,1}.png  (800x400, 길: x 40~760, 가운데 y 200)
-//   ult_concept_{red,blue}.png (확인용 원본 크기)
+//   swordman_ult_dash_silver_{0,1}.png (800x210, 길: x 60~690, 가운데 y 105)
+//   swordman_ult_cut_silver_{0,1}.png  (800x400, 길: x 40~760, 가운데 y 200)
+//   ult_concept_silver.png (확인용 원본 크기)
 // 실행: node tools/swordman_ult_gen.js <저장할 폴더>  (Playwright 필요) → swordman_ult_*.png를 web/assets/에 복사
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
 const fs = require('fs');
@@ -160,7 +160,7 @@ const OUT = process.argv[2] || __dirname; // 저장할 폴더 (기본: 이 파�
 
     // ---------- 색 입히기 + 글리치 ----------
     const out = {};
-    for (const [name, color] of [['blue', '#2f8cff'], ['red', '#ff4d40']]) {
+    for (const [name, color] of [['silver', '#c4d0e0']]) {
       const dBase = colorize(w1, color, W1, H1, 4), kBase = colorize(w2, color, W2, H2, 7, [[50, 0.55], [16, 0.6], [4, 0.5]]);
       for (let f = 0; f < 2; f++) {
         out[`swordman_ult_dash_${name}_${f}.png`] = toGame(glitch(dBase, W1, H1, 16, 40, [CY1 - 60, CY1 + 60]), W1, H1);

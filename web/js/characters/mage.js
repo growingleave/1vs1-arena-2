@@ -78,6 +78,10 @@ class MageEnergyPulse {
     }
 
     draw(ctx) {
+        if (!this.canPenetrateWalls && isImageReady(MAGE_BOLT_IMAGE)) {
+            this.drawBolt(ctx);
+            return;
+        }
         const n = this.positions.length;
         if (n < 2) return;
 
@@ -104,6 +108,27 @@ class MageEnergyPulse {
         ctx.fill();
     }
 }
+
+// 평타 마법빔 그림 (tools/mage_bolt_gen.js로 생성, 800x120, 하늘색이 이미 들어 있음)
+// 머리 x 740, 가운데 y 60. 화면에서 머리가 투사체 위치에 오고, 꼬리는 지나온 거리만큼만 보인다
+const MAGE_BOLT_IMAGE = loadImage('assets/mage_bolt.png');
+const MAGE_BOLT_HEAD = 740, MAGE_BOLT_CY = 60;
+const MAGE_BOLT_SCALE = 0.6; // 그림 px → 화면 px (꼬리 약 430px)
+
+MageEnergyPulse.prototype.drawBolt = function (ctx) {
+    const traveled = Math.hypot(this.posX - this.startX, this.posY - this.startY);
+    const k = MAGE_BOLT_SCALE, img = MAGE_BOLT_IMAGE;
+    ctx.save();
+    ctx.translate(this.posX, this.posY);
+    ctx.rotate(Math.atan2(this.direction[1], this.direction[0]));
+    // 쏜 자리보다 뒤로는 꼬리가 안 보이게
+    ctx.beginPath();
+    ctx.rect(-traveled, -img.naturalHeight * k, traveled + 200, img.naturalHeight * k * 2);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(img, -MAGE_BOLT_HEAD * k, -MAGE_BOLT_CY * k, img.naturalWidth * k, img.naturalHeight * k);
+    ctx.restore();
+};
 
 // ==========================================
 // [마법사 - 궁극기] 3연속 조준 저격
