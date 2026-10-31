@@ -256,7 +256,7 @@ class AssassinHookProjectile {
         this.posX += this.direction[0] * this.speed * this.owner.timeScale;
         this.posY += this.direction[1] * this.speed * this.owner.timeScale;
 
-        const rect = this.getRect();
+        const rect = wallCoreRect(this.getRect()); // 가운데 작은 판정이 벽에 닿을 때만
         for (const wall of CURRENT_WALLS) {
             if (rect.colliderect(wall.rect)) {
                 this.resolved = true;

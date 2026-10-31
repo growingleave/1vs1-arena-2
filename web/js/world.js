@@ -58,6 +58,22 @@ function _expireBy(attack, timeKey, lengthKey) {
     return true;
 }
 
+// 벽 통과가 안 되는 투사체는 판정 전체가 아니라 가운데의 작은 판정(가로·세로 35%, 최소 8px)이 벽에 닿을 때만 막힌다.
+// (판정 가장자리가 벽을 살짝 스치기만 해도 사라지지 않게)
+const WALL_CORE_RATIO = 0.35;
+
+function wallCoreRect(rect) {
+    const w = Math.max(8, Math.trunc(rect.w * WALL_CORE_RATIO));
+    const h = Math.max(8, Math.trunc(rect.h * WALL_CORE_RATIO));
+    return new Rect(Math.trunc(rect.centerx - w / 2), Math.trunc(rect.centery - h / 2), w, h);
+}
+
+function wallCorePoints(points) {
+    const cx = points.reduce((t, p) => t + p[0], 0) / points.length;
+    const cy = points.reduce((t, p) => t + p[1], 0) / points.length;
+    return points.map(([x, y]) => [cx + (x - cx) * WALL_CORE_RATIO, cy + (y - cy) * WALL_CORE_RATIO]);
+}
+
 function handleAttackWallCollisions(attacks, walls) {
     for (const attack of attacks) {
         if (attack.canPenetrateWalls) continue;
@@ -67,9 +83,9 @@ function handleAttackWallCollisions(attacks, walls) {
                 if (attack.owner && attack.owner.rect.colliderect(wall.rect) &&
                     _expireBy(attack, 'startTime', 'duration')) break;
             } else if (attack.rect) {
-                if (attack.rect.colliderect(wall.rect) && _expireBy(attack, 'startTime', 'duration')) break;
+                if (wallCoreRect(attack.rect).colliderect(wall.rect) && _expireBy(attack, 'startTime', 'duration')) break;
             } else if (attack.getPolygonPoints) {
-                if (checkPolygonCollision(attack.getPolygonPoints(), wall.rect) &&
+                if (checkPolygonCollision(wallCorePoints(attack.getPolygonPoints()), wall.rect) &&
                     (_expireBy(attack, 'createdTime', 'lifespan') || _expireBy(attack, 'startTime', 'duration'))) break;
             }
         }

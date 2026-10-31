@@ -10,8 +10,10 @@ function hitsScreenEdge(rect) {
     return rect.left < 0 || rect.right > WIDTH || rect.top < 0 || rect.bottom > HEIGHT;
 }
 
+// 벽·화면 끝 판정은 가운데 작은 판정으로 (world.js의 wallCoreRect)
 function hitsAnyWall(rect) {
-    return hitsScreenEdge(rect) || CURRENT_WALLS.some(wall => rect.colliderect(wall.rect));
+    const core = wallCoreRect(rect);
+    return hitsScreenEdge(core) || CURRENT_WALLS.some(wall => core.colliderect(wall.rect));
 }
 
 function scaledDamage(owner, chargeRatio) {
