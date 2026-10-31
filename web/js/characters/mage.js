@@ -139,9 +139,9 @@ MageEnergyPulse.prototype.drawBolt = function (ctx) {
 const MAGE_ULT = {
     radius: 140,         // 조준원(전범위 피해) 반지름
     rise: 500, delay: 500, bombard: 3000, warn: 400, strike: 200, // ms
-    bombGap: 180,        // 작은 폭발 간격(ms)
+    bombGap: 120,        // 작은 폭발 간격(ms)
     bombDelay: 250,      // 표시 후 터지기까지(ms)
-    bombRadius: 38,
+    bombRadius: 55,
     bombDamage: 0.4,     // baseAtk 배수 (작은 폭발 하나)
     strikeDamage: 2.0,   // baseAtk 배수 (전범위)
 };
