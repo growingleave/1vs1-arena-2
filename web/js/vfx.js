@@ -866,3 +866,49 @@ class StraightSlashVFX extends SparkVFX {
         ctx.restore();
     }
 }
+
+// ==========================================
+// 폭발: 가운데 섬광 + 퍼지는 고리 두 겹 + 사방으로 튀는 불꽃
+//   radius: 폭발 크기(px), color: 바깥 색, color2: 안쪽 고리 색
+// ==========================================
+class BlastVFX extends SparkVFX {
+    constructor(x, y, options) {
+        super(options.color ?? '#ffffff');
+        this.x = x;
+        this.y = y;
+        this.radius = options.radius ?? 40;
+        this.rgb2 = vfxHexToRgb(options.color2 ?? '#ffffff');
+        this.duration = options.duration ?? 0.32;
+        const count = options.count ?? Math.round(6 + this.radius / 8);
+        for (let i = 0; i < count; i++) {
+            this.addSpark(x, y, Math.random() * Math.PI * 2, vfxRand(2, 5) * this.radius, vfxRand(0.12, 0.3), vfxRand(1, 2.2));
+        }
+    }
+
+    get finished() {
+        return this.elapsed >= this.duration && this.sparksDone;
+    }
+
+    draw(ctx) {
+        const t = this.elapsed / this.duration;
+        const [r, g, b] = this.rgb, [r2, g2, b2] = this.rgb2;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        if (t < 1) {
+            const a = 1 - t;
+            const fr = this.radius * (0.5 + 0.4 * t);
+            const flash = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, fr);
+            flash.addColorStop(0, `rgba(255,255,255,${a})`);
+            flash.addColorStop(0.4, `rgba(${r},${g},${b},${a * 0.7})`);
+            flash.addColorStop(1, `rgba(${r},${g},${b},0)`);
+            ctx.fillStyle = flash; ctx.beginPath(); ctx.arc(this.x, this.y, fr, 0, Math.PI * 2); ctx.fill();
+            ctx.lineWidth = 3 * a + 0.5;
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * (0.3 + 0.8 * t), 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = `rgba(${r2},${g2},${b2},${a * 0.8})`;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * (0.2 + 0.6 * t), 0, Math.PI * 2); ctx.stroke();
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}

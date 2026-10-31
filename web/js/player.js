@@ -40,6 +40,8 @@ class Player {
         // 캐릭터 자신의 동작뿐 아니라, 상대가 붙인 효과(해커의 해킹 게이지 등)도 여기에 들어간다.
         this.preUpdateHooks = []; // (dtSec, input, attacks, walls) => void : 기본 update 전에 실행
         this.postDrawHooks = [];  // (ctx) => void : 기본 draw 뒤에 실행 (숨김 상태여도 실행)
+        this.preDrawHooks = [];   // (ctx) => void : 몸을 그리기 전에 실행 (그림자·날개처럼 몸 뒤에 깔리는 것)
+        this.bodyStyle = null;    // (player) => { alpha, offsetY } | null : 몸을 투명하게/띄워서 그릴 때 (화면 효과 전용)
 
         // 상태 이상
         this.speedMultiplier = 1.0;
@@ -229,6 +231,7 @@ class Player {
     }
 
     draw(ctx) {
+        if (!this.hidden) for (const hook of this.preDrawHooks) hook(ctx);
         if (!this.hidden) this.drawBody(ctx);
         for (const hook of this.postDrawHooks) hook(ctx);
     }
@@ -244,11 +247,13 @@ class Player {
             ctx.strokeRect(g.x + 1, g.y + 1, g.w - 2, g.h - 2);
         }
 
+        const style = this.bodyStyle ? this.bodyStyle(this) : null;
         if (isImageReady(this.spriteImage)) {
             // rect는 충돌 판정용이고, 화면에는 이미지만 그린다 (왼쪽을 보면 좌우반전)
             const s = this.spriteSize;
             ctx.save();
-            ctx.translate(r.centerx, r.centery);
+            ctx.translate(r.centerx, r.centery + (style ? style.offsetY : 0));
+            if (style) ctx.globalAlpha = style.alpha;
             if (this.facing[0] < 0) ctx.scale(-1, 1);
             ctx.drawImage(this.spriteImage, -s / 2, -s / 2, s, s);
             ctx.restore();
@@ -265,7 +270,7 @@ class Player {
         const maxComp = Math.max(Math.abs(fx), Math.abs(fy), 0.0001);
         const dotDist = (r.w / 2) / maxComp + this.dotMargin;
         const dotX = r.centerx + fx * dotDist;
-        const dotY = r.centery + fy * dotDist;
+        const dotY = r.centery + fy * dotDist + (style ? style.offsetY : 0); // 몸이 떠 있으면 같이
         if (this.drawDotTemplate) {
             ctx.save();
             ctx.translate(Math.trunc(dotX), Math.trunc(dotY));
