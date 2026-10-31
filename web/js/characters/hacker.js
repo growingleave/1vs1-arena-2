@@ -446,6 +446,7 @@ function applyHacker(player) {
 
 const HACKER_CHARACTER_DATA = {
     id: 'HACKER',
+    fxColor: '#5cff8a',
     name: '해커',
     desc: '부채꼴 스캔 평타, 대형 큐브 1스킬, 안전한 텔레포트 2스킬, 광역 해킹 및 제어 효과의 궁극기를 지닌 캐릭터',
     apply: applyHacker,

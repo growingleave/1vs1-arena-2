@@ -609,6 +609,7 @@ function applySwordmanToPlayer(player) {
 
 const SWORDMAN_CHARACTER_DATA = {
     id: 'SWORDMAN',
+    fxColor: SWORDMAN_COLOR,
     name: '검사',
     desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 검을 넣는 순간 지나온 길이 베이며 9번 연속 참격이 들어갑니다(5x9)',
     apply: applySwordmanToPlayer,

@@ -883,3 +883,19 @@ class TrailSparkVFX extends SparkVFX {
         ctx.restore();
     }
 }
+
+// 투사체가 맞히지 않고 사라질 때(벽에 막힘·사거리 끝·시간 끝) 그 자리에 작은 파티클 (화면용, 게임 결과와 무관)
+// 벽에 막혔으면 튕겨 나오듯 뒤로, 사거리 끝이면 앞으로 흩어진다
+function spawnProjectileFizzle(attack) {
+    if (typeof attack.speed !== 'number' || attack.noFizzle || attack.exploded || attack.resolved) return;
+    let x = attack.posX, y = attack.posY;
+    if (x === undefined && attack.rect) { x = attack.rect.centerx; y = attack.rect.centery; }
+    if (x === undefined) return;
+    const d = attack.direction || attack.dirVec || (attack.dirX !== undefined ? [attack.dirX, attack.dirY] : [1, 0]);
+    let angle = Math.atan2(d[1], d[0]);
+    const probe = new Rect(Math.trunc(x + d[0] * 10 - 6), Math.trunc(y + d[1] * 10 - 6), 12, 12);
+    const atWall = CURRENT_WALLS.some((w) => w.rect.colliderect(probe));
+    if (atWall) angle += Math.PI;
+    const color = attack.fizzleColor || (attack.owner && attack.owner.fxColor) || '#ffffff';
+    Vfx.spawn(new HitSparkVFX(x, y, { color, angle, count: atWall ? 9 : 7, size: atWall ? 18 : 14 }));
+}
