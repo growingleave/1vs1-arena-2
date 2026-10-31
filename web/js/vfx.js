@@ -805,3 +805,64 @@ class CutBurstVFX {
         ctx.restore();
     }
 }
+
+// ==========================================
+// 직선 참격 한 번: 대상을 가로지르는 긴 직선이 순식간에 그어지고 사라진다 (색 번짐 + 불꽃)
+//   angle을 안 주면 아무 방향, length: 선 길이(px)
+// ==========================================
+class StraightSlashVFX extends SparkVFX {
+    constructor(x, y, options) {
+        super(options.color ?? '#ffffff');
+        this.x = x;
+        this.y = y;
+        this.angle = options.angle ?? Math.random() * Math.PI;
+        this.length = options.length ?? 180;
+        this.duration = options.duration ?? 0.3;
+        this.drawTime = 0.04; // 그어지는 시간
+        for (let i = 0; i < 6; i++) {
+            const along = vfxRand(-0.3, 0.3) * this.length;
+            this.addSpark(x + Math.cos(this.angle) * along, y + Math.sin(this.angle) * along,
+                this.angle + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1) + vfxRand(-0.6, 0.6),
+                vfxRand(100, 260), vfxRand(0.12, 0.28), vfxRand(1, 2));
+        }
+    }
+
+    get finished() {
+        return this.elapsed >= this.duration && this.sparksDone;
+    }
+
+    draw(ctx) {
+        const t = this.elapsed;
+        const [r, g, b] = this.rgb;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        if (t < this.duration) {
+            const grow = Math.min(1, t / this.drawTime);
+            const a = t < this.drawTime ? 1 : 1 - (t - this.drawTime) / (this.duration - this.drawTime);
+            const half = this.length / 2;
+            const cos = Math.cos(this.angle), sin = Math.sin(this.angle);
+            // 한쪽 끝에서 반대쪽으로 그어진다
+            const x0 = this.x - cos * half, y0 = this.y - sin * half;
+            const x1 = x0 + cos * this.length * grow, y1 = y0 + sin * this.length * grow;
+            const line = (dx, dy, color, width) => {
+                ctx.strokeStyle = color; ctx.lineWidth = width;
+                ctx.beginPath(); ctx.moveTo(x0 + dx, y0 + dy); ctx.lineTo(x1 + dx, y1 + dy); ctx.stroke();
+            };
+            const nx = -sin, ny = cos; // 선에 수직
+            line(nx * 3, ny * 3, `rgba(255,48,80,${a * 0.45})`, 2);     // 색 번짐 (빨강·청록을 양옆으로)
+            line(-nx * 3, -ny * 3, `rgba(48,224,255,${a * 0.45})`, 2);
+            line(0, 0, `rgba(${r},${g},${b},${a * 0.5})`, 9 * a + 2);
+            line(0, 0, `rgba(255,255,255,${a})`, 2.5 * a + 0.8);
+            // 처음 잠깐 가운데 섬광
+            if (t < 0.08) {
+                const f = 1 - t / 0.08;
+                const flash = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 22);
+                flash.addColorStop(0, `rgba(255,255,255,${f})`); flash.addColorStop(1, `rgba(${r},${g},${b},0)`);
+                ctx.fillStyle = flash; ctx.beginPath(); ctx.arc(this.x, this.y, 22, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
