@@ -372,8 +372,17 @@ class MageUltSkill extends Skill {
     }
 }
 
-// 방향 표시: 갈색 막대 끝에 사탕이 달린 지팡이 (오른쪽을 바라보는 기준, 사탕이 원점)
+// 방향 표시: 보석 지팡이 그림 (tools/mage_staff_gen.js로 생성, 210x80, 보석 가운데 x 172.5 y 40)
+// 오른쪽을 바라보는 기준으로 보석 가운데가 원점. 그림이 아직 안 불러와졌으면 예전 막대 지팡이
+const MAGE_STAFF_IMAGE = loadImage('assets/mage_staff.png');
+const MAGE_STAFF_SCALE = 0.34; // 그림 px → 화면 px (보석 폭 약 10px, 손잡이 약 28px)
+
 function drawMageStaff(ctx) {
+    if (isImageReady(MAGE_STAFF_IMAGE)) {
+        const k = MAGE_STAFF_SCALE;
+        ctx.drawImage(MAGE_STAFF_IMAGE, -172.5 * k, -40 * k, 210 * k, 80 * k);
+        return;
+    }
     ctx.strokeStyle = '#784623';
     ctx.lineWidth = 5;
     ctx.beginPath();
