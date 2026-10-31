@@ -132,6 +132,26 @@ MageEnergyPulse.prototype.drawBolt = function (ctx) {
     ctx.restore();
 };
 
+// 폭발 그림: 작게 시작해 커지며 사라지고, 사방으로 불꽃 (화면 효과 전용)
+class MageBlastVFX extends SparkVFX {
+    constructor(x, y, radius, duration = 0.32, sparks = 8) {
+        super('#b478ff');
+        this.x = x; this.y = y; this.radius = radius; this.duration = duration;
+        for (let i = 0; i < sparks; i++) this.addSpark(x, y, Math.random() * Math.PI * 2, vfxRand(2, 5) * radius, vfxRand(0.12, 0.3), vfxRand(1, 2.2));
+    }
+
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+
+    draw(ctx) {
+        const t = this.elapsed / this.duration;
+        if (t < 1) {
+            const size = (this.radius / 0.36) * (0.55 + 0.6 * t);
+            mageDraw(ctx, MAGE_BLAST_IMAGE, this.x, this.y, size, size, (1 - t) * 1.3);
+        }
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
+    }
+}
+
 // ==========================================
 // [마법사 - 궁극기] 착지 이펙트: 하늘에서 빛줄기가 꽂히고, 바닥에 마법진 고리 세 겹이 차례로 퍼지며
 // 빛살이 사방으로 뻗고 별가루가 솟는다 (화면 효과 전용)
@@ -141,8 +161,6 @@ class MageLandingVFX extends SparkVFX {
         super('#64dcff');
         this.x = x; this.y = y;
         this.duration = 0.7;
-        this.rays = [];
-        for (let i = 0; i < 10; i++) this.rays.push({ a: i / 10 * Math.PI * 2 + vfxRand(-0.15, 0.15), len: vfxRand(60, 110) });
         for (let i = 0; i < 22; i++) this.addSpark(x + vfxRand(-30, 30), y + vfxRand(-8, 8), -Math.PI / 2 + vfxRand(-0.9, 0.9), vfxRand(80, 220), vfxRand(0.3, 0.6), vfxRand(1.2, 2.4));
     }
 
@@ -153,42 +171,21 @@ class MageLandingVFX extends SparkVFX {
         const C = MAGE_CYAN, P = MAGE_PURPLE;
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        // 하늘에서 꽂히는 빛줄기 (처음 0.25초)
+        // 하늘에서 꽂히는 빛기둥 (처음 0.25초)
         if (t < 0.25) {
-            const a = 1 - t / 0.25, w = 46 * a + 6;
-            const beam = ctx.createLinearGradient(0, y - 720, 0, y);
-            beam.addColorStop(0, mageRgba(P, 0)); beam.addColorStop(0.7, mageRgba(C, 0.5 * a)); beam.addColorStop(1, `rgba(255,255,255,${a})`);
-            ctx.fillStyle = beam; ctx.fillRect(x - w / 2, y - 720, w, 720);
+            const a = 1 - t / 0.25;
+            magePillar(ctx, x, y, 46 * a + 6, 720, a);
         }
-        // 가운데 섬광
-        if (t < 0.3) {
-            const a = 1 - t / 0.3;
-            const g = ctx.createRadialGradient(x, y, 0, x, y, 70);
-            g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.4, mageRgba(C, 0.6 * a)); g.addColorStop(1, mageRgba(P, 0));
-            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 70, 0, Math.PI * 2); ctx.fill();
-        }
-        // 사방으로 뻗는 빛살
+        // 가운데 섬광 + 빛살 (폭발 그림)
         if (t < 0.35) {
-            const u = t / 0.35, a = 1 - u;
-            ctx.lineCap = 'round';
-            for (const r of this.rays) {
-                const l = r.len * (0.3 + 0.7 * u);
-                ctx.strokeStyle = mageRgba(C, 0.8 * a); ctx.lineWidth = 3 * a + 0.5;
-                ctx.beginPath(); ctx.moveTo(x + Math.cos(r.a) * l * 0.3, y + Math.sin(r.a) * l * 0.3 * 0.6);
-                ctx.lineTo(x + Math.cos(r.a) * l, y + Math.sin(r.a) * l * 0.6); ctx.stroke();
-            }
+            const u = t / 0.35;
+            mageDraw(ctx, MAGE_BLAST_IMAGE, x, y, 200 * (0.5 + 0.7 * u), 200 * (0.5 + 0.7 * u) * 0.6, 1.3 * (1 - u));
         }
-        // 바닥 마법진 고리 세 겹 (차례로 퍼짐) + 고리 위 룬
+        // 바닥 마법진 세 겹 (차례로 퍼짐)
         for (let k = 0; k < 3; k++) {
             const u = (t - k * 0.08) / 0.5;
             if (u <= 0 || u >= 1) continue;
-            const a = 1 - u, rad = 20 + 110 * u;
-            ctx.strokeStyle = mageRgba(k === 1 ? P : C, 0.9 * a); ctx.lineWidth = 3 * a + 0.5;
-            ctx.beginPath(); ctx.ellipse(x, y, rad, rad * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-            if (k === 0) for (let i = 0; i < 8; i++) {
-                const ang = i / 8 * Math.PI * 2 + t * 2;
-                mageStar(ctx, x + Math.cos(ang) * rad, y + Math.sin(ang) * rad * 0.45, 4, a, i % 2 ? C : P);
-            }
+            mageCircle(ctx, x, y, 20 + 110 * u, 0.95 * (1 - u), t * 2 + k, 0.45);
         }
         this.drawSparks(ctx);
         ctx.restore();
@@ -278,7 +275,7 @@ class MageSkyBombardment {
                 this.setPhase('strike');
                 this.damage = this.owner.baseAtk * MAGE_ULT.strikeDamage;
                 this.hitPlayers = [];
-                Vfx.spawn(new BlastVFX(cx, cy, { radius: this.radius, color: '#b478ff', color2: '#64dcff', duration: 0.45, count: 26 }));
+                Vfx.spawn(new MageBlastVFX(cx, cy, this.radius, 0.45, 26));
                 Vfx.shake(8, 0.3);
             }
         } else if (this.phase === 'strike') {
@@ -293,7 +290,7 @@ class MageSkyBombardment {
         this.bombs = this.bombs.filter(b => {
             if (Time.now < b.at) return true;
             this.justExploded.push(b);
-            Vfx.spawn(new BlastVFX(b.x, b.y, { radius: MAGE_ULT.bombRadius, color: '#b478ff', color2: '#64dcff' }));
+            Vfx.spawn(new MageBlastVFX(b.x, b.y, MAGE_ULT.bombRadius));
             Vfx.shake(2, 0.06);
             return false;
         });
@@ -350,14 +347,8 @@ class MageSkyBombardment {
         if (this.phase === 'rise') {
             // 떠오름: 빛기둥 + 발밑 마법진 + 작아지며 사라지는 마법사
             const e = Math.min(1, elapsed / MAGE_ULT.rise);
-            ctx.globalCompositeOperation = 'lighter';
-            const pillar = ctx.createLinearGradient(0, cy + 20, 0, cy - 300);
-            pillar.addColorStop(0, mageRgba(C, 0.7 * (1 - e * 0.5))); pillar.addColorStop(1, mageRgba(P, 0));
-            ctx.fillStyle = pillar; ctx.fillRect(cx - 22 * (1 - e * 0.6), cy - 300, 44 * (1 - e * 0.6), 320);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = mageRgba(C, 0.9 * (1 - e)); ctx.beginPath(); ctx.ellipse(cx, cy + 24, 40, 14, 0, 0, Math.PI * 2); ctx.stroke();
-            ctx.strokeStyle = mageRgba(P, 0.7 * (1 - e)); ctx.beginPath(); ctx.ellipse(cx, cy + 24, 28, 10, 0, 0, Math.PI * 2); ctx.stroke();
-            ctx.globalCompositeOperation = 'source-over';
+            magePillar(ctx, cx, cy + 20, 44 * (1 - e * 0.6), 320, 1 - e * 0.5);
+            mageCircle(ctx, cx, cy + 24, 40, 1 - e, Time.now * 0.003, 0.35);
             if (isImageReady(MAGE_IMAGE)) {
                 const s = 44 * (1 - 0.45 * e);
                 ctx.globalAlpha = 1 - e;
@@ -372,43 +363,27 @@ class MageSkyBombardment {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath(); ctx.ellipse(cx, cy, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
 
-        ctx.globalCompositeOperation = 'lighter';
         const r = this.radius;
         const spin = Time.now * 0.0008;
         const warnT = this.phase === 'warn' ? Math.min(1, elapsed / MAGE_ULT.warn) : 0;
-        // 마법진: 바깥 두 겹 고리 + 돌아가는 룬(별) + 안쪽 육각형
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = mageRgba(C, 0.75 + 0.25 * warnT); ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-        ctx.strokeStyle = mageRgba(P, 0.5 + 0.4 * warnT); ctx.beginPath(); ctx.arc(cx, cy, r - 10, 0, Math.PI * 2); ctx.stroke();
-        for (let k = 0; k < 12; k++) {
-            const a = spin + k / 12 * Math.PI * 2;
-            mageStar(ctx, cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5), 4, 0.9, k % 2 ? C : P);
-        }
-        ctx.strokeStyle = mageRgba(P, 0.4 + 0.4 * warnT);
-        ctx.beginPath();
-        for (let k = 0; k <= 6; k++) { const a = -spin * 1.5 + k / 6 * Math.PI * 2; ctx.lineTo(cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55); }
-        ctx.stroke();
-
+        // 마법진 그림 (천천히 돈다, 모을수록 진해짐)
+        mageCircle(ctx, cx, cy, r, 0.85 + 0.4 * warnT, spin);
+        ctx.globalCompositeOperation = 'lighter';
         if (this.phase === 'warn' || this.phase === 'strike') {
             // 모으기: 안쪽이 차오르고, 하늘에서 빛기둥이 내려온다
             const fill = this.phase === 'strike' ? 1 : warnT;
             ctx.fillStyle = mageRgba(P, 0.25 * fill); ctx.beginPath(); ctx.arc(cx, cy, r * fill, 0, Math.PI * 2); ctx.fill();
-            const beamW = 30 + 50 * fill;
-            const beam = ctx.createLinearGradient(0, cy - 720, 0, cy);
-            beam.addColorStop(0, mageRgba(P, 0)); beam.addColorStop(1, mageRgba(C, 0.6 * fill));
-            ctx.fillStyle = beam; ctx.fillRect(cx - beamW / 2, cy - 720, beamW, 720);
+            magePillar(ctx, cx, cy, 30 + 50 * fill, 720, 0.6 + 0.4 * fill);
         } else {
             // 조준 십자선
-            ctx.strokeStyle = mageRgba(C, 0.6);
+            ctx.strokeStyle = mageRgba(C, 0.6); ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(cx - 14, cy); ctx.lineTo(cx + 14, cy); ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy + 14); ctx.stroke();
         }
 
-        // 떨어질 자리 표시: 줄어드는 고리
+        // 떨어질 자리 표시: 줄어드는 작은 마법진
         for (const b of this.bombs) {
             const t = 1 - Math.max(0, (b.at - Time.now) / MAGE_ULT.bombDelay);
-            ctx.strokeStyle = mageRgba(P, 0.4 + 0.5 * t);
-            ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.arc(b.x, b.y, MAGE_ULT.bombRadius * (1.2 - 0.6 * t), 0, Math.PI * 2); ctx.stroke();
+            mageCircle(ctx, b.x, b.y, MAGE_ULT.bombRadius * (1.2 - 0.6 * t), 0.4 + 0.5 * t, -spin * 3);
         }
         ctx.restore();
     }
@@ -552,6 +527,38 @@ function drawMageStaff(ctx) {
 const MAGE_GHOST_TIME = 2.0;
 const MAGE_CYAN = [100, 220, 255], MAGE_PURPLE = [180, 120, 255];
 const mageRgba = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
+
+// 스킬 2·궁극기 그림 (tools/mage_fx_gen.js로 생성, 색이 들어 있음, 'lighter'로 그림)
+const MAGE_WINGS_IMAGE = loadImage('assets/mage_wings.png');   // 200x200, 가운데 = 몸
+const MAGE_CIRCLE_IMAGE = loadImage('assets/mage_circle.png'); // 300x300, 고리 반지름 = 크기의 0.46
+const MAGE_BLAST_IMAGE = loadImage('assets/mage_blast.png');   // 128x128, 고리 반지름 = 크기의 0.36
+const MAGE_PILLAR_IMAGE = loadImage('assets/mage_pillar.png'); // 60x360, 아래쪽이 밝음
+
+// 그림을 (x, y) 가운데에 w x h 크기로 (rot 회전, alpha 투명도), 'lighter'로
+function mageDraw(ctx, img, x, y, w, h, alpha, rot = 0) {
+    if (!isImageReady(img) || alpha <= 0) return;
+    ctx.save();
+    ctx.translate(x, y);
+    if (rot) ctx.rotate(rot);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+}
+
+// 마법진을 반지름 r 고리로 (squash < 1이면 바닥에 눕힌 타원)
+function mageCircle(ctx, x, y, r, alpha, rot = 0, squash = 1) {
+    const size = r / 0.46;
+    if (squash === 1) { mageDraw(ctx, MAGE_CIRCLE_IMAGE, x, y, size, size, alpha, rot); return; }
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, squash);
+    mageDraw(ctx, MAGE_CIRCLE_IMAGE, 0, 0, size, size, alpha, rot);
+    ctx.restore();
+}
+
+// 하늘에서 내려오는 빛기둥: 아래 끝이 (x, bottomY), 폭 w, 높이 h
+function magePillar(ctx, x, bottomY, w, h, alpha) {
+    mageDraw(ctx, MAGE_PILLAR_IMAGE, x, bottomY - h / 2, w, h, alpha);
+}
 const mageFloatTrail = new WeakMap(); // 플레이어 → 최근 위치들 (잔상·가루용, 화면 전용)
 let mageAuraCanvas = null;
 
@@ -615,18 +622,13 @@ function drawMageFloatUnder(ctx) {
     ctx.beginPath(); ctx.ellipse(cx, cy + 24, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
 
     ctx.globalCompositeOperation = 'lighter';
-    // 떠오름: 처음 0.35초 동안 발밑 마법진 + 위로 솟는 빛 고리
+    // 떠오름: 처음 0.35초 동안 발밑 마법진 + 위로 솟는 작은 마법진 고리 세 개
     if (elapsed < 0.35) {
         const t = elapsed / 0.35, a = 1 - t;
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = mageRgba(MAGE_CYAN, 0.9 * a);
-        ctx.beginPath(); ctx.ellipse(cx, cy + 24, 34, 12, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.strokeStyle = mageRgba(MAGE_PURPLE, 0.7 * a);
-        ctx.beginPath(); ctx.ellipse(cx, cy + 24, 24, 8, 0, 0, Math.PI * 2); ctx.stroke();
+        mageCircle(ctx, cx, cy + 24, 34, 0.9 * a, Time.now * 0.002, 0.35);
         for (let k = 0; k < 3; k++) {
             const u = (t + k / 3) % 1;
-            ctx.strokeStyle = mageRgba(MAGE_CYAN, 0.6 * (1 - u) * a);
-            ctx.beginPath(); ctx.ellipse(cx, cy + 24 - u * 50, 28 - u * 8, (28 - u * 8) * 0.35, 0, 0, Math.PI * 2); ctx.stroke();
+            mageCircle(ctx, cx, cy + 24 - u * 50, 28 - u * 8, 0.6 * (1 - u) * a, 0, 0.35);
         }
     }
     // 잔상 + 가루: 지나온 자리
@@ -640,18 +642,13 @@ function drawMageFloatUnder(ctx) {
         }
         mageStar(ctx, tx + Math.sin(i * 12.9) * 12, ty + Math.cos(i * 7.3) * 12, 2.5, 0.8 * (1 - age) * lift, i % 2 ? MAGE_CYAN : MAGE_PURPLE);
     }
-    // 날개: 바라보는 방향의 수직으로 펼치고 뒤로 젖힌 빛 깃털 3장씩 (천천히 퍼덕임)
+    // 날개 그림: 바라보는 방향으로 돌리고, 천천히 퍼덕이게 위아래로 살짝 접었다 폈다
     const face = Math.atan2(p.facing[1], p.facing[0]);
-    const flap = Math.sin(Time.now * 0.012);
-    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
-        const len = 58 - i * 10, ang = face + Math.PI + side * (Math.PI / 2 - 0.55 - i * 0.3 + flap * 0.12);
+    if (isImageReady(MAGE_WINGS_IMAGE)) {
         ctx.save();
-        ctx.translate(cx, bodyY);
-        ctx.rotate(ang);
-        const gr = ctx.createLinearGradient(0, 0, len + 14, 0);
-        gr.addColorStop(0, mageRgba(MAGE_CYAN, 0.9 * lift)); gr.addColorStop(0.6, mageRgba(MAGE_PURPLE, 0.55 * lift)); gr.addColorStop(1, mageRgba(MAGE_PURPLE, 0));
-        ctx.fillStyle = gr;
-        ctx.beginPath(); ctx.ellipse(len / 2 + 14, 0, len / 2, 8 - i * 1.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.translate(cx, bodyY); ctx.rotate(face); ctx.scale(1, 1 + 0.12 * Math.sin(Time.now * 0.012));
+        ctx.globalAlpha = lift;
+        ctx.drawImage(MAGE_WINGS_IMAGE, -100, -100, 200, 200);
         ctx.restore();
     }
     // 빛 테두리 (몸 뒤)
