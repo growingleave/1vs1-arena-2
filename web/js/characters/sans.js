@@ -58,7 +58,7 @@ class SansBlasterVFX extends SparkVFX {
         this.angle = Math.atan2(this.dir[1], this.dir[0]);
         this.width = scale; this.scale = scale / 41; this.shakePower = shake; // scale = 해골 그림 가로 크기(px)
         this.delay = laser.delay / 1000; this.active = laser.activeDuration / 1000;
-        this.duration = this.delay + this.active + 1.1;
+        this.duration = this.delay + this.active + 0.65;
         this.nextShake = 0;
     }
     get finished() { return this.elapsed >= this.duration && this.sparksDone; }
@@ -82,7 +82,7 @@ class SansBlasterVFX extends SparkVFX {
         const [ox, oy] = this.origin();
         // 나타남(0~0.15초) → 기 모으기(발사 전 그림) → 발사(발사 중 그림 + 떨림) → 발사 전 그림으로 돌아와 사라짐
         const appear = Math.min(1, t / Math.min(0.15, this.delay * 0.6));
-        const alpha = appear * (1 - Math.max(0, (t - end - 0.35) / 0.7)); // 끝나고 0.35초 머문 뒤 0.7초 동안 사라짐
+        const alpha = appear * (1 - Math.max(0, (t - end - 0.2) / 0.4)); // 끝나고 0.2초 머문 뒤 0.4초 동안 사라짐
         if (alpha <= 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); return; }
         const firing = t >= this.delay && t < end;
         const jitter = firing ? Math.sin(t * 90) * 0.6 * s : 0;
