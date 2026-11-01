@@ -2,10 +2,55 @@
 
 const MAX_ASSASSIN_CHARGE = 3;
 
-// 회전 베기 이펙트 그림 (흰색, 배경 투명). 원 모양 칼자국이 오른쪽 위(약 -37도)에서 시작해
-// 시계 방향으로 한 바퀴 가까이 돈다
+// 그림 (tools/assassin_gen.js로 생성, 흰 빛 → 캐릭터 색을 입혀 'lighter')
+// 회전 베기: 거친 칼자국이 오른쪽(0도)에서 시작해 시계 방향으로 한 바퀴, 끝으로 갈수록 두꺼움 (150x150, 반지름 ≈ 56)
 const ASSASSIN_SPIN_IMAGE = loadImage('assets/assassin_spin.png');
-const ASSASSIN_SPIN_IMAGE_START = -37 * Math.PI / 180;
+const ASSASSIN_SPIN_IMAGE_START = 0;
+// 찌르기: 120x30, 꼬리 x 5, 칼끝 x 114, 가운데 y 15
+const ASSASSIN_THRUST_IMAGE = loadImage('assets/assassin_thrust.png');
+
+// 찌르기 이펙트 (화면 전용): 칼끝이 순식간에 앞으로 뻗고, 살짝 더 밀려나가며 사라짐 + 칼끝 불똥
+class AssassinThrustVFX extends SparkVFX {
+    constructor(owner, direction) {
+        super(owner.fxColor || '#ffffff');
+        this.owner = owner; this.dir = direction; this.angle = Math.atan2(direction[1], direction[0]);
+        this.duration = 0.16; this.sparked = false;
+    }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+    update(dt) {
+        super.update(dt);
+        if (!this.sparked && this.elapsed >= 0.04) {
+            this.sparked = true;
+            const r = this.owner.rect, tx = r.centerx + this.dir[0] * 60, ty = r.centery + this.dir[1] * 60;
+            for (let i = 0; i < 4; i++) this.addSpark(tx, ty, this.angle + vfxRand(-0.35, 0.35), vfxRand(120, 260), vfxRand(0.08, 0.16), vfxRand(0.8, 1.5));
+        }
+    }
+    draw(ctx) {
+        const t = Math.min(1, this.elapsed / this.duration);
+        if (t < 1 && isImageReady(ASSASSIN_THRUST_IMAGE)) {
+            const r = this.owner.rect;
+            const ext = Math.min(1, t / 0.3);                   // 0.05초 만에 다 뻗음
+            const len = 62 * (0.55 + 0.45 * (1 - (1 - ext) ** 2));
+            const push = 10 * Math.max(0, (t - 0.3) / 0.7);     // 그 뒤 살짝 더 밀려나감
+            const k = len / 109, a = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.translate(r.centerx + this.dir[0] * (4 + push), r.centery + this.dir[1] * (4 + push));
+            ctx.rotate(this.angle);
+            ctx.globalAlpha = Math.min(1, a * 1.1);
+            ctx.drawImage(vfxTinted(ASSASSIN_THRUST_IMAGE, this.color), -5 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
+            ctx.globalAlpha = a * 0.55;
+            ctx.drawImage(ASSASSIN_THRUST_IMAGE, -5 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
+            ctx.restore();
+        }
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
+    }
+}
+
+// 평타 적중 불똥 (찌르기·회전 공통)
+function assassinHitSpark(owner, target, angle, big) {
+    Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: owner.fxColor || '#ffffff', angle, count: big ? 12 : 9, size: big ? 24 : 18 }));
+}
 const ULT_SLASH_PHASE_DURATION = 260; // X자 참격 한 획이 지나가는 시간(ms)
 
 function addAssassinCharge(owner) {
@@ -31,6 +76,8 @@ class AssassinThrustAttack {
         this.posX = owner.rect.centerx + direction[0] * 28;
         this.posY = owner.rect.centery + direction[1] * 28;
         this.angle = directionToAngle(direction);
+        this.screenAngle = Math.atan2(direction[1], direction[0]);
+        Vfx.spawn(new AssassinThrustVFX(owner, direction));
     }
 
     getPolygonPoints() {
@@ -45,9 +92,9 @@ class AssassinThrustAttack {
         return canBeHit(this, target) && checkPolygonCollision(this.getPolygonPoints(), target.rect);
     }
 
-    draw(ctx) {
-        drawPolygon(ctx, this.getPolygonPoints(), 'rgb(220, 220, 230)', COLOR_WHITE, 1);
-    }
+    applyEffect(target) { assassinHitSpark(this.owner, target, this.screenAngle, false); }
+
+    draw() {}
 }
 
 class AssassinSpinAttack {
@@ -65,8 +112,8 @@ class AssassinSpinAttack {
         Vfx.spawn(new RingSlashVFX(0, 0, {
             image: ASSASSIN_SPIN_IMAGE,
             follow: owner,
-            size: 135,
-            color: owner.playerNum === 2 ? '#3c8cff' : '#ff4d40',
+            size: 150,
+            color: owner.fxColor || '#ffffff',
             rotation: face - ASSASSIN_SPIN_IMAGE_START,
             startAngle: ASSASSIN_SPIN_IMAGE_START,
             sweepAngle: Math.PI * 2,
@@ -82,6 +129,8 @@ class AssassinSpinAttack {
             afterSpin: (Math.PI * 2 / (this.lifespan / 1000)) * 0.3 / 3,
             ghosts: 3,                  // 도는 동안 뒤따라오는 잔상
         }));
+        // 칼끝을 따라 바깥으로 튀는 불똥 (한 바퀴)
+        Vfx.spawn(new SweepSparkVFX({ follow: owner, color: owner.fxColor || '#ffffff', radius: 58, fromAngle: face, toAngle: face + Math.PI * 2, sweep: this.lifespan / 1000, count: 14 }));
     }
 
     update() {}
@@ -93,12 +142,12 @@ class AssassinSpinAttack {
         return Math.hypot(target.rect.centerx - this.owner.rect.centerx, target.rect.centery - this.owner.rect.centery) <= this.radius;
     }
 
-    // 그림 이펙트(RingSlashVFX)가 주인공이라, 판정 범위는 옅은 원으로만 보여준다
-    draw(ctx) {
-        const progress = Math.min(1.0, (Time.now - this.createdTime) / this.lifespan);
-        drawCircle(ctx, this.owner.rect.centerx, this.owner.rect.centery, this.radius - 1, null,
-                   `rgba(230, 230, 240, ${0.25 * (1 - progress)})`, 2);
+    applyEffect(target) {
+        assassinHitSpark(this.owner, target, Math.atan2(target.rect.centery - this.owner.rect.centery, target.rect.centerx - this.owner.rect.centerx), true);
     }
+
+    // 그림 이펙트(RingSlashVFX)가 판정 크기에 맞춰 그려진다
+    draw() {}
 }
 class AssassinBasicSkill extends Skill {
     constructor() { super('Thrust / Spin Slash', 350, ['melee']); }
