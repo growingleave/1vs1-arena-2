@@ -313,21 +313,14 @@ class SansMovingWallBullet {
         Vfx.spawn(new SansBoneChipsVFX(target.rect.centerx, target.rect.centery, Math.atan2(this.dirVec[1], this.dirVec[0]), 7));
     }
 
-    // 뼈다귀 벽: 판정(가로 15 x 세로 100 또는 그 반대) 안에 뼈다귀 10개가 나란히 서서 살짝 출렁이며 밀려간다
+    // 뼈다귀 벽: 판정(가로 15 x 세로 100 또는 그 반대)의 긴 쪽을 따라 놓인 큰 뼈다귀 하나 (판정 그대로)
     draw(ctx) {
         if (!isImageReady(SANS_BONE_IMAGE)) return;
-        const r = this.rect, vertical = r.h > r.w;               // 벽이 세로로 길면 뼈다귀를 가로로 눕혀 세로로 쌓는다
-        const across = vertical ? r.h : r.w, n = 10, gap = across / n;
-        const boneLen = (vertical ? r.w : r.h) + 22, t = Time.now - this.createdTime;
+        const r = this.rect, vertical = r.h > r.w;
+        const len = Math.max(r.w, r.h) + 14, thick = Math.min(r.w, r.h) + 9;
         ctx.save();
-        for (let i = 0; i < n; i++) {
-            const off = -across / 2 + gap * (i + 0.5);
-            const wob = Math.sin(t * 0.012 + i * 1.3) * 2;       // 하나씩 살짝 앞뒤로 출렁
-            const cx = r.centerx + (vertical ? wob : off), cy = r.centery + (vertical ? off : wob);
-            ctx.save(); ctx.translate(cx, cy); if (!vertical) ctx.rotate(Math.PI / 2);
-            ctx.drawImage(SANS_BONE_IMAGE, -boneLen / 2, -gap * 0.85, boneLen, gap * 1.7); // 혹끼리 겹치게 빽빽이
-            ctx.restore();
-        }
+        ctx.translate(r.centerx, r.centery); if (vertical) ctx.rotate(Math.PI / 2);
+        ctx.drawImage(SANS_BONE_IMAGE, -len / 2, -thick / 2, len, thick);
         ctx.restore();
     }
 }
