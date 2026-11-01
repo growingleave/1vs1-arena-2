@@ -456,6 +456,8 @@ class SparkVFX {
             s.vy *= drag;
             s.life -= dt;
         }
+        // 다 꺼진 불꽃은 가끔 치운다 (오래 켜져 있는 불꽃 묶음에서 목록이 끝없이 커지지 않게)
+        if (this.sparks.length > 48) this.sparks = this.sparks.filter(sp => sp.life > 0);
     }
 
     // 지나온 자리로 꼬리를 그린다: 바깥은 색, 가운데는 흰색

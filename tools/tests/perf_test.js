@@ -3,6 +3,7 @@
 // 입력은 무작위로 스킬을 계속 누르고, 궁극기 게이지는 계속 가득 채운다 (가장 바쁜 상황).
 // 실행: node tools/tests/perf_test.js [캐릭터번호쌍...]   예) node tools/tests/perf_test.js 4-6 1-2
 //   번호를 안 주면 모든 캐릭터를 자기 자신과 한 번씩. CPU 배율은 THROTTLE=4 처럼 바꿀 수 있다.
+//   PERF_EVAL='자바스크립트'로 측정 전에 페이지에서 코드를 실행할 수 있다 (예: 어떤 그리기를 꺼서 무게 비교)
 // 주의: 헤드리스 크롬은 그리기를 GPU 없이 해서 실제 크롬북보다 그리기가 느리게 나올 수 있다 (보수적인 결과).
 const path = require('path');
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
@@ -15,6 +16,7 @@ const THROTTLE = Number(process.env.THROTTLE || 6);
   const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.goto('file://' + path.resolve(__dirname, '../../web/index.html')); await p.waitForTimeout(500);
   await p.evaluate(() => { window.__realRender = game.render.bind(game); game.render = () => {}; }); // 자동 루프는 멈춤
+  if (process.env.PERF_EVAL) await p.evaluate(process.env.PERF_EVAL);
   const cdp = await p.context().newCDPSession(p);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
   const pairs = PAIRS.length ? PAIRS : await p.evaluate(() => CHARACTER_REGISTRY.map((_, i) => [i, i]));
