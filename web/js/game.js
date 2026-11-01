@@ -126,6 +126,17 @@ function trainingBackground() {
     return c;
 }
 
+// 조작키 안내 한 줄. 온라인에서는 내 자리만 (상대 키는 내 키보드와 상관없음)
+function controlHintText(n) {
+    if (Net.isOnline()) {
+        if (Net.slot !== n - 1) return null;
+        return '이동 방향키 · Q 평타 · W 스킬1 · E 스킬2 · R 궁극기';
+    }
+    const ctl = n === 1 ? P1_CONTROLS : P2_CONTROLS;
+    const [a, b, c, d] = ctl.skills.map(keyLabel);
+    return `이동 ${n === 1 ? 'WASD' : '방향키'} · ${a} 평타 · ${b} 스킬1 · ${c} 스킬2 · ${d} 궁극기`;
+}
+
 function keyLabel(code) {
     if (!code) return '';
     if (code.startsWith('Key')) return code.slice(3);
@@ -502,7 +513,8 @@ class Game {
         const align = n === 1 ? 'left' : 'right';
         drawText(ctx, `P${n} 훈련장 · ${data.name}`, x, 14, 20, color, { bold: true, align });
         drawSkillIcons(ctx, player, n === 1 ? x : x - 120, 44);
-        drawText(ctx, `발판을 밟아 능력 바꾸기 / 허수아비 복귀 · ${k.ready}: 준비`, x, 84, 13, '#9a9aa6', { align });
+        const hint = controlHintText(n);
+        drawText(ctx, hint ? `${hint} · ${k.ready} 준비` : `발판을 밟아 능력 바꾸기 / 허수아비 복귀 · ${k.ready}: 준비`, x, 84, 13, '#c8c8d0', { bold: true, align });
 
         // 내 능력 설명 (반투명 패널, 뒤의 훈련장이 비쳐 보이게)
         const px = ox + 14, pw = LOADOUT_SIDE_W - 28;
@@ -677,10 +689,14 @@ class Game {
         drawText(ctx, `P1 HP: ${Math.trunc(Math.max(0, p1.hp))}/${Math.trunc(p1.maxHp)}`, 20, 15, 16, p1.color);
         p1.getStatusText().forEach((t, i) => drawText(ctx, t, 155, 15 + i * 20, 16, '#ffff64'));
         drawSkillIcons(ctx, p1, 20, 42);
+        const hint1 = controlHintText(1);
+        if (hint1) drawText(ctx, hint1, 20, 80, 13, '#c8c8d0', { bold: true });
 
         drawText(ctx, `P2 HP: ${Math.trunc(Math.max(0, p2.hp))}/${Math.trunc(p2.maxHp)}`, WIDTH - 160, 15, 16, p2.color);
         p2.getStatusText().forEach((t, i) => drawText(ctx, t, WIDTH - 270, 15 + i * 20, 16, '#ffff64'));
         drawSkillIcons(ctx, p2, WIDTH - 160, 42);
+        const hint2 = controlHintText(2);
+        if (hint2) drawText(ctx, hint2, WIDTH - 20, 80, 13, '#c8c8d0', { bold: true, align: 'right' });
 
         // 경고 배너처럼 모든 것 위에 그릴 것
         for (const ev of this.mapEvents) if (ev.drawOverlay) ev.drawOverlay(ctx);
@@ -725,7 +741,7 @@ function drawSkillIcons(ctx, player, x, y) {
         if (!skill) continue;
         const ix = x + (idx - 1) * 40;
         if (idx === 3) drawUltIcon(ctx, ix, y, 32, player.ultGauge);
-        else drawSkillIconWithClock(ctx, ix, y, 32, skill, `S${idx + 1}`, player.color);
+        else drawSkillIconWithClock(ctx, ix, y, 32, skill, `S${idx}`, player.color);
     }
 }
 
