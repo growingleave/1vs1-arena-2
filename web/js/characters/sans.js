@@ -11,6 +11,33 @@ const SANS_BLASTER_MOUTH_Y = 0.82; // 그림 높이에서 입(빔이 나오는 �
 const SANS_BEAM_IMAGE = loadImage('assets/sans_beam.png');         // 128x64 빔 몸통 (가로로 늘림) — 흰 빛, 색 입혀 'lighter'
 const SANS_BEAM_COLOR = '#9ad8ff';
 
+// 뼈 조각이 튀는 파티클 (화면 전용): 뼈다귀 그림을 작게 잘라 그린 조각 n개가 돌면서 튀고 떨어진다. 이펙트 하나로 묶음
+class SansBoneChipsVFX {
+    constructor(x, y, angle, n = 6) {
+        this.elapsed = 0; this.duration = 0.55;
+        this.chips = [];
+        for (let i = 0; i < n; i++) {
+            const a = angle + vfxRand(-1.2, 1.2), sp = vfxRand(90, 220);
+            this.chips.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, rot: vfxRand(0, 6), vr: vfxRand(-14, 14), len: vfxRand(8, 14), end: vfxRand(0, 1) < 0.5 });
+        }
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; for (const c of this.chips) { c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 420 * dt; c.rot += c.vr * dt; } }
+    draw(ctx) {
+        if (!isImageReady(SANS_BONE_IMAGE)) return;
+        const a = 1 - Math.max(0, (this.elapsed - 0.3) / 0.25);
+        ctx.save(); ctx.globalAlpha = a;
+        for (const c of this.chips) {
+            ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+            // 뼈다귀 그림의 끝(혹 달린 쪽) 또는 가운데 막대만 잘라 그려 '부러진 조각'처럼
+            if (c.end) ctx.drawImage(SANS_BONE_IMAGE, 0, 0, 16, 14, -c.len / 2, -c.len * 0.3, c.len, c.len * 0.6);
+            else ctx.drawImage(SANS_BONE_IMAGE, 18, 3, 12, 8, -c.len / 2, -c.len * 0.2, c.len, c.len * 0.4);
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+}
+
 // 흰 빛 점 (한 번 만들어 재사용)
 let _sansGlowDot = null;
 function sansGlowDot() {
@@ -31,7 +58,7 @@ class SansBlasterVFX extends SparkVFX {
         this.angle = Math.atan2(this.dir[1], this.dir[0]);
         this.width = scale; this.scale = scale / 41; this.shakePower = shake; // scale = 해골 그림 가로 크기(px)
         this.delay = laser.delay / 1000; this.active = laser.activeDuration / 1000;
-        this.duration = this.delay + this.active + 0.4;
+        this.duration = this.delay + this.active + 1.1;
         this.nextShake = 0;
     }
     get finished() { return this.elapsed >= this.duration && this.sparksDone; }
@@ -55,7 +82,7 @@ class SansBlasterVFX extends SparkVFX {
         const [ox, oy] = this.origin();
         // 나타남(0~0.15초) → 기 모으기(발사 전 그림) → 발사(발사 중 그림 + 떨림) → 발사 전 그림으로 돌아와 사라짐
         const appear = Math.min(1, t / Math.min(0.15, this.delay * 0.6));
-        const alpha = appear * (1 - Math.max(0, (t - end - 0.1) / 0.3));
+        const alpha = appear * (1 - Math.max(0, (t - end - 0.35) / 0.7)); // 끝나고 0.35초 머문 뒤 0.7초 동안 사라짐
         if (alpha <= 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); return; }
         const firing = t >= this.delay && t < end;
         const jitter = firing ? Math.sin(t * 90) * 0.6 * s : 0;
@@ -153,7 +180,9 @@ class SansSpinningBarBullet {
     applyEffect(target) {
         slow(target, 0.4, 50);
         this.lifespan = 0;
-        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: SANS_BEAM_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]), count: 8, size: 16 }));
+        const ang = Math.atan2(this.direction[1], this.direction[0]);
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: SANS_BEAM_COLOR, angle: ang, count: 6, size: 14 }));
+        Vfx.spawn(new SansBoneChipsVFX(target.rect.centerx, target.rect.centery, ang, 6));
     }
 
     // 빙글빙글 도는 뼈다귀 그림 (판정 42x12보다 살짝 크게)
@@ -281,19 +310,25 @@ class SansMovingWallBullet {
 
     applyEffect(target) {
         slow(target, 1.5, 100);
+        Vfx.spawn(new SansBoneChipsVFX(target.rect.centerx, target.rect.centery, Math.atan2(this.dirVec[1], this.dirVec[0]), 7));
     }
 
+    // 뼈다귀 벽: 판정(가로 15 x 세로 100 또는 그 반대) 안에 뼈다귀 10개가 나란히 서서 살짝 출렁이며 밀려간다
     draw(ctx) {
-        const r = this.rect;
-        ctx.fillStyle = 'rgb(240, 240, 240)';
-        ctx.beginPath();
-        ctx.roundRect(r.x, r.y, r.w, r.h, 3);
-        ctx.fill();
-        ctx.strokeStyle = 'rgb(100, 100, 100)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 3);
-        ctx.stroke();
+        if (!isImageReady(SANS_BONE_IMAGE)) return;
+        const r = this.rect, vertical = r.h > r.w;               // 벽이 세로로 길면 뼈다귀를 가로로 눕혀 세로로 쌓는다
+        const across = vertical ? r.h : r.w, n = 10, gap = across / n;
+        const boneLen = (vertical ? r.w : r.h) + 22, t = Time.now - this.createdTime;
+        ctx.save();
+        for (let i = 0; i < n; i++) {
+            const off = -across / 2 + gap * (i + 0.5);
+            const wob = Math.sin(t * 0.012 + i * 1.3) * 2;       // 하나씩 살짝 앞뒤로 출렁
+            const cx = r.centerx + (vertical ? wob : off), cy = r.centery + (vertical ? off : wob);
+            ctx.save(); ctx.translate(cx, cy); if (!vertical) ctx.rotate(Math.PI / 2);
+            ctx.drawImage(SANS_BONE_IMAGE, -boneLen / 2, -gap * 0.85, boneLen, gap * 1.7); // 혹끼리 겹치게 빽빽이
+            ctx.restore();
+        }
+        ctx.restore();
     }
 }
 
