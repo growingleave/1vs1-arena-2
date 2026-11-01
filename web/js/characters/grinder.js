@@ -7,17 +7,18 @@ const GRINDER_GRAB_SHUT_IMAGE = loadImage('assets/grinder_claw_shut.png'); // 64
 const GRINDER_PRESS_IMAGE = loadImage('assets/grinder_press.png');        // 120x150 프레스 빛 윤곽, 찍는 면 가운데 (60,146)
 const GRINDER_IMPACT_IMAGE = loadImage('assets/grinder_impact.png');      // 128x128 네모 충격파, 바깥 한 변 ≈ 112
 const GRINDER_SCRAP_IMAGES = [0, 1, 2, 3].map((i) => loadImage(`assets/grinder_scrap_${i}.png`)); // 24x24 달궈진 너트·볼트·톱니 조각·쇳조각
-const GRINDER_SPARK = '#ffb040';
-const GRINDER_GLOW = '#ff9a30';
+const GRINDER_SPARK = '#e0904a';   // 불꽃: 녹슨 쇳가루 색
+const GRINDER_GLOW = '#a8623a';    // 빛 그림 바탕: 녹슨 색
+const GRINDER_CORE = '#b4b6bc';    // 빛 그림 가운데: 회색 쇠
 
-// 빛 그림 공통: 주황을 입혀 'lighter'로 + 흰 심을 살짝 겹쳐 가운데를 밝게. (ax, ay) = 그림에서 (x,y)에 올 점의 비율
+// 빛 그림 공통: 녹슨 색을 입혀 'lighter'로 + 회색 쇠 빛을 겹쳐 가운데를 밝게. (ax, ay) = 그림에서 (x,y)에 올 점의 비율
 function grinderGlow(ctx, img, x, y, w, h, { angle = 0, alpha = 1, ax = 0.5, ay = 0.5, core = 0.5 } = {}) {
     if (!isImageReady(img) || alpha <= 0) return;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.translate(x, y); if (angle) ctx.rotate(angle);
     ctx.globalAlpha = Math.min(1, alpha); ctx.drawImage(vfxTinted(img, GRINDER_GLOW), -w * ax, -h * ay, w, h);
-    ctx.globalAlpha = Math.min(1, alpha) * core; ctx.drawImage(img, -w * ax, -h * ay, w, h);
+    ctx.globalAlpha = Math.min(1, alpha) * core; ctx.drawImage(vfxTinted(img, GRINDER_CORE), -w * ax, -h * ay, w, h);
     ctx.restore();
 }
 
@@ -33,7 +34,7 @@ function grinderDiscFrame(size, i) {
             const c = document.createElement('canvas'); c.width = c.height = Math.ceil(size);
             const x = c.getContext('2d'); x.translate(c.width / 2, c.height / 2); x.rotate(k * (22.5 / 6) * Math.PI / 180);
             x.drawImage(vfxTinted(GRINDER_SAW_IMAGE, GRINDER_GLOW), -size / 2, -size / 2, size, size);
-            x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.5; x.drawImage(GRINDER_SAW_IMAGE, -size / 2, -size / 2, size, size);
+            x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.5; x.drawImage(vfxTinted(GRINDER_SAW_IMAGE, GRINDER_CORE), -size / 2, -size / 2, size, size);
             frames.push(c);
         }
         _grinderDiscFrames.set(size, frames);
@@ -42,16 +43,16 @@ function grinderDiscFrame(size, i) {
 }
 
 // 집게를 (x,y)에 그린다: 발이 angle(화면 각도) 방향을 보게
-function drawGrinderClaw(ctx, img, x, y, angle, size = 46) {
-    grinderGlow(ctx, img, x, y, size, size, { angle: angle - Math.PI / 2, ax: 0.5, ay: 0.35 });
+function drawGrinderClaw(ctx, img, x, y, angle, size = 46, ay = 0.35) {
+    grinderGlow(ctx, img, x, y, size, size, { angle: angle - Math.PI / 2, ax: 0.5, ay });
 }
 
 // 집게 줄 (어두운 쇠줄 + 밝은 결)
 function drawGrinderCable(ctx, x0, y0, x1, y1) {
     ctx.save(); ctx.lineCap = 'round';
     ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = 'rgba(255, 154, 48, 0.4)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255, 235, 200, 0.85)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = 'rgba(168, 98, 58, 0.4)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = 'rgba(190, 192, 198, 0.85)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     ctx.restore();
 }
 
@@ -184,8 +185,9 @@ class GrinderGrabBullet {
     // 날아가는 동안: 줄 + 활짝 펼친 집게
     draw(ctx) {
         const ang = Math.atan2(this.direction[1], this.direction[0]);
-        drawGrinderCable(ctx, this.owner.rect.centerx, this.owner.rect.centery, this.posX - Math.cos(ang) * 10, this.posY - Math.sin(ang) * 10);
-        drawGrinderClaw(ctx, GRINDER_GRAB_OPEN_IMAGE, this.posX - Math.cos(ang) * 10, this.posY - Math.sin(ang) * 10, ang, 52);
+        drawGrinderCable(ctx, this.owner.rect.centerx, this.owner.rect.centery, this.posX - Math.cos(ang) * 40, this.posY - Math.sin(ang) * 40);
+        // 펼친 집게 발 사이 폭(그림 크기의 약 0.72)이 판정 길이 45와 비슷하게, 집게 발 부분이 판정 위에 오게
+        drawGrinderClaw(ctx, GRINDER_GRAB_OPEN_IMAGE, this.posX, this.posY, ang, 64, 0.66);
     }
 }
 
@@ -246,6 +248,25 @@ class GrinderSkill2Hitbox {
     }
 }
 
+// 프레스가 찍힌 자리에서 바닥을 따라 퍼지는 먼지 + 그을림 (이펙트 하나로 묶음, 화면 전용)
+class GrinderDustRingVFX {
+    constructor(x, y) {
+        this.x = x; this.y = y; this.elapsed = 0; this.duration = 0.9;
+        this.puffs = [];
+        for (let i = 0; i < 10; i++) { const a = (i + vfxRand(-0.3, 0.3)) / 10 * Math.PI * 2; this.puffs.push({ a, sp: vfxRand(70, 120), size: vfxRand(28, 40), rot: vfxRand(0, 6) }); }
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = this.elapsed, k = t / this.duration;
+        dmxDraw(ctx, DMX_SCORCH_IMAGE, this.x, this.y - 10, 110, { alpha: 0.5 * (1 - k) });
+        for (const p of this.puffs) {
+            const d = 30 + p.sp * (1 - Math.exp(-4 * t)) * 0.6;
+            dmxDraw(ctx, DMX_DUST_IMAGE, this.x + Math.cos(p.a) * d, this.y + Math.sin(p.a) * d * 0.6, p.size * (0.8 + 0.6 * k), { alpha: 0.55 * (1 - k), angle: p.rot + k });
+        }
+    }
+}
+
 // 유압 프레스 (화면 전용): 위에서 점점 빨라지며 내려와 쾅 찍고(흔들림·먼지·금·불꽃), 잠깐 눌렀다가 다시 올라가며 사라진다
 class GrinderPressVFX {
     constructor(x, y, fallTime) {
@@ -260,7 +281,7 @@ class GrinderPressVFX {
             const sp = new GrinderSparksVFX(); sp.done = true;
             for (let i = 0; i < 4; i++) sp.emit(this.x + (i - 1.5) * 24, this.y + 40, -Math.PI / 2 + (i - 1.5) * 0.5, 5, 0.5, [120, 300]);
             Vfx.spawn(sp);
-            Vfx.spawn(new DmxBoomVFX(this.x, this.y + 6, 50, {})); // 쾅: 고리·먼지바람·연기·그을림 (폭파광과 같은 폭발 바탕)
+            Vfx.spawn(new GrinderDustRingVFX(this.x, this.y + 10)); // 쾅: 바닥을 따라 퍼지는 회색 먼지
         }
     }
     draw(ctx) {
@@ -366,7 +387,7 @@ class GrinderUltimateSquareBullet {
         const t = (Time.now - this.createdTime) / 1000;
         // 달궈진 조각 + 뒤로 짧은 불꼬리
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-        ctx.strokeStyle = 'rgba(255, 154, 48, 0.45)'; ctx.lineWidth = 5;
+        ctx.strokeStyle = 'rgba(168, 98, 58, 0.45)'; ctx.lineWidth = 5;
         ctx.beginPath(); ctx.moveTo(this.posX, this.posY); ctx.lineTo(this.posX - this.dirX * 22, this.posY - this.dirY * 22); ctx.stroke();
         ctx.restore();
         grinderGlow(ctx, this.scrap, this.posX, this.posY, 22, 22, { angle: t * this.spin, core: 0.6 });
@@ -380,7 +401,7 @@ class GrinderUltimateManager {
         this.attacks = attacks;
         this.totalBullets = 15;
         this.firedCount = 0;
-        this.interval = 60;
+        this.interval = 110; // 조각 사이 간격 (원래 60ms)
         this.lastFireTime = 0;
         this.damage = 0;
         this.hitPlayers = [];
@@ -447,6 +468,9 @@ class GrinderSpinAttack {
     }
 
     update() {
+        // 갈고 있는 동안 본인 40% 슬로우 (더 강한 슬로우가 걸려 있으면 그대로 둠)
+        const e = this.owner.statusEffects.slow;
+        if (!e || e.power <= 40) slow(this.owner, 0.1, 40);
         this.posX = this.owner.rect.centerx + this.dirVec[0] * this.dist;
         this.posY = this.owner.rect.centery + this.dirVec[1] * this.dist;
 
@@ -498,8 +522,8 @@ class GrinderSpinAttack {
         const o = this.owner.rect;
         ctx.save(); ctx.lineCap = 'round';
         for (const [cx, cy] of this.discCenters()) {
-            ctx.strokeStyle = 'rgba(255, 154, 48, 0.35)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(o.centerx, o.centery); ctx.lineTo(cx, cy); ctx.stroke();
-            ctx.strokeStyle = 'rgba(255, 235, 200, 0.8)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(o.centerx, o.centery); ctx.lineTo(cx, cy); ctx.stroke();
+            ctx.strokeStyle = 'rgba(168, 98, 58, 0.35)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(o.centerx, o.centery); ctx.lineTo(cx, cy); ctx.stroke();
+            ctx.strokeStyle = 'rgba(190, 192, 198, 0.8)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(o.centerx, o.centery); ctx.lineTo(cx, cy); ctx.stroke();
         }
         ctx.restore();
         const size = Math.round(this.discR * 2 * 64 / 60);   // 톱날 바깥이 판정 반지름에 오게
