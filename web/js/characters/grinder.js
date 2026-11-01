@@ -63,7 +63,18 @@ class GrinderSparksVFX extends SparkVFX {
     emit(x, y, angle, n, spread = 0.6, speed = [120, 320]) {
         for (let i = 0; i < n; i++) this.addSpark(x, y, angle + vfxRand(-spread, spread), vfxRand(speed[0], speed[1]), vfxRand(0.12, 0.3), vfxRand(0.9, 1.8));
     }
-    draw(ctx) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); }
+    // 가볍게: 불꽃 하나당 선 한 번만 (공용 drawSparks는 색 선 + 흰 심 두 번)
+    draw(ctx) {
+        const [r, g, b] = this.rgb;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+        for (const sp of this.sparks) {
+            if (sp.life <= 0) continue;
+            const a = sp.life / sp.maxLife;
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a})`; ctx.lineWidth = sp.size * 1.4;
+            ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(sp.x - sp.vx * 0.04, sp.y - sp.vy * 0.04); ctx.stroke();
+        }
+        ctx.restore();
+    }
 }
 
 // 여러 공격이 함께 쓰는 불꽃 묶음 (궁극기 조각 15개가 각자 이펙트를 만들지 않게). 0.6초 동안 안 쓰면 끝난다
@@ -253,7 +264,7 @@ class GrinderDustRingVFX {
     constructor(x, y) {
         this.x = x; this.y = y; this.elapsed = 0; this.duration = 0.9;
         this.puffs = [];
-        for (let i = 0; i < 10; i++) { const a = (i + vfxRand(-0.3, 0.3)) / 10 * Math.PI * 2; this.puffs.push({ a, sp: vfxRand(70, 120), size: vfxRand(28, 40), rot: vfxRand(0, 6) }); }
+        for (let i = 0; i < 7; i++) { const a = (i + vfxRand(-0.3, 0.3)) / 7 * Math.PI * 2; this.puffs.push({ a, sp: vfxRand(70, 120), size: vfxRand(28, 40), rot: vfxRand(0, 6) }); }
     }
     get finished() { return this.elapsed >= this.duration; }
     update(dt) { this.elapsed += dt; }
@@ -415,7 +426,7 @@ class GrinderUltimateManager {
             this.firedCount += 1;
             // 화면 전용: 쏠 때마다 앞에서 불꽃 + 살짝 흔들림
             const r = this.owner.rect, a = Math.atan2(this.direction[1], this.direction[0]);
-            grinderSparkPool(this.owner).emit(r.centerx + Math.cos(a) * 40, r.centery + Math.sin(a) * 40, a, 4, 0.45, [150, 360]);
+            grinderSparkPool(this.owner).emit(r.centerx + Math.cos(a) * 40, r.centery + Math.sin(a) * 40, a, 3, 0.45, [150, 360]);
             if (this.firedCount % 3 === 1) Vfx.shake(2, 0.08);
         }
     }
@@ -487,7 +498,7 @@ class GrinderSpinAttack {
         // 화면 전용: 각 원판의 앞쪽 바깥 모서리에서 불꽃이 바깥·앞으로 튄다
         const a = Math.atan2(this.dirVec[1], this.dirVec[0]);
         this.tick = (this.tick || 0) + 1;
-        if (this.tick % 2 === 0) this.discCenters().forEach(([cx, cy], i) => {   // 두 틱에 한 번만 (렉 줄이기)
+        if (this.tick % 3 === 0) this.discCenters().forEach(([cx, cy], i) => {   // 세 틱에 한 번만 (렉 줄이기)
             const out = a + (i === 0 ? 0.9 : -0.9);
             this.sparks.emit(cx + Math.cos(out) * this.discR, cy + Math.sin(out) * this.discR, out, 1, 0.5, [100, 260]);
         });
@@ -514,7 +525,7 @@ class GrinderSpinAttack {
         this.hitPlayersTime.set(target, Time.now);
         // 화면 전용: 갈리는 순간 불꽃이 확 튐
         const a = Math.atan2(target.rect.centery - this.owner.rect.centery, target.rect.centerx - this.owner.rect.centerx);
-        this.sparks.emit(target.rect.centerx, target.rect.centery, a + Math.PI, 10, 1.1, [140, 360]);
+        this.sparks.emit(target.rect.centerx, target.rect.centery, a + Math.PI, 6, 1.1, [140, 360]);
     }
 
     // 몸에서 뻗은 팔 + 빠르게 도는 원판 두 개 (서로 반대로 돔)
@@ -522,8 +533,7 @@ class GrinderSpinAttack {
         const o = this.owner.rect;
         ctx.save(); ctx.lineCap = 'round';
         for (const [cx, cy] of this.discCenters()) {
-            ctx.strokeStyle = 'rgba(168, 98, 58, 0.35)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(o.centerx, o.centery); ctx.lineTo(cx, cy); ctx.stroke();
-            ctx.strokeStyle = 'rgba(190, 192, 198, 0.8)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(o.centerx, o.centery); ctx.lineTo(cx, cy); ctx.stroke();
+            ctx.strokeStyle = 'rgba(190, 170, 150, 0.7)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(o.centerx, o.centery); ctx.lineTo(cx, cy); ctx.stroke();
         }
         ctx.restore();
         const size = Math.round(this.discR * 2 * 64 / 60);   // 톱날 바깥이 판정 반지름에 오게
