@@ -47,6 +47,111 @@ class AssassinThrustVFX extends SparkVFX {
     }
 }
 
+// 대쉬 바람 줄: 160x60, 앞쪽 끝 x 150, 가운데 y 30 / 갈고리 머리: 40x40, 줄 고리 x 7, 촉 끝 x 38, 가운데 y 20
+const ASSASSIN_WIND_IMAGE = loadImage('assets/assassin_wind.png');
+const ASSASSIN_HOOK_IMAGE = loadImage('assets/assassin_hook.png');
+// 흙먼지는 폭파광과 같은 그림을 쓴다 (demolitionist.js가 먼저 로드됨: DMX_DUST_IMAGE, DmxPuffVFX)
+
+// 대쉬 (화면 전용): 출발점에서 지금 위치까지 뻗는 바람 줄(그림) + 발밑 흙먼지 + 뒤로 흩날리는 불똥
+class AssassinDashVFX extends SparkVFX {
+    constructor(owner, direction, duration) {
+        super(owner.fxColor || '#ffffff');
+        this.owner = owner; this.dir = direction; this.angle = Math.atan2(direction[1], direction[0]);
+        this.sx = owner.rect.centerx; this.sy = owner.rect.centery;
+        this.moveTime = duration / 1000; this.duration = this.moveTime + 0.3;
+        this.ex = this.sx; this.ey = this.sy;
+        // 출발할 때 뒤쪽으로 차고 나가는 흙먼지
+        for (let i = 0; i < 3; i++) Vfx.spawn(new DmxPuffVFX(this.sx - direction[0] * (6 + i * 8), owner.rect.bottom - 4, 26 + i * 6,
+            { vx: -direction[0] * 60 + vfxRand(-15, 15), vy: -direction[1] * 60 - 10, duration: 0.45, alpha: 0.45 }));
+    }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+    update(dt) {
+        super.update(dt);
+        if (this.elapsed <= this.moveTime + 0.02) {
+            const r = this.owner.rect;
+            this.ex = r.centerx; this.ey = r.centery;
+            for (let i = 0; i < 3; i++) this.addSpark(r.centerx + vfxRand(-8, 8), r.centery + vfxRand(-8, 8), this.angle + Math.PI + vfxRand(-0.5, 0.5), vfxRand(100, 260), vfxRand(0.15, 0.3), vfxRand(1, 2));
+            if (!this.landed && this.elapsed >= this.moveTime) {   // 도착: 앞쪽에 작은 먼지
+                this.landed = true;
+                Vfx.spawn(new DmxPuffVFX(r.centerx + this.dir[0] * 8, r.bottom - 4, 30, { vx: this.dir[0] * 30, vy: -12, duration: 0.4, alpha: 0.35 }));
+            }
+        }
+    }
+    draw(ctx) {
+        const t = Math.max(0, (this.elapsed - this.moveTime) / 0.3);
+        if (t < 1 && isImageReady(ASSASSIN_WIND_IMAGE)) {
+            const len = Math.hypot(this.ex - this.sx, this.ey - this.sy) + 40;
+            const k = len / 150;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.translate(this.ex + this.dir[0] * 14, this.ey + this.dir[1] * 14); ctx.rotate(this.angle);
+            const h = 60 * Math.min(1.1, k) * (1 + 0.3 * t);       // 사라지며 살짝 퍼짐
+            ctx.globalAlpha = 1 - t;
+            ctx.drawImage(vfxTinted(ASSASSIN_WIND_IMAGE, this.color), -150 * k, -h / 2, 160 * k, h);
+            ctx.globalAlpha = (1 - t) * 0.6;
+            ctx.drawImage(ASSASSIN_WIND_IMAGE, -150 * k, -h / 2, 160 * k, h);
+            ctx.restore();
+        }
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
+    }
+}
+
+// 갈고리 줄 + 머리 그리기 (줄은 코드: 어두운 줄 + 밝은 결)
+function drawAssassinHook(ctx, ox, oy, hx, hy, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#2b2e36'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.strokeStyle = 'rgba(210, 215, 225, 0.8)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.setLineDash([]);
+    if (isImageReady(ASSASSIN_HOOK_IMAGE)) {
+        ctx.translate(hx, hy); ctx.rotate(Math.atan2(hy - oy, hx - ox));
+        ctx.drawImage(ASSASSIN_HOOK_IMAGE, -30, -20, 40, 40); // 촉 끝(x 38)이 (hx,hy)보다 살짝 앞
+    }
+    ctx.restore();
+}
+
+// 갈고리가 박히는 순간 '팍' 튀는 불똥 + 번쩍 고리 + (벽이면) 돌가루 먼지
+class AssassinHookImpactVFX extends SparkVFX {
+    constructor(x, y, angle, color, onWall) {
+        super(color);
+        this.x = x; this.y = y; this.duration = 0.25; this.onWall = onWall;
+        // 벽: 튕겨 나오듯 뒤로 / 플레이어: 사방으로
+        for (let i = 0; i < 16; i++) this.addSpark(x, y, (onWall ? angle + Math.PI : angle) + vfxRand(-1.3, 1.3), vfxRand(150, 420), vfxRand(0.12, 0.3), vfxRand(1.2, 2.4));
+        for (let i = 0; i < 6; i++) this.addSpark(x, y, vfxRand(0, Math.PI * 2), vfxRand(60, 160), vfxRand(0.1, 0.2), vfxRand(0.8, 1.4));
+        if (onWall) for (let i = 0; i < 2; i++) Vfx.spawn(new DmxPuffVFX(x - Math.cos(angle) * 6, y - Math.sin(angle) * 6, 26 + i * 8,
+            { vx: -Math.cos(angle) * 40 + vfxRand(-20, 20), vy: -Math.sin(angle) * 40 - 10, duration: 0.5, alpha: 0.5 }));
+        Vfx.shake(2, 0.08);
+    }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+    draw(ctx) {
+        const t = Math.min(1, this.elapsed / this.duration);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        if (t < 1) {
+            const [r, g, b] = this.rgb;
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${1 - t})`; ctx.lineWidth = 3 * (1 - t) + 1;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 6 + 22 * (1 - (1 - t) ** 2), 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * (1 - t)})`;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 9 * (1 - t), 0, Math.PI * 2); ctx.fill();
+        }
+        this.drawSparks(ctx);
+        ctx.restore();
+    }
+}
+
+// 벽에 박힌 갈고리로 날아가는 동안: 박힌 자리에 남은 갈고리와 줄 (화면 전용)
+class AssassinHookRopeVFX {
+    constructor(owner, x, y, angle, duration) { this.owner = owner; this.x = x; this.y = y; this.angle = angle; this.duration = duration; this.elapsed = 0; }
+    get finished() { return this.elapsed >= this.duration + 0.12; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const r = this.owner.rect, a = this.elapsed <= this.duration ? 1 : 1 - (this.elapsed - this.duration) / 0.12;
+        drawAssassinHook(ctx, r.centerx, r.centery, this.x, this.y, a);
+    }
+}
+
 // 평타 적중 불똥 (찌르기·회전 공통)
 function assassinHitSpark(owner, target, angle, big) {
     Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: owner.fxColor || '#ffffff', angle, count: big ? 12 : 9, size: big ? 24 : 18 }));
@@ -203,6 +308,7 @@ class AssassinDashSkill extends Skill {
         this.lastUsed = Time.now;
         addAssassinCharge(owner);
         attacks.push(new AssassinMoveManager(owner, direction, 20.0, 60)); // 아주 짧은 대쉬
+        Vfx.spawn(new AssassinDashVFX(owner, direction, 60));
     }
 }
 
@@ -266,8 +372,7 @@ class AssassinHookGrappleToTarget {
 
     draw(ctx) {
         if (!this.resolved && this.target) {
-            drawLine(ctx, this.owner.rect.centerx, this.owner.rect.centery, this.target.rect.centerx, this.target.rect.centery,
-                     'rgb(180, 40, 40)', 3);
+            drawAssassinHook(ctx, this.owner.rect.centerx, this.owner.rect.centery, this.target.rect.centerx, this.target.rect.centery);
         }
     }
 }
@@ -308,7 +413,11 @@ class AssassinHookProjectile {
                 this.resolved = true;
                 this.lifespan = 0;
                 const traveled = Math.hypot(this.posX - this.startX, this.posY - this.startY);
-                this.attacks.push(createHookPull(this.owner, this.direction, traveled));
+                const pull = createHookPull(this.owner, this.direction, traveled);
+                this.attacks.push(pull);
+                const ang = Math.atan2(this.direction[1], this.direction[0]);
+                Vfx.spawn(new AssassinHookImpactVFX(this.posX, this.posY, ang, this.owner.fxColor || '#ffffff', true));
+                Vfx.spawn(new AssassinHookRopeVFX(this.owner, this.posX, this.posY, ang, pull.duration / 1000));
                 return;
             }
         }
@@ -326,6 +435,7 @@ class AssassinHookProjectile {
             this.resolved = true;
             this.lifespan = 0;
             this.attacks.push(new AssassinHookGrappleToTarget(this.owner, target));
+            Vfx.spawn(new AssassinHookImpactVFX(target.rect.centerx, target.rect.centery, Math.atan2(this.direction[1], this.direction[0]), this.owner.fxColor || '#ffffff', false));
         }
         return false; // 갈고리 자체는 피해를 주지 않는다
     }
@@ -334,9 +444,7 @@ class AssassinHookProjectile {
         if (this.resolved) return;
         const x = Math.trunc(this.posX);
         const y = Math.trunc(this.posY);
-        drawLine(ctx, this.owner.rect.centerx, this.owner.rect.centery, x, y, 'rgb(150, 150, 150)', 2);
-        drawCircle(ctx, x, y, 6, 'rgb(90, 90, 100)');
-        drawCircle(ctx, x, y, 5, null, 'rgb(220, 220, 220)', 2);
+        drawAssassinHook(ctx, this.owner.rect.centerx, this.owner.rect.centery, x, y);
     }
 }
 
