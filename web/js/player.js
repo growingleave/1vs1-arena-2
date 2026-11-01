@@ -118,7 +118,6 @@ class Player {
     getStatusText() {
         const texts = [];
         if ((this.slashEnhanceCount || 0) > 0) texts.push(`강화: ${this.slashEnhanceCount}`);
-        if ((this.assassinCharge || 0) > 0) texts.push(`차지: ${this.assassinCharge}`);
 
         if (this.stunned) {
             texts.push('기절');
