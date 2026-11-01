@@ -254,7 +254,7 @@ class AssassinSpinAttack {
         Vfx.spawn(new RingSlashVFX(0, 0, {
             image: ASSASSIN_SPIN_IMAGE,
             follow: owner,
-            size: 128,                  // 바깥 테 반지름 ≈ 60 (판정 56)
+            size: 128,                  // 바깥 테 반지름 ≈ 60 (판정 반지름 60과 같음)
             color: owner.fxColor || '#ffffff',
             rotation: face - ASSASSIN_SPIN_IMAGE_START,
             startAngle: ASSASSIN_SPIN_IMAGE_START,
@@ -275,9 +275,12 @@ class AssassinSpinAttack {
 
     isExpired() { return Time.now - this.createdTime >= this.lifespan; }
 
+    // 그림 원(반지름 60)에 상대 몸(네모)이 조금이라도 닿으면 맞음. 원래는 상대 몸 가운데 점이 원 안에 들어와야 맞았다
     collidesWith(target) {
         if (!canBeHit(this, target)) return false;
-        return Math.hypot(target.rect.centerx - this.owner.rect.centerx, target.rect.centery - this.owner.rect.centery) <= this.radius;
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery, r = target.rect;
+        const nx = Math.max(r.left, Math.min(cx, r.right)), ny = Math.max(r.top, Math.min(cy, r.bottom)); // 네모에서 원 중심과 가장 가까운 점
+        return Math.hypot(nx - cx, ny - cy) <= this.radius;
     }
 
     applyEffect(target) {
