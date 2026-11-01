@@ -424,8 +424,8 @@ class SansUltimate extends Skill {
 // ==========================================
 function applySans(player) {
     player.baseAtk = 15;
-    player.maxHp = 100;
-    player.hp = 100;
+    player.maxHp = 225;
+    player.hp = player.maxHp;
     player.speed = 4.4;
     player.dodgeTextTimer = -99999;
     player.lastDodgeTime = -99999;

@@ -629,7 +629,7 @@ class SwordmanUltSkill extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applySwordmanToPlayer(player) {
-    player.maxHp = 100;
+    player.maxHp = 260;
     player.hp = player.maxHp;
     player.baseAtk = 10;
     player.speed = 4.3;

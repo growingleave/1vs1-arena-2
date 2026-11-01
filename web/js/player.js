@@ -97,8 +97,8 @@ class Player {
 
         if (finalDamage > 0) {
             this.hitFlashTime = Time.now;
-            // 최대 체력 대비 피해 비율이 클수록 이펙트가 강해짐
-            this.hitFlashIntensity = Math.min(1.0, (finalDamage / this.maxHp) * 3.0);
+            // 피해가 클수록 이펙트·소리가 강해짐 (체력을 늘려도 느낌이 같게 100 기준으로 잰다)
+            this.hitFlashIntensity = Math.min(1.0, (finalDamage / 100.0) * 3.0);
             playHitSound(this.hitFlashIntensity);
 
             this.damagePopups.push({

@@ -489,7 +489,7 @@ class ArcherUltSkill extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applyArcher(player) {
-    player.maxHp = 95;
+    player.maxHp = 245;
     player.hp = player.maxHp;
     player.baseAtk = 13;
     player.speed = 4.5;

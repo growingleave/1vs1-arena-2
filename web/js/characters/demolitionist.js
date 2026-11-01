@@ -797,8 +797,8 @@ class DemolitionistUltSkill extends Skill {
 // ==========================================
 function applyDemolitionist(player) {
     player.baseAtk = 13;
-    player.maxHp = 100;
-    player.hp = 100;
+    player.maxHp = 250;
+    player.hp = player.maxHp;
     player.speed = 4.3;
     player.isTransformed = false;
     player.ultChargeMultiplier = 1.0; // 다른 캐릭터와 같게 (예전 패시브 2.5배 제거)
