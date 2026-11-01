@@ -1,7 +1,7 @@
 // 어쌔신 그림 생성 (미리 구워두는 용도). 결과는 게임용 1/2 크기 → web/assets/에 복사
 //   assassin_thrust.png 120x30 : 찌르기 (꼬리 x 5, 칼끝 x 114, 가운데 y 15, 오른쪽으로 찌름) — 흰 빛, 색 입혀 'lighter'
 //   assassin_spin.png   150x150: 회전 베기 (가운데 = 그림 가운데, 오른쪽(0도)에서 시작해 시계 방향 한 바퀴,
-//                                  칼자국 반지름 ≈ 56 ± 거친 가장자리, 끝으로 갈수록 두꺼움) — 흰 빛, 색 입혀 'lighter'
+//                                  면도날 칼자국 여러 겹, 주 칼자국 반지름 ≈ 56, 끝으로 갈수록 두꺼움) — 흰 빛, 색 입혀 'lighter'
 //   preview_assassin.png (확인용)
 // 실행: node tools/assassin_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
@@ -28,61 +28,57 @@ const OUT = process.argv[2] || __dirname;
       sx.putImageData(d, 0, 0); return s;
     };
 
-    // ---------- 찌르기: 뒤에서 앞으로 가늘어지는 날카로운 쐐기 + 속도선 ----------
+    // ---------- 찌르기: 길고 가는 바늘 + 가는 날 선 + 칼끝 십자 반짝임 (번짐은 아주 조금만) ----------
     const th = mk(240, 60), t = th.getContext('2d'); const TY = 30;
-    const lg = t.createLinearGradient(10, 0, 228, 0); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.35, 'rgba(255,255,255,0.75)'); lg.addColorStop(1, 'rgba(255,255,255,1)');
-    t.fillStyle = lg; t.beginPath(); t.moveTo(10, TY - 3); t.lineTo(150, TY - 8); t.lineTo(228, TY); t.lineTo(150, TY + 8); t.lineTo(10, TY + 3); t.closePath(); t.fill();
-    t.fillStyle = '#fff'; t.beginPath(); t.moveTo(90, TY - 2); t.lineTo(228, TY); t.lineTo(90, TY + 2); t.closePath(); t.fill(); // 가운데 날 선
-    t.strokeStyle = 'rgba(255,255,255,0.6)'; t.lineWidth = 2; t.lineCap = 'round';
-    for (const [y, x0, x1] of [[TY - 16, 40, 150], [TY + 15, 60, 160], [TY - 22, 90, 140], [TY + 21, 30, 100]]) { t.globalAlpha = 0.55; t.beginPath(); t.moveTo(x0, y); t.lineTo(x1, y + (TY - y) * 0.15); t.stroke(); }
-    t.globalAlpha = 1;
-    const tip = t.createRadialGradient(200, TY, 0, 200, TY, 9); tip.addColorStop(0, 'rgba(255,255,255,1)'); tip.addColorStop(1, 'rgba(255,255,255,0)');
-    t.fillStyle = tip; t.beginPath(); t.ellipse(200, TY, 22, 5, 0, 0, Math.PI * 2); t.fill();
-    const thrust = bakeGlow(th, [[5, 0.7], [2, 0.5]]);
+    const lg = t.createLinearGradient(20, 0, 232, 0); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.45, 'rgba(255,255,255,0.7)'); lg.addColorStop(1, 'rgba(255,255,255,1)');
+    t.fillStyle = lg; t.beginPath(); t.moveTo(20, TY - 1); t.lineTo(160, TY - 4.5); t.lineTo(232, TY); t.lineTo(160, TY + 4.5); t.lineTo(20, TY + 1); t.closePath(); t.fill();
+    t.strokeStyle = '#fff'; t.lineWidth = 1.2; t.beginPath(); t.moveTo(70, TY); t.lineTo(232, TY); t.stroke();         // 가운데 날 선
+    t.lineWidth = 1;                                                                                              // 바늘을 따라가는 가는 선
+    for (const [dy, x0, x1, a] of [[-9, 50, 190, 0.7], [8, 80, 200, 0.6], [-15, 100, 175, 0.45], [14, 40, 130, 0.4]]) {
+      t.globalAlpha = a; t.beginPath(); t.moveTo(x0, TY + dy); t.lineTo(x1, TY + dy * 0.35); t.stroke();
+    }
+    t.globalAlpha = 1; t.fillStyle = '#fff';                                                                     // 칼끝 십자 반짝임
+    t.beginPath(); t.moveTo(196, TY); t.lineTo(214, TY - 1.2); t.lineTo(236, TY); t.lineTo(214, TY + 1.2); t.closePath(); t.fill();
+    t.beginPath(); t.moveTo(214, TY - 11); t.lineTo(215.2, TY); t.lineTo(214, TY + 11); t.lineTo(212.8, TY); t.closePath(); t.fill();
+    const thrust = bakeGlow(th, [[3, 0.45]]);
 
-    // ---------- 회전 베기: 거친 칼자국 고리 ----------
+    // ---------- 회전 베기: 양끝이 뾰족한 면도날 칼자국 여러 겹 (원이 아닌 일그러진 모양) ----------
     const sp = mk(300, 300), s = sp.getContext('2d'); const C = 150, BASE = 112;
-    // 각도별 거친 반지름 (부드러운 물결 + 들쭉날쭉)
-    const N = 180;
-    const noise = []; for (let i = 0; i <= N; i++) noise.push(R(-1, 1));
-    const smooth = (i) => (noise[Math.max(0, i - 1)] + 2 * noise[i] + noise[Math.min(N, i + 1)]) / 4;
     const END = Math.PI * 2 - 0.25;
-    const outer = [], inner = [];
-    for (let i = 0; i <= N; i++) {
-      const u = i / N, a = u * END;
-      const thick = 3 + 24 * Math.pow(u, 0.8);                      // 시작은 가늘고 끝으로 갈수록 두껍게
-      const wob = Math.sin(a * 3 + 0.7) * 5 + smooth(i) * 6;          // 원이 아닌 일그러진 모양
-      const spike = (i % 7 === 3) ? R(4, 11) * u : 0;                  // 바깥쪽 톱니
-      outer.push([a, BASE + wob + thick / 2 + spike]);
-      inner.push([a, BASE + wob - thick / 2 + R(-2, 2)]);
-    }
-    s.fillStyle = '#fff'; s.beginPath();
-    outer.forEach(([a, r], i) => (i ? s.lineTo : s.moveTo).call(s, C + Math.cos(a) * r, C + Math.sin(a) * r));
-    // 끝: 뾰족한 칼끝
-    const [ea, er] = outer[N]; s.lineTo(C + Math.cos(ea + 0.18) * (er - 10), C + Math.sin(ea + 0.18) * (er - 10));
-    for (let i = N; i >= 0; i--) { const [a, r] = inner[i]; s.lineTo(C + Math.cos(a) * r, C + Math.sin(a) * r); }
-    s.closePath(); s.fill();
-    // 몸통 속 빈틈(긁힌 결): 어두운 가는 결을 지워서 거칠게
-    s.globalCompositeOperation = 'destination-out'; s.lineCap = 'round';
-    for (let k = 0; k < 7; k++) {
-      const a0 = R(0.6, END - 0.6), len = R(0.3, 0.9), rr = BASE + R(-6, 6);
-      s.lineWidth = R(1.2, 2.5); s.beginPath(); s.arc(C, C, rr, a0, a0 + len); s.stroke();
-    }
-    s.globalCompositeOperation = 'source-over';
-    // 바깥·안쪽으로 따라오는 끊긴 긁힘 선
-    s.strokeStyle = 'rgba(255,255,255,0.85)'; s.lineCap = 'round';
-    for (let k = 0; k < 9; k++) {
-      const a0 = R(0.4, END - 0.3), len = R(0.25, 0.8), off = (rnd() < 0.5 ? -1 : 1) * R(18, 30) * (0.4 + a0 / END);
-      s.lineWidth = R(1.2, 3); s.beginPath(); s.arc(C, C, BASE + off, a0, Math.min(END, a0 + len)); s.stroke();
-    }
-    // 튀는 조각
+    const ph = R(0, 6);
+    const radAt = (a, r0) => r0 + Math.sin(a * 3 + ph) * 5 + Math.sin(a * 7 + ph * 2) * 2;     // 살짝 일그러진 원
+    // a0~a1을 도는 칼자국 띠: 양끝은 뾰족, 뒤쪽(끝)으로 갈수록 두꺼움
+    const slash = (r0, a0, a1, maxW, alpha = 1) => {
+      const n = 120, out = [], inn = [];
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, a = a0 + (a1 - a0) * u;
+        const w = maxW * Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.08)), 0.7) * (0.25 + 0.75 * u);
+        const r = radAt(a, r0);
+        out.push([a, r + w * 0.65]); inn.push([a, r - w * 0.35]);                     // 바깥쪽으로 더 두꺼운 칼날
+      }
+      s.globalAlpha = alpha; s.fillStyle = '#fff'; s.beginPath();
+      out.forEach(([a, r], i) => (i ? s.lineTo : s.moveTo).call(s, C + Math.cos(a) * r, C + Math.sin(a) * r));
+      for (let i = n; i >= 0; i--) { const [a, r] = inn[i]; s.lineTo(C + Math.cos(a) * r, C + Math.sin(a) * r); }
+      s.closePath(); s.fill(); s.globalAlpha = 1;
+    };
+    slash(BASE, 0, END, 16);                 // 주 칼자국
+    slash(BASE + 11, 0.7, END - 0.15, 6, 0.9); // 바깥 겹
+    slash(BASE - 13, 2.2, END + 0.12, 5, 0.85); // 안쪽 겹
+    slash(BASE + 25, 4.3, 5.9, 4, 0.8);      // 바깥으로 튀는 짧은 칼자국
+    slash(BASE - 24, 0.9, 2.1, 3, 0.7);
+    // 주 칼자국 안쪽에 가는 틈 → 칼날 두 겹처럼 날카롭게
+    s.globalCompositeOperation = 'destination-out'; s.strokeStyle = '#000'; s.lineWidth = 1.6;
+    s.beginPath();
+    for (let i = 0; i <= 100; i++) { const a = 1.2 + (END - 1.5) * i / 100, r = radAt(a, BASE) + 2.5; (i ? s.lineTo : s.moveTo).call(s, C + Math.cos(a) * r, C + Math.sin(a) * r); }
+    s.stroke(); s.globalCompositeOperation = 'source-over';
+    // 바깥으로 튀는 바늘 같은 파편 (칼자국 방향으로 길게)
     s.fillStyle = '#fff';
-    for (let k = 0; k < 16; k++) {
-      const a = R(0.8, END), r = BASE + R(20, 34), sz = R(2, 5);
-      s.save(); s.translate(C + Math.cos(a) * r, C + Math.sin(a) * r); s.rotate(a + Math.PI / 2 + R(-0.5, 0.5));
-      s.beginPath(); s.moveTo(-sz * 2, 0); s.lineTo(0, -sz * 0.6); s.lineTo(sz * 2, 0); s.lineTo(0, sz * 0.6); s.closePath(); s.fill(); s.restore();
+    for (let k = 0; k < 14; k++) {
+      const a = R(1.0, END), r = radAt(a, BASE) + R(18, 32), len = R(7, 14);
+      s.save(); s.translate(C + Math.cos(a) * r, C + Math.sin(a) * r); s.rotate(a + Math.PI / 2 + R(-0.25, 0.25));
+      s.beginPath(); s.moveTo(-len, 0); s.lineTo(0, -1); s.lineTo(len, 0); s.lineTo(0, 1); s.closePath(); s.fill(); s.restore();
     }
-    const spin = bakeGlow(sp, [[6, 0.7], [2, 0.5]]);
+    const spin = bakeGlow(sp, [[3, 0.45]]);
 
     const tint = (img, col) => { const c = mk(img.width, img.height), x = c.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return c; };
     const pv = mk(480, 200), pc = pv.getContext('2d');
