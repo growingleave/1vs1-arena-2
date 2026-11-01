@@ -7,6 +7,7 @@ const HK_SCAN_IMAGE = loadImage('assets/hk_scan.png');     // 256x80 스캔 빔,
 const HK_CUBE_IMAGE = loadImage('assets/hk_cube.png');     // 64x64 데이터 큐브, 바깥 네모 한 변 ≈ 56
 const HK_PORTAL_IMAGE = loadImage('assets/hk_portal.png'); // 64x64 텔레포트 포털
 const HK_RING_IMAGE = loadImage('assets/hk_ring.png');     // 256x256 해킹 파동 고리, 바깥 반지름 ≈ 124
+const HK_HEX_IMAGE = loadImage('assets/hk_hex.png');       // 256x256 궁극기 바닥 육각 격자, 반지름 ≈ 125
 const HK_SKULL_IMAGE = loadImage('assets/hk_skull.png');   // 128x128 해킹된 상대 몸에 뜨는 해골 (사용자 그림을 초록으로, 이미 색이 있어 보통으로 그림)
 const HK_GREEN = '#5cff8a';
 
@@ -35,6 +36,63 @@ class HackerPixelVFX {
         for (const p of this.px) {
             const flick = Math.sin(this.elapsed * 40 + p.ph) > -0.3 ? 1 : 0.3;  // 지직거리듯 깜빡
             ctx.fillStyle = `rgba(92, 255, 138, ${k * flick})`; ctx.fillRect(Math.round(p.x - p.s / 2), Math.round(p.y - p.s / 2), p.s, p.s);
+        }
+        ctx.restore();
+    }
+}
+
+// 궁극기 (화면 전용, 1.3초): 바닥 육각 격자가 번쩍 켜졌다 꺼지고, 원 안으로 데이터 비가 쏟아지고, 회로 고리 세 겹이 차례로 퍼짐
+class HackerUltVFX {
+    constructor(owner, radius) {
+        this.owner = owner; this.radius = radius; this.elapsed = 0; this.duration = 1.3;
+        this.cx = owner.rect.centerx; this.cy = owner.rect.centery;
+        this.rain = [];
+        for (let i = 0; i < 26; i++) { const x = vfxRand(-radius, radius); this.rain.push({ x, y0: vfxRand(-radius, 0), sp: vfxRand(260, 520), len: vfxRand(18, 50) }); }
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = this.elapsed, R = this.radius, cx = this.cx, cy = this.cy;
+        // 바닥 격자: 0.15초에 확 켜졌다가 서서히 꺼짐
+        const ga = t < 0.15 ? t / 0.15 : Math.max(0, 1 - (t - 0.15) / 1.0);
+        const d = R * 2 * 128 / 125;
+        hkGlow(ctx, HK_HEX_IMAGE, cx, cy, d, d, { angle: t * 0.2, alpha: 0.6 * ga, core: 0.2 });
+        // 데이터 비: 원 안에서만 떨어지는 초록 줄
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+        ctx.globalCompositeOperation = 'lighter';
+        const ra = Math.min(1, t / 0.1) * Math.max(0, 1 - (t - 0.6) / 0.7);
+        for (const r of this.rain) {
+            const y = cy + r.y0 + r.sp * t;
+            if (y - r.len > cy + R) continue;
+            ctx.fillStyle = `rgba(92, 255, 138, ${0.5 * ra})`; ctx.fillRect(cx + r.x, y - r.len, 2, r.len);
+            ctx.fillStyle = `rgba(220, 255, 230, ${0.9 * ra})`; ctx.fillRect(cx + r.x - 1, y - 3, 4, 4);  // 떨어지는 머리
+        }
+        ctx.restore();
+        // 회로 고리 세 겹 (0초, 0.12초, 0.24초에 출발)
+        for (let k = 0; k < 3; k++) {
+            const u = (t - k * 0.12) / 0.55;
+            if (u <= 0 || u >= 1) continue;
+            const rr = R * (0.15 + 0.85 * dmxEaseOut(u)) * (k === 0 ? 1 : 0.92 - k * 0.08);
+            hkGlow(ctx, HK_RING_IMAGE, cx, cy, rr * 2 * 128 / 124, rr * 2 * 128 / 124, { angle: (k % 2 ? -1 : 1) * u * 0.9, alpha: 1.2 * (1 - u) });
+        }
+    }
+}
+
+// 해커와 해킹된 상대를 잇는 지그재그 데이터 선 (궁극기 적중, 화면 전용)
+class HackerLinkVFX {
+    constructor(owner, target) { this.owner = owner; this.target = target; this.elapsed = 0; this.duration = 0.5; }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const a = this.owner.rect, b = this.target.rect, k = 1 - this.elapsed / this.duration;
+        const dx = b.centerx - a.centerx, dy = b.centery - a.centery, len = Math.hypot(dx, dy) || 1, px = -dy / len, py = dx / len;
+        const f = Math.floor(this.elapsed * 30);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'miter';
+        for (const [w, col] of [[5, `rgba(92, 255, 138, ${0.35 * k})`], [2, `rgba(220, 255, 230, ${k})`]]) {
+            ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(a.centerx, a.centery);
+            for (let i = 1; i < 8; i++) { const u = i / 8, off = (((f + i * 7) % 5) - 2) * 6; ctx.lineTo(a.centerx + dx * u + px * off, a.centery + dy * u + py * off); }
+            ctx.lineTo(b.centerx, b.centery); ctx.stroke();
         }
         ctx.restore();
     }
@@ -164,17 +222,24 @@ function attachHackerGauge(target) {
             drawText(ctx, '해킹됨', r.centerx, r.bottom + 12, 14, `rgba(92, 255, 138, ${fade})`, { bold: true, align: 'center', baseline: 'middle' });
         }
 
-        // 해킹 상태에서 큐브에 맞아 생긴 보라색 도트 피해 표시
+        // 해킹 상태에서 큐브(바이러스)에 맞아 생긴 도트 피해 표시: 몸을 감싸고 도는 초록 점선 고리 + 깜빡이는 바이러스 픽셀
         const corruptUntil = target.hackerCorruptUntil || 0;
-        if (corruptUntil > Time.now) {
-            const alpha = (200 * Math.min(1.0, (corruptUntil - Time.now) / 600)) / 255;
-            const radius = Math.trunc(Math.max(r.w, r.h) * 0.65 + 4 * Math.sin(Time.now / 120));
-            drawCircle(ctx, r.centerx, r.centery, radius - 1.5, null, `rgba(170, 60, 255, ${alpha})`, 3);
-            for (let i = 0; i < 6; i++) {
-                const ang = Time.now / 200 + i * (2 * Math.PI / 6);
-                drawCircle(ctx, Math.trunc(r.centerx + Math.cos(ang) * (radius - 6)), Math.trunc(r.centery + Math.sin(ang) * (radius - 6)),
-                           3, `rgba(210, 130, 255, ${alpha})`);
+        if (corruptUntil > Time.now && !target.hidden) {
+            const alpha = Math.min(1.0, (corruptUntil - Time.now) / 600);
+            const radius = Math.max(r.w, r.h) * 0.68 + 3 * Math.sin(Time.now / 120);
+            ctx.save(); ctx.globalCompositeOperation = 'lighter';
+            ctx.setLineDash([6, 5]); ctx.lineDashOffset = -Time.now * 0.05;
+            ctx.strokeStyle = `rgba(92, 255, 138, ${0.8 * alpha})`; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.arc(r.centerx, r.centery, radius, 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([]);
+            const f = Math.floor(Time.now / 80);
+            for (let i = 0; i < 8; i++) {                       // 몸 주위를 도는 바이러스 픽셀 (몇 개는 지직거리며 꺼짐)
+                if ((f + i) % 5 === 0) continue;
+                const ang = Time.now / 260 + i * (Math.PI * 2 / 8), d = radius - 4 + ((f * 3 + i) % 4) * 2;
+                ctx.fillStyle = `rgba(${i % 3 ? '92, 255, 138' : '220, 255, 230'}, ${alpha})`;
+                ctx.fillRect(Math.round(r.centerx + Math.cos(ang) * d) - 2, Math.round(r.centery + Math.sin(ang) * d) - 2, i % 2 ? 4 : 3, i % 2 ? 4 : 3);
             }
+            ctx.restore();
         }
     });
 }
@@ -430,19 +495,16 @@ class HackerUltimateArea {
         target.lastGaugeIncreaseTime = Time.now;
         triggerFullHack(this.owner, target);
         confuse(target, 3.5);
+        Vfx.spawn(new HackerLinkVFX(this.owner, target)); // 화면 전용
     }
 
-    // 회로 무늬 고리가 판정 반지름(280)까지 퍼지고, 안쪽은 옅은 초록으로 깜빡 (화면 전용)
+    // 그림은 HackerUltVFX가 그린다 (판정 원이 퍼지는 동안 옅은 초록 바닥만)
     draw(ctx) {
         const t = Math.min(1, (Time.now - this.createdTime) / this.duration);
-        const r = this.radius * t, cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
         ctx.save();
-        ctx.fillStyle = `rgba(92, 255, 138, ${0.12 * (1 - t) + 0.04 * (Math.floor(Time.now / 60) % 2)})`;
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(92, 255, 138, ${0.1 * (1 - t)})`;
+        ctx.beginPath(); ctx.arc(this.owner.rect.centerx, this.owner.rect.centery, this.radius * t, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
-        const d = r * 2 * 128 / 124;
-        hkGlow(ctx, HK_RING_IMAGE, cx, cy, d, d, { angle: t * 0.8, alpha: 1.3 * (1 - t * 0.5) });
-        if (t < 0.4) hkGlow(ctx, HK_RING_IMAGE, cx, cy, d * 0.6, d * 0.6, { angle: -t * 1.5, alpha: 0.8 * (1 - t / 0.4) });
     }
 }
 
@@ -451,9 +513,11 @@ class HackerUltimate extends Skill {
 
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
-        attacks.push(new HackerUltimateArea(owner));
-        Vfx.spawn(new HackerPixelVFX(owner.rect.centerx, owner.rect.centery, 24, 320, 0.6)); // 화면 전용
-        Vfx.shake(4, 0.2);
+        const area = new HackerUltimateArea(owner);
+        attacks.push(area);
+        Vfx.spawn(new HackerUltVFX(owner, area.radius));                                  // 화면 전용
+        Vfx.spawn(new HackerPixelVFX(owner.rect.centerx, owner.rect.centery, 24, 320, 0.6));
+        Vfx.shake(6, 0.3);
     }
 }
 

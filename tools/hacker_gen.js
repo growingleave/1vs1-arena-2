@@ -4,6 +4,7 @@
 //   hk_cube.png   64x64  : 홀로그램 데이터 큐브 (가운데, 바깥 네모 한 변 ≈ 56)
 //   hk_portal.png 64x64  : 텔레포트 포털 (모서리 괄호 + 주사선, 가운데)
 //   hk_ring.png   256x256: 궁극기 해킹 파동 고리 (회로 무늬, 바깥 반지름 ≈ 124)
+//   hk_hex.png    256x256: 궁극기 바닥 육각 격자 (원 모양, 반지름 ≈ 125, 가장자리로 갈수록 진함)
 //   (hk_skull.png는 사용자가 준 해골 그림을 누끼 따고 초록으로 바꾼 것이라 여기서 만들지 않음)
 //   preview_hacker.png (확인용)
 // 실행: node tools/hacker_gen.js <저장할 폴더>  (Playwright 필요)
@@ -82,14 +83,29 @@ const OUT = process.argv[2] || __dirname;
     for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; r.fillRect(RC + Math.cos(a) * 244 - 3, RC + Math.sin(a) * 244 - 3, 6, 6); } // 고리 위 마디
     const ring = bakeGlow(rg, [[8, 0.7], [3, 0.5]]);
 
+    // ---------- 궁극기 바닥 육각 격자 (원 모양으로 잘림, 가장자리로 갈수록 진함) ----------
+    const hx = mk(512, 512), h = hx.getContext('2d'); const HC = 256, HR = 250;
+    h.save(); h.beginPath(); h.arc(HC, HC, HR, 0, Math.PI * 2); h.clip();
+    h.strokeStyle = W; h.lineWidth = 2;
+    const S = 22, hh = S * Math.sqrt(3);
+    for (let row = -2; row < 512 / hh + 2; row++) for (let col = -2; col < 512 / (S * 1.5) + 2; col++) {
+      const cx = col * S * 1.5, cy = row * hh + (col % 2 ? hh / 2 : 0);
+      const dist = Math.hypot(cx - HC, cy - HC) / HR;
+      h.globalAlpha = 0.15 + 0.6 * dist * dist;
+      h.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; h.lineTo(cx + Math.cos(a) * (S - 2), cy + Math.sin(a) * (S - 2)); } h.closePath(); h.stroke();
+      if (rnd() < 0.08) { h.globalAlpha = 0.5; h.fillStyle = W; h.fill(); }   // 가끔 칸이 켜짐
+    }
+    h.restore();
+    const hex = bakeGlow(hx, [[3, 0.5]]);
+
     const tint = (img, col) => { const t = mk(img.width, img.height), x = t.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, t.width, t.height); return t; };
     const show = (x, img, dx, dy, w, h) => { x.drawImage(tint(img, '#5cff8a'), dx, dy, w, h); x.globalAlpha = 0.5; x.drawImage(img, dx, dy, w, h); x.globalAlpha = 1; };
     const pv = mk(700, 270), pc = pv.getContext('2d');
     pc.fillStyle = '#141419'; pc.fillRect(0, 0, 700, 270); pc.globalCompositeOperation = 'lighter';
     show(pc, scan, 10, 20, 256, 80); show(pc, cube, 290, 20, 64, 64); show(pc, portal, 370, 20, 64, 64); show(pc, ring, 450, 10, 240, 240);
-    return { scan: scan.toDataURL(), cube: cube.toDataURL(), portal: portal.toDataURL(), ring: ring.toDataURL(), pv: pv.toDataURL() };
+    return { scan: scan.toDataURL(), cube: cube.toDataURL(), portal: portal.toDataURL(), ring: ring.toDataURL(), hex: hex.toDataURL(), pv: pv.toDataURL() };
   });
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
-  save('hk_scan.png', res.scan); save('hk_cube.png', res.cube); save('hk_portal.png', res.portal); save('hk_ring.png', res.ring); save('preview_hacker.png', res.pv);
+  save('hk_scan.png', res.scan); save('hk_cube.png', res.cube); save('hk_portal.png', res.portal); save('hk_ring.png', res.ring); save('hk_hex.png', res.hex); save('preview_hacker.png', res.pv);
   await b.close();
 })();
