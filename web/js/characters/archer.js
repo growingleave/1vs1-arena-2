@@ -16,13 +16,23 @@ const ARCHER_ARROW_IMAGES = {                                 // 120x24 화살, 
 };
 const ARCHER_PURPLE = '#a55cff';
 
-// 화살 그림: (x,y)가 화살 가운데, angle은 화면 각도(라디안), len은 그릴 길이
-function drawArcherArrow(ctx, type, x, y, angle, len) {
+// 화살 그림: (x,y)가 화살 가운데, angle은 화면 각도(라디안), len은 그릴 화살 길이
+// 그림은 화살(120x24) 둘레에 빛 테두리 여백 6px이 붙은 132x36 → 같은 배율로 여백까지 그린다. 세로는 1.35배 굵게
+// trail이면 뒤로 화살 색 빛 꼬리를 짧게 그린다 (날아가는 화살)
+const ARCHER_ARROW_GLOW = { impact: '111, 180, 255', explosive: '255, 138, 64', slow: '159, 236, 255', homing: '180, 120, 255' };
+function drawArcherArrow(ctx, type, x, y, angle, len, trail = false) {
     const img = ARCHER_ARROW_IMAGES[type];
     if (!isImageReady(img)) return;
-    const h = len * 24 / 120 * 1.35; // 세로를 조금 더 키워 어두운 배경에서도 잘 보이게
+    const k = len / 120, sy = 1.35;
     ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
-    ctx.drawImage(img, -len / 2, -h / 2, len, h);
+    if (trail) {
+        const g = ctx.createLinearGradient(-len * 1.3, 0, -len * 0.3, 0);
+        g.addColorStop(0, `rgba(${ARCHER_ARROW_GLOW[type]}, 0)`); g.addColorStop(1, `rgba(${ARCHER_ARROW_GLOW[type]}, 0.55)`);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-len * 1.3, 0); ctx.lineTo(-len * 0.35, -len * 0.05); ctx.lineTo(-len * 0.35, len * 0.05); ctx.closePath(); ctx.fill();
+        ctx.restore();
+    }
+    ctx.drawImage(img, -66 * k, -18 * k * sy, 132 * k, 36 * k * sy);
     ctx.restore();
 }
 
@@ -246,7 +256,7 @@ class ArcherArrow {
 
     draw(ctx) {
         if (this.exploded) return;
-        drawArcherArrow(ctx, this.arrowType, this.posX, this.posY, Math.atan2(this.direction[1], this.direction[0]), 50 + 20 * this.chargeRatio);
+        drawArcherArrow(ctx, this.arrowType, this.posX, this.posY, Math.atan2(this.direction[1], this.direction[0]), 50 + 20 * this.chargeRatio, true);
     }
 }
 
