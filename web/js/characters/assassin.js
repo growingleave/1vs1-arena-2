@@ -179,9 +179,6 @@ function addAssassinCharge(owner) {
     owner.assassinCharge = Math.min(MAX_ASSASSIN_CHARGE, (owner.assassinCharge || 0) + 1);
 }
 
-function rgbList(color) { // '#rrggbb' → 'r, g, b'
-    return `${parseInt(color.slice(1, 3), 16)}, ${parseInt(color.slice(3, 5), 16)}, ${parseInt(color.slice(5, 7), 16)}`;
-}
 
 // ==========================================
 // [평타] 짧은 찌르기 / 차지가 있으면 360도 회전 베기
@@ -478,10 +475,20 @@ class AssassinHookSkill extends Skill {
 // ==========================================
 // [궁극기] 0.5초 은신(무적) 후, 시전한 자리 앞에 X자 참격
 // ==========================================
+// 궁극기 참격 한 획 그림: 600x60, 왼쪽 끝 x 10 → 오른쪽 끝 x 590, 가운데 y 30 (흰 빛)
+const ASSASSIN_XSLASH_IMAGE = loadImage('assets/assassin_xslash.png');
+
+// 칼끝을 따라 튀는 불똥 묶음 (참격이 addSpark로 채운다, 화면 전용)
+class AssassinBladeSparksVFX extends SparkVFX {
+    constructor(color, duration) { super(color); this.duration = duration; }
+    get finished() { return this.elapsed >= this.duration; }
+    draw(ctx) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); }
+}
+
 class AssassinXSlashAttack {
     constructor(owner, direction, color, origin) {
         this.owner = owner;
-        this.color = rgbList(color);
+        this.fxColor = owner.fxColor || '#ffffff';
         this.damage = owner.baseAtk * 3.0;
         this.createdTime = Time.now;
 
@@ -489,9 +496,8 @@ class AssassinXSlashAttack {
         this.bladeLen = 62;
         this.bladeWidth = 45;
         this.phaseDuration = ULT_SLASH_PHASE_DURATION;
-        this.afterimageFade = 260;
-        this.groundTrailFade = 900;
-        this.lifespan = this.phaseDuration * 2 + Math.max(this.afterimageFade, this.groundTrailFade) + 20;
+        this.fadeTime = 450; // 두 획이 다 그어진 뒤 사라지는 시간
+        this.lifespan = this.phaseDuration * 2 + this.fadeTime + 20;
 
         // X자 중심은 캐릭터보다 앞쪽
         this.posX = origin[0] + direction[0] * 160;
@@ -503,13 +509,12 @@ class AssassinXSlashAttack {
 
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
-        this.afterimages = [];
-        this.lastAfterTime = 0;
         this.currentBladePts = null;
         this.currentBladeCenter = null;
-        this.phantomSize = owner.rect.w;
-        this.groundTrailStart = [null, null];
-        this.groundTrailEnd = [null, null];
+        this.lastIdx = -1;
+        // 화면 전용: 칼끝을 따라 튀는 불똥
+        this.sparks = new AssassinBladeSparksVFX(this.fxColor, (this.lifespan + 400) / 1000);
+        Vfx.spawn(this.sparks);
     }
 
     strokeProgress() {
@@ -532,14 +537,11 @@ class AssassinXSlashAttack {
             const cy = this.posY - Math.sin(rad) * dist;
             this.currentBladePts = rotatedRectPoints(cx, cy, this.bladeLen * 2, this.bladeWidth, angle);
             this.currentBladeCenter = [cx, cy];
-            if (Time.now - this.lastAfterTime >= 30) {
-                this.afterimages.push({ pts: this.currentBladePts, time: Time.now });
-                this.lastAfterTime = Time.now;
-            }
-            if (this.groundTrailStart[idx] === null) this.groundTrailStart[idx] = [cx, cy];
-            this.groundTrailEnd[idx] = [cx, cy];
+            // 화면 전용: 획이 시작될 때 살짝 흔들림, 칼끝에서 불똥
+            if (idx !== this.lastIdx) { this.lastIdx = idx; Vfx.shake(3, 0.1); }
+            const travel = Math.atan2(Math.sin(rad), -Math.cos(rad));
+            for (let k = 0; k < 2; k++) this.sparks.addSpark(cx, cy, travel + Math.PI + vfxRand(-0.6, 0.6), vfxRand(120, 320), vfxRand(0.15, 0.35), vfxRand(1, 2.2));
         }
-        this.afterimages = this.afterimages.filter(img => Time.now - img.time < this.afterimageFade);
     }
 
     isExpired() { return Time.now - this.createdTime >= this.lifespan; }
@@ -549,57 +551,45 @@ class AssassinXSlashAttack {
         return checkPolygonCollision(this.currentBladePts, target.rect);
     }
 
-    draw(ctx) {
-        // 원본은 참격 중심 800x800 영역 안에만 그린다
-        const half = 400;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(Math.trunc(this.posX - half), Math.trunc(this.posY - half), half * 2, half * 2);
-        ctx.clip();
+    applyEffect(target) {
+        const [idx] = this.strokeProgress();
+        const rad = this.strokeAngles[Math.max(0, idx)] * Math.PI / 180;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: this.fxColor, angle: Math.atan2(Math.sin(rad), -Math.cos(rad)), count: 16, size: 32 }));
+    }
 
-        // 바닥에 남는 칼자국
+    // 참격 그림이 칼끝(판정)이 지나간 만큼 대각선을 따라 드러나고, 두 획이 끝나면 함께 사라진다
+    draw(ctx) {
+        if (!isImageReady(ASSASSIN_XSLASH_IMAGE)) return;
         const elapsed = Time.now - this.createdTime;
-        const total = this.phaseDuration * 2;
-        const trailAlpha = (elapsed <= total ? 210 : Math.max(0, Math.trunc(210 * (1.0 - (elapsed - total) / this.groundTrailFade)))) / 255;
-        if (trailAlpha > 0) {
-            for (let i = 0; i < 2; i++) {
-                if (this.groundTrailStart[i] === null) continue;
-                let [sx, sy] = this.groundTrailStart[i];
-                let [ex, ey] = this.groundTrailEnd[i];
-                const d = Math.hypot(ex - sx, ey - sy);
-                if (d > 0) {
-                    const ux = (ex - sx) / d;
-                    const uy = (ey - sy) / d;
-                    sx -= ux * 30; sy -= uy * 30;
-                    ex += ux * 30; ey += uy * 30;
-                }
-                drawLine(ctx, sx, sy, ex, ey, `rgba(255, 255, 255, ${trailAlpha})`, 3);
-                drawLine(ctx, sx, sy, ex, ey, `rgba(${this.color}, ${trailAlpha})`, 1);
+        const fade = Math.max(0, (elapsed - this.phaseDuration * 2) / this.fadeTime);
+        if (fade >= 1) return;
+        const tinted = vfxTinted(ASSASSIN_XSLASH_IMAGE, this.fxColor);
+        for (let idx = 0; idx < 2; idx++) {
+            const t = Math.min(1, (elapsed - idx * this.phaseDuration) / this.phaseDuration);
+            if (t <= 0) continue;
+            const rad = this.strokeAngles[idx] * Math.PI / 180;
+            const travel = Math.atan2(Math.sin(rad), -Math.cos(rad)); // 칼끝이 움직이는 화면 방향
+            const head = -this.size / 2 + this.size * t + this.bladeLen * 0.6; // 칼끝 바로 앞까지
+            const widen = 1 + 0.25 * fade;
+            ctx.save();
+            ctx.translate(this.posX, this.posY); ctx.rotate(travel);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.beginPath(); ctx.rect(-320, -60, head + 320, 120); ctx.clip();
+            ctx.globalAlpha = 1 - fade;
+            ctx.drawImage(tinted, -290, -30 * widen, 580, 60 * widen);
+            ctx.globalAlpha = (1 - fade) * 0.6;
+            ctx.drawImage(ASSASSIN_XSLASH_IMAGE, -290, -30 * widen, 580, 60 * widen);
+            ctx.restore();
+            // 칼끝 번쩍임 (잘린 경계를 가린다)
+            if (t < 1) {
+                const hx = this.posX + Math.cos(travel) * (head - 20), hy = this.posY + Math.sin(travel) * (head - 20);
+                ctx.save(); ctx.globalCompositeOperation = 'lighter';
+                const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 26);
+                g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 26, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
             }
         }
-
-        for (const img of this.afterimages) {
-            const a = Math.max(0, Math.trunc(220 * (1.0 - (Time.now - img.time) / this.afterimageFade))) / 255;
-            if (a <= 0) continue;
-            drawPolygon(ctx, img.pts, `rgba(${this.color}, ${a})`, `rgba(255, 255, 255, ${a})`, 1);
-        }
-
-        if (this.currentBladePts !== null) {
-            drawPolygon(ctx, this.currentBladePts, COLOR_WHITE, `rgb(${this.color})`, 2);
-        }
-
-        // 칼날을 따라 움직이는 잔영 (충돌체 아님)
-        if (this.currentBladeCenter !== null) {
-            const s = this.phantomSize;
-            const x = Math.trunc(this.currentBladeCenter[0]) - Math.floor(s / 2);
-            const y = Math.trunc(this.currentBladeCenter[1]) - Math.floor(s / 2);
-            ctx.fillStyle = `rgba(${this.color}, ${150 / 255})`;
-            ctx.fillRect(x, y, s, s);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${200 / 255})`;
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x + 1, y + 1, s - 2, s - 2);
-        }
-        ctx.restore();
     }
 }
 
