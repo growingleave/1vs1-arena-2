@@ -1,5 +1,6 @@
 // 궁수 그림 생성 (미리 구워두는 용도). 결과는 게임용 1/2 크기 → web/assets/에 복사
-//   archer_bow.png 120x310 : 활 (세로로 섬, 쏘는 방향 = 오른쪽, 손잡이 가운데 (81,155), 줄 거는 고리 위 (25,6)·아래 (25,304), 줄은 게임에서 그림) — 보통
+//   archer_bow.png 132x322 : 활 + 적붉은 빛 테두리 (세로로 섬, 쏘는 방향 = 오른쪽, 손잡이 가운데 (87,161), 줄 거는 고리 위 (31,12)·아래 (31,310), 줄은 게임에서 그림) — 보통
+//   archer_bow_glow.png 132x322 : 다 당겼을 때 활 전체가 빛나는 그림 (활과 같은 크기·좌표, 'lighter')
 //   archer_arrow_impact.png / _explosive / _frost / _homing  120x24 : 화살 (오른쪽을 향함, 오늬 x 1, 촉 끝 x 118, 가운데 y 12) — 보통
 //     충격(평타, 맞으면 밀쳐냄)·폭발·감속·유도(궁극기). 몸통·깃 모양은 같고 촉과 색만 다름
 //   preview_archer.png (확인용)
@@ -61,7 +62,19 @@ const OUT = process.argv[2] || __dirname;
     g.fillStyle = 'rgba(255,60,70,0.35)'; g.beginPath(); g.arc(164, CY - 70, 20, 0, Math.PI * 2); g.fill();
     // 몸체 은색 테두리 선
     g.strokeStyle = 'rgba(200,205,215,0.55)'; g.lineWidth = 2; g.beginPath(); g.moveTo(176, CY - 92); g.quadraticCurveTo(190, CY, 176, CY + 92); g.stroke();
-    const bowH = half(bow);
+    // 어두운 배경에서도 윤곽이 보이게: 활 실루엣을 적붉게 칠해 번지게 한 빛 테두리를 뒤에 깐다 (가장자리 여백 12px)
+    const PAD = 12, rim = mk(bow.width + PAD * 2, bow.height + PAD * 2), rx = rim.getContext('2d');
+    const sil = mk(bow.width, bow.height), sx = sil.getContext('2d');
+    sx.drawImage(bow, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#ff3a48'; sx.fillRect(0, 0, sil.width, sil.height);
+    for (const [bl, a] of [[7, 0.9], [3, 0.9]]) { rx.filter = `blur(${bl}px)`; rx.globalAlpha = a; rx.drawImage(sil, PAD, PAD); }
+    rx.filter = 'none'; rx.globalAlpha = 1; rx.drawImage(bow, PAD, PAD);
+    const bowH = half(rim);
+    // 다 당겼을 때 활 전체가 빛나는 그림: 실루엣을 밝은 적붉은 빛으로 번지게 ('lighter'로 겹쳐 그림, 활 그림과 같은 크기·좌표)
+    const gl = mk(rim.width, rim.height), gx = gl.getContext('2d');
+    const silB = mk(bow.width, bow.height), sb = silB.getContext('2d');
+    sb.drawImage(bow, 0, 0); sb.globalCompositeOperation = 'source-in'; sb.fillStyle = '#ff6070'; sb.fillRect(0, 0, silB.width, silB.height);
+    for (const [bl, a] of [[10, 1], [4, 0.8], [0, 0.45]]) { gx.filter = bl ? `blur(${bl}px)` : 'none'; gx.globalAlpha = a; gx.drawImage(silB, PAD, PAD); }
+    const bowGlow = half(gl);
 
     // ---------- 화살: 몸통·깃은 같고, 촉과 색만 종류마다 다르게 (오른쪽을 향함, 꼬리 x 4, 촉 끝 x 116, 가운데 y 12) ----------
     const arrow = (col, head) => {
@@ -132,9 +145,9 @@ const OUT = process.argv[2] || __dirname;
     const pv = mk(560, 240), pc = pv.getContext('2d');
     pc.fillStyle = '#d8d8dc'; pc.fillRect(0, 0, 280, 240); pc.fillStyle = '#1e1e24'; pc.fillRect(280, 0, 280, 240);
     arrows.forEach((ar, i) => { pc.drawImage(ar, 20, 20 + i * 55, 240, 48); pc.drawImage(ar, 300, 20 + i * 55, 240, 48); });
-    return { bow: bowH.toDataURL(), arrows: arrows.map((ar) => ar.toDataURL()), pv: pv.toDataURL() };
+    return { bow: bowH.toDataURL(), bowGlow: bowGlow.toDataURL(), arrows: arrows.map((ar) => ar.toDataURL()), pv: pv.toDataURL() };
   });
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
-  save('archer_bow.png', res.bow); ['impact', 'explosive', 'frost', 'homing'].forEach((n, i) => save(`archer_arrow_${n}.png`, res.arrows[i])); save('preview_archer.png', res.pv);
+  save('archer_bow.png', res.bow); save('archer_bow_glow.png', res.bowGlow); ['impact', 'explosive', 'frost', 'homing'].forEach((n, i) => save(`archer_arrow_${n}.png`, res.arrows[i])); save('preview_archer.png', res.pv);
   await b.close();
 })();
