@@ -2,6 +2,116 @@
 
 const SANS_IMAGE = loadImage('assets/sans.png');
 
+// 그림 (tools/sans_gen.js로 생성)
+const SANS_BONE_IMAGE = loadImage('assets/sans_bone.png');         // 48x14 뼈다귀 (가운데) — 보통
+const SANS_SKULL_TOP_IMAGE = loadImage('assets/sans_skull_top.png'); // 240x160 옆을 보는 해골 윗부분, 오른쪽을 봄 — 보통
+const SANS_SKULL_JAW_IMAGE = loadImage('assets/sans_skull_jaw.png'); // 240x160 아래턱 (같은 좌표계) — 보통
+const SANS_BEAM_IMAGE = loadImage('assets/sans_beam.png');         // 128x64 빔 몸통 (가로로 늘림) — 흰 빛, 색 입혀 'lighter'
+const SANS_SKULL_MOUTH = [212, 98];  // 해골 그림에서 입 앞끝 (빔이 나오는 곳)
+const SANS_SKULL_HINGE = [62, 98];   // 아래턱 경첩
+const SANS_BEAM_COLOR = '#9ad8ff';
+
+// 흰 빛 점 (한 번 만들어 재사용)
+let _sansGlowDot = null;
+function sansGlowDot() {
+    if (_sansGlowDot) return _sansGlowDot;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(190,240,255,0.7)'); g.addColorStop(1, 'rgba(150,220,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    return (_sansGlowDot = c);
+}
+
+// 해골 블래스터 (화면 전용): 샌즈 뒤에서 해골이 나타나 입을 벌리고(경고 동안) 빔을 뿜은 뒤 입을 닫고 사라진다.
+// 빔은 판정(BeamLaser)과 같은 자리·크기로 그린다: 몸 중심 + 방향*30 에서 시작, 길이 length, 폭 width
+class SansBlasterVFX extends SparkVFX {
+    constructor(laser, { scale, shake }) {
+        super(SANS_BEAM_COLOR);
+        this.laser = laser; this.owner = laser.owner; this.dir = laser.dirVec;
+        this.angle = Math.atan2(this.dir[1], this.dir[0]);
+        this.flip = this.dir[0] < 0 ? -1 : 1;   // 왼쪽을 볼 땐 뒤집어서 해골이 거꾸로 서지 않게
+        this.scale = scale; this.shakePower = shake;
+        this.delay = laser.delay / 1000; this.active = laser.activeDuration / 1000;
+        this.duration = this.delay + this.active + 0.4;
+        this.nextShake = 0;
+    }
+    get finished() { return this.elapsed >= this.duration && this.sparksDone; }
+    origin() { const r = this.owner.rect; return [r.centerx + this.dir[0] * 30, r.centery + this.dir[1] * 30]; }
+    update(dt) {
+        super.update(dt);
+        const t = this.elapsed;
+        if (t >= this.delay && t < this.delay + this.active) {
+            if (t >= this.nextShake) { Vfx.shake(this.shakePower, 0.12); this.nextShake = t + 0.1; }
+            // 빔 가장자리와 끝에서 튀는 불똥
+            const [ox, oy] = this.origin(), L = this.laser.length, W = this.laser.width / 2;
+            const px = -this.dir[1], py = this.dir[0];
+            for (let i = 0; i < (this.scale > 1 ? 5 : 2); i++) {
+                const d = vfxRand(0, L), side = vfxRand(0, 1) < 0.5 ? -1 : 1;
+                this.addSpark(ox + this.dir[0] * d + px * W * side, oy + this.dir[1] * d + py * W * side, Math.atan2(py * side, px * side) + vfxRand(-0.4, 0.4), vfxRand(60, 200), vfxRand(0.15, 0.35), vfxRand(1, 2.2));
+            }
+        }
+    }
+    draw(ctx) {
+        const t = this.elapsed, s = this.scale, end = this.delay + this.active;
+        const [ox, oy] = this.origin();
+        // 나타남(0~0.12초) → 입 벌림(경고 끝까지) → 쏘는 동안 벌림 + 떨림 → 닫으며 사라짐
+        const appear = Math.min(1, t / Math.min(0.15, this.delay * 0.6));
+        const openT = Math.min(1, Math.max(0, (t - this.delay * 0.4) / (this.delay * 0.6)));
+        const close = Math.max(0, (t - end) / 0.25);
+        const jaw = 0.55 * (1 - (1 - openT) ** 2) * (1 - close);
+        const alpha = appear * (1 - Math.max(0, (t - end - 0.1) / 0.3));
+        if (alpha <= 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); return; }
+        const firing = t >= this.delay && t < end;
+        const jitter = firing ? Math.sin(t * 90) * 2 * s : 0;
+        const back = 40 * s * (1 - appear) + (firing ? 5 * s : 0) - jitter;
+
+        // 빔 (판정 위치 그대로): 순식간에 뻗고, 깜빡이며 굵기가 살짝 출렁, 끝나면 가늘어지며 사라짐
+        const bt = (t - this.delay) / this.active;
+        if (bt > 0 && t < end + 0.12 && isImageReady(SANS_BEAM_IMAGE)) {
+            const reach = Math.min(1, (t - this.delay) / 0.06);
+            const thin = t > end ? 1 - (t - end) / 0.12 : 1;
+            const w = this.laser.width * (0.92 + 0.08 * Math.sin(t * 70)) * thin * 1.25;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.translate(ox, oy); ctx.rotate(this.angle);
+            ctx.drawImage(vfxTinted(SANS_BEAM_IMAGE, SANS_BEAM_COLOR), 0, -w / 2, this.laser.length * reach, w);
+            ctx.globalAlpha = 0.85; ctx.drawImage(SANS_BEAM_IMAGE, 0, -w * 0.3, this.laser.length * reach, w * 0.6);
+            // 입 앞 번쩍임
+            ctx.globalAlpha = 1; const fl = Math.min(this.laser.width * 1.6, 220) + 20 * s;
+            ctx.drawImage(sansGlowDot(), -fl / 2, -fl / 2, fl, fl);
+            ctx.restore();
+        }
+
+        // 해골 (입 앞끝이 빔 시작점에 오게)
+        if (isImageReady(SANS_SKULL_TOP_IMAGE) && isImageReady(SANS_SKULL_JAW_IMAGE)) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(ox - this.dir[0] * back, oy - this.dir[1] * back);
+            ctx.rotate(this.angle); ctx.scale(s * (0.85 + 0.15 * appear), s * (0.85 + 0.15 * appear) * this.flip);
+            const [mx, my] = SANS_SKULL_MOUTH, [hx, hy] = SANS_SKULL_HINGE;
+            ctx.save(); ctx.translate(hx - mx, hy - my); ctx.rotate(jaw); ctx.drawImage(SANS_SKULL_JAW_IMAGE, -hx, -hy); ctx.restore();
+            ctx.drawImage(SANS_SKULL_TOP_IMAGE, -mx, -my);
+            ctx.restore();
+        }
+
+        // 기 모으기: 입 앞에 커지는 빛 + 빨려 들어가는 빛 알갱이 (경고 동안)
+        if (t < this.delay) {
+            const k = t / this.delay;
+            ctx.save(); ctx.globalCompositeOperation = 'lighter';
+            const g = (8 + 26 * k) * s;
+            ctx.globalAlpha = 0.5 + 0.5 * k; ctx.drawImage(sansGlowDot(), ox - g, oy - g, g * 2, g * 2);
+            ctx.fillStyle = 'rgba(190, 240, 255, 0.9)';
+            for (let i = 0; i < 10; i++) {
+                const ph = (t * 2.5 + i / 10) % 1, a = i * 2.39, d = (60 * s + 20) * (1 - ph);
+                ctx.globalAlpha = ph;
+                ctx.beginPath(); ctx.arc(ox + Math.cos(a) * d, oy + Math.sin(a) * d, 1.5 + 1.5 * s * ph, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore();
+        }
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
+    }
+}
+
 // ==========================================
 // [평타] 회전하는 뼈다귀 막대
 // ==========================================
@@ -46,10 +156,16 @@ class SansSpinningBarBullet {
     applyEffect(target) {
         slow(target, 0.4, 50);
         this.lifespan = 0;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: SANS_BEAM_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]), count: 8, size: 16 }));
     }
 
+    // 빙글빙글 도는 뼈다귀 그림 (판정 42x12보다 살짝 크게)
     draw(ctx) {
-        drawPolygon(ctx, this.getPolygonPoints(), COLOR_WHITE, 'rgb(150, 150, 150)', 1);
+        if (!isImageReady(SANS_BONE_IMAGE)) return;
+        ctx.save();
+        ctx.translate(this.posX, this.posY); ctx.rotate(-this.angle * Math.PI / 180);
+        ctx.drawImage(SANS_BONE_IMAGE, -24, -7, 48, 14);
+        ctx.restore();
     }
 }
 
@@ -69,20 +185,20 @@ class SansBasicAttack extends Skill {
 class SansGasterLaser extends BeamLaser {
     constructor(owner, direction) {
         super(owner, direction, { damageMult: 2.2, delay: 180, activeDuration: 200, width: 40, length: 550 });
+        Vfx.spawn(new SansBlasterVFX(this, { scale: 0.42, shake: 4 })); // 해골·빔 그림은 이펙트가 그린다
     }
 
     applyEffect(target) {
         bind(target, 0.4);
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: SANS_BEAM_COLOR, angle: Math.atan2(this.dirVec[1], this.dirVec[0]), count: 14, size: 28 }));
     }
 
+    // 경고선만 (해골·빔은 SansBlasterVFX)
     draw(ctx) {
         if (this.isWarning()) {
             const hl = this.length / 2;
             drawLine(ctx, this.posX - this.dirVec[0] * hl, this.posY - this.dirVec[1] * hl,
                      this.posX + this.dirVec[0] * hl, this.posY + this.dirVec[1] * hl, `rgba(100, 200, 255, ${120 / 255})`, 4);
-        } else {
-            fillPolygon(ctx, this.getPolygonPoints(), `rgba(150, 220, 255, ${220 / 255})`);
-            fillPolygon(ctx, this.corePoints(), COLOR_WHITE);
         }
     }
 }
@@ -209,6 +325,11 @@ class SansMegaLaserBeam extends BeamLaser {
         const lockSec = (SANS_ULT_WINDUP_MS + SANS_ULT_FIRE_MS) / 1000 + 0.6;
         silence(owner, lockSec);
         slow(owner, lockSec, 100);
+        Vfx.spawn(new SansBlasterVFX(this, { scale: 1.5, shake: 6 })); // 거대 해골·빔 그림은 이펙트가 그린다
+    }
+
+    applyEffect(target) {
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: SANS_BEAM_COLOR, angle: Math.atan2(this.dirVec[1], this.dirVec[0]), count: 5, size: 18 }));
     }
 
     update() {
@@ -222,13 +343,7 @@ class SansMegaLaserBeam extends BeamLaser {
 
     draw(ctx) {
         const pts = this.getPolygonPoints();
-        if (this.isWarning()) {
-            this.drawWarning(ctx, pts);
-        } else {
-            const flash = Math.floor(Time.now / 60) % 2 === 0;
-            fillPolygon(ctx, pts, flash ? `rgba(100, 200, 255, ${220 / 255})` : `rgba(140, 230, 255, ${240 / 255})`);
-            fillPolygon(ctx, this.corePoints(), COLOR_WHITE);
-        }
+        if (this.isWarning()) this.drawWarning(ctx, pts); // 빔은 SansBlasterVFX가 그린다
     }
 
     // 기 모으는 동안의 경고: 쏠 때가 가까울수록 범위가 진해지고 빠르게 깜빡인다
@@ -251,12 +366,6 @@ class SansMegaLaserBeam extends BeamLaser {
         const sy = this.posY - this.dirVec[1] * hl;
         drawLine(ctx, sx, sy, sx + this.dirVec[0] * this.length * progress, sy + this.dirVec[1] * this.length * progress,
                  `rgba(255, 255, 255, ${0.4 + 0.5 * blink})`, 2);
-
-        // 3. 샌즈 앞에 에너지가 모이는 원
-        const mx = this.owner.rect.centerx + this.dirVec[0] * 40;
-        const my = this.owner.rect.centery + this.dirVec[1] * 40;
-        drawCircle(ctx, mx, my, 10 + 40 * progress, `rgba(140, 230, 255, ${0.25 + 0.35 * progress})`);
-        drawCircle(ctx, mx, my, 4 + 16 * progress, `rgba(255, 255, 255, ${0.6 + 0.4 * blink})`);
 
         // 4. 머리 위 느낌표
         if (blink > 0.35) {
