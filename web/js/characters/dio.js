@@ -3,16 +3,37 @@
 const DIO_IMAGE = loadImage('assets/dio.png');
 const DIO_STAND_IMAGE = loadImage('assets/dio_skill1.png');
 
-function drawRotatedBox(ctx, x, y, w, h, angleDeg, fill, stroke) {
+// 이펙트 그림 (tools/dio_gen.js). 시간 정지 시계는 가속자 그림(ACC_CLOCK_IMAGE), 경고 고리·폭발은 폭파광 그림을 함께 쓴다
+const DIO_FIST_IMAGE = loadImage('assets/dio_fist.png');   // 64x40 주먹 빛, 오른쪽을 향함, 주먹 끝 x 60 — 금색 입혀 'lighter'
+const DIO_KNIFE_IMAGE = loadImage('assets/dio_knife.png'); // 48x16 칼, 칼끝 x 47 — 보통
+const DIO_GOLD = '#ffd84a';
+
+function dioGlow(ctx, img, x, y, w, h, { angle = 0, alpha = 1, ax = 0.5, ay = 0.5, core = 0.5, color = DIO_GOLD } = {}) {
+    if (!isImageReady(img) || alpha <= 0) return;
     ctx.save();
-    ctx.translate(Math.trunc(x), Math.trunc(y));
-    ctx.rotate(-angleDeg * Math.PI / 180);
-    ctx.fillStyle = fill;
-    ctx.fillRect(-w / 2, -h / 2, w, h);
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y); if (angle) ctx.rotate(angle);
+    ctx.globalAlpha = Math.min(1, alpha); ctx.drawImage(vfxTinted(img, color), -w * ax, -h * ay, w, h);
+    ctx.globalAlpha = Math.min(1, alpha) * core; ctx.drawImage(img, -w * ax, -h * ay, w, h);
     ctx.restore();
+}
+
+// 시간이 멈추는 순간 / 다시 흐르는 순간 (화면 전용): 색이 뒤집히는 원이 퍼지거나(멈춤) 줄어들고(재개), 시계 문자판이 함께
+class DioTimeWaveVFX {
+    constructor(owner, stopping) { this.owner = owner; this.stopping = stopping; this.elapsed = 0; this.duration = stopping ? 0.6 : 0.4; }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = this.elapsed / this.duration, e = dmxEaseOut(t);
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        const r = this.stopping ? 40 + 900 * e : 900 * (1 - e) + 20;
+        ctx.save();
+        ctx.globalCompositeOperation = 'difference';                         // 원 안의 색이 뒤집힘
+        ctx.fillStyle = `rgba(255, 255, 255, ${this.stopping ? (1 - t) * 0.9 : 0.6 * (1 - t)})`;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        accDrawClock(ctx, ACC_CLOCK_IMAGE, DIO_GOLD, cx, cy, 120 + 260 * e, 1, (this.stopping ? -1 : 1) * e * 2, 1.2 * (1 - t));
+    }
 }
 
 // ==========================================
@@ -64,12 +85,32 @@ class DioKnifeBullet {
         return canBeHit(this, target) && this.getRect().colliderect(target.rect);
     }
 
-    applyEffect() {
+    applyEffect(target) {
         this.owner.dioLastHitTime = Time.now;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: '#e8ecf4', angle: Math.atan2(this.direction[1], this.direction[0]), count: 8, size: 16 }));
     }
 
+    // 은빛 칼 + 날아갈 때 빛 꼬리. 시간이 멈춰 공중에 떠 있을 땐 금빛으로 반짝이며 살짝 떨림
     draw(ctx) {
-        drawRotatedBox(ctx, this.posX, this.posY, this.width, this.height, this.angle, 'rgb(220, 220, 240)', 'rgb(50, 50, 50)');
+        if (!isImageReady(DIO_KNIFE_IMAGE)) return;
+        const ang = Math.atan2(this.direction[1], this.direction[0]);
+        const stopped = this.owner.dioKnifeStopped;
+        const jx = stopped ? Math.sin(Time.now * 0.05 + this.startX) * 0.8 : 0;
+        ctx.save();
+        if (!stopped) {
+            ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+            ctx.strokeStyle = 'rgba(220, 230, 255, 0.45)'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(this.posX - this.direction[0] * 14, this.posY - this.direction[1] * 14); ctx.lineTo(this.posX - this.direction[0] * 40, this.posY - this.direction[1] * 40); ctx.stroke();
+            ctx.globalCompositeOperation = 'source-over';
+        } else {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = `rgba(255, 216, 74, ${0.25 + 0.15 * Math.sin(Time.now * 0.01 + this.startY)})`;
+            ctx.beginPath(); ctx.arc(this.posX, this.posY, 14, 0, Math.PI * 2); ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.translate(this.posX + jx, this.posY); ctx.rotate(ang);
+        ctx.drawImage(DIO_KNIFE_IMAGE, -30, -8, 36, 12);   // 칼끝이 판정 앞쪽 가까이
+        ctx.restore();
     }
 }
 
@@ -107,9 +148,7 @@ class DioPunchShockwave {
         const radius = Math.trunc(this.currentRadius());
         const alpha = Math.max(0, Math.trunc(210 * (1.0 - p)));
         if (radius <= 0 || alpha <= 0) return;
-        const ringW = Math.max(2, Math.trunc(7 * (1.0 - p)));
-        drawCircle(ctx, this.posX, this.posY, radius - ringW / 2, null, `rgba(255, 255, 255, ${alpha / 255})`, ringW);
-        drawCircle(ctx, this.posX, this.posY, Math.max(0, radius - 8) - 1, null, `rgba(255, 215, 0, ${Math.floor(alpha / 2) / 255})`, 2);
+        dioGlow(ctx, DMX_RING_IMAGE, this.posX, this.posY, radius * 2 * 80 / 70, radius * 2 * 80 / 70, { alpha: 1.1 * (1 - p) });
     }
 }
 
@@ -155,21 +194,21 @@ class DioPunchHitbox {
         return canBeHit(this, target) && this.getRect().colliderect(target.rect);
     }
 
-    applyEffect() {
+    applyEffect(target) {
         this.owner.dioLastHitTime = Time.now;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: DIO_GOLD, angle: Math.atan2(this.dirVec[1], this.dirVec[0]), count: 7, size: 18 }));
     }
 
+    // 금빛 주먹이 앞으로 뻗었다 돌아옴 + 지나온 자리에 옅은 잔상 두 개 (러시 느낌)
     draw(ctx) {
-        const r = this.getRect();
-        ctx.fillStyle = `rgba(255, 255, 255, ${230 / 255})`;
-        ctx.beginPath();
-        ctx.roundRect(r.x, r.y, r.w, r.h, 4);
-        ctx.fill();
-        ctx.strokeStyle = COLOR_GOLD;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 4);
-        ctx.stroke();
+        const progress = Math.min(1.0, (Time.now - this.createdTime) / this.lifespan);
+        const ang = Math.atan2(this.dirVec[1], this.dirVec[0]);
+        const len = Math.max(this.width, this.height) * 2.2, h = len * 40 / 64;
+        for (let i = 2; i >= 0; i--) {
+            const ext = Math.sin(Math.max(0, progress - i * 0.12) * Math.PI);
+            const x = this.originX + this.dirVec[0] * this.travelDist * ext, y = this.originY + this.dirVec[1] * this.travelDist * ext;
+            dioGlow(ctx, DIO_FIST_IMAGE, x, y, len, h, { angle: ang, alpha: (i === 0 ? 1 : 0.35 / i) * (1 - progress * 0.3), ax: 60 / 64 - 0.25 });
+        }
     }
 }
 
@@ -222,6 +261,11 @@ class DioStandField {
         const s = this.boxSize;
         const x = Math.trunc(this.boxX - Math.floor(s / 2));
         const y = Math.trunc(this.boxY - Math.floor(s / 2));
+        // 스탠드 뒤로 은은한 금빛 기운 (일렁임)
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(255, 216, 74, ${0.16 + 0.06 * Math.sin(Time.now * 0.008)})`;
+        ctx.beginPath(); ctx.arc(x + s / 2, y + s / 2, s * 0.75, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
         if (isImageReady(DIO_STAND_IMAGE)) {
             ctx.save();
             ctx.translate(x + s / 2, y + s / 2);
@@ -229,7 +273,7 @@ class DioStandField {
             ctx.drawImage(DIO_STAND_IMAGE, -s / 2, -s / 2, s, s);
             ctx.restore();
         }
-        ctx.strokeStyle = COLOR_WHITE;
+        ctx.strokeStyle = 'rgba(255, 216, 74, 0.8)';
         ctx.lineWidth = 2;
         ctx.strokeRect(x + 1, y + 1, s - 2, s - 2);
     }
@@ -296,6 +340,9 @@ class DioTimeStopEffect {
         this.createdTime = Time.now;
         this.hitPlayers = [];
         this.forceExpire = false;
+        this.ended = false;
+        Vfx.spawn(new DioTimeWaveVFX(owner, true)); // 화면 전용: 시간이 멈추는 파동
+        Vfx.shake(5, 0.25);
     }
 
     update() {
@@ -316,15 +363,24 @@ class DioTimeStopEffect {
                 }
             }
             this.owner.dioKnifeStopped = false;
+            if (!this.ended) { this.ended = true; Vfx.spawn(new DioTimeWaveVFX(this.owner, false)); } // 화면 전용: 시간이 다시 흐름
         }
         return expired;
     }
 
     collidesWith() { return false; }
 
+    // 멈춘 동안: 화면이 어두운 남색으로 가라앉고, DIO 뒤로 거꾸로 천천히 도는 시계 문자판 + 남은 시간 고리
     draw(ctx) {
-        ctx.fillStyle = `rgba(10, 10, 30, ${120 / 255})`;
+        const el = (Time.now - this.createdTime) / 1000, left = Math.max(0, 1 - el / this.durationSec);
+        ctx.fillStyle = `rgba(20, 16, 40, ${0.5})`;
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery;
+        accDrawClock(ctx, ACC_CLOCK_IMAGE, DIO_GOLD, cx, cy, 150, 1, -el * 0.4, 0.35);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(255, 216, 74, 0.8)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, 34, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); ctx.stroke();
+        ctx.restore();
     }
 }
 
@@ -446,26 +502,25 @@ class DioRoadRollerManager {
         return (target.rect.centerx - this.owner.rect.centerx) ** 2 + (target.rect.centery - this.owner.rect.centery) ** 2 <= this.radius ** 2;
     }
 
+    // 하늘에 떠 있는 동안: 바닥에 금빛 그림자 고리 / 내려오기 직전(0.5초): 그림자가 커지고 경고 고리가 깜빡 / 착지: 큰 폭발 (화면 전용)
     draw(ctx) {
         if (this.expired) return;
-        const cx = this.owner.rect.centerx;
-        const cy = this.owner.rect.centery;
-        const r = this.radius;
-
-        if (this.phase === 2) {
-            // 반짝이는 느낌표 경고
-            const pulse = (Math.sin(Time.now * 0.02) + 1) * 0.5;
-            drawCircle(ctx, cx, cy, r, `rgba(255, 60, 40, ${(180 + 75 * pulse) / 255})`);
-            drawCircle(ctx, cx, cy, r - 2, null, 'rgb(255, 220, 60)', 4);
-            if (Math.floor(Time.now / 150) % 2 === 0) {
-                drawText(ctx, '!', cx, cy - r - 30, 48, 'rgb(255, 220, 60)', { bold: true, align: 'center', baseline: 'middle' });
-            }
-        } else if (this.phase === 3) {
-            drawCircle(ctx, cx, cy, Math.trunc(r * 0.8), `rgba(255, 255, 255, ${220 / 255})`);
-            drawCircle(ctx, cx, cy, r - 3, null, 'rgb(255, 120, 40)', 6);
-        } else {
-            const pulse = (Math.sin(Time.now * 0.015) + 1) * 0.5;
-            drawCircle(ctx, cx, cy, Math.trunc(r * (0.9 + 0.1 * pulse)) - 1, null, `rgba(255, 120, 40, ${160 / 255})`, 2);
+        const cx = this.owner.rect.centerx, cy = this.owner.rect.centery, r = this.radius;
+        const el = Time.now - this.phaseStartTime;
+        if (this.phase === 1) {
+            const pulse = 0.5 + 0.5 * Math.sin(Time.now * 0.012);
+            ctx.save(); ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; ctx.beginPath(); ctx.ellipse(cx, cy + 6, r * 0.45, r * 0.18, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            dioGlow(ctx, DMX_RING_IMAGE, cx, cy, r * 2.2, r * 2.2, { alpha: 0.45 + 0.25 * pulse, core: 0.3 });
+        } else if (this.phase === 2) {
+            const k = Math.min(1, el / 500);
+            ctx.save(); ctx.fillStyle = `rgba(0, 0, 0, ${0.25 + 0.35 * k})`;                    // 점점 커지는 그림자
+            ctx.beginPath(); ctx.ellipse(cx, cy, r * (0.4 + 0.6 * k), r * (0.4 + 0.6 * k) * 0.85, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            const blink = Math.floor(Time.now / 80) % 2 === 0;
+            dmxDraw(ctx, DMX_WARN_IMAGE, cx, cy, r * 2 * 100 / 92, { lighter: true, tint: blink ? '#ff3a24' : DIO_GOLD, alpha: 0.9, angle: el * 0.004 });
+        } else if (this.phase === 3 && !this.boomed) {
+            this.boomed = true;
+            Vfx.spawn(new DmxBoomVFX(cx, cy, r, { red: true, big: true }));
+            Vfx.spawn(new AccClockBurstVFX(cx, cy, { color: DIO_GOLD, from: 80, to: r * 3, duration: 0.45, spin: 1.5 }));
         }
     }
 }
