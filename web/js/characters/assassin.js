@@ -35,12 +35,12 @@ class AssassinThrustVFX extends SparkVFX {
             const k = len / 110, a = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
-            ctx.translate(r.centerx + this.dir[0] * (4 + push), r.centery + this.dir[1] * (4 + push));
+            ctx.translate(r.centerx + this.dir[0] * (8 + push), r.centery + this.dir[1] * (8 + push));
             ctx.rotate(this.angle);
             ctx.globalAlpha = Math.min(1, a * 1.1);
-            ctx.drawImage(vfxTinted(ASSASSIN_THRUST_IMAGE, this.color), -7 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
+            ctx.drawImage(vfxTinted(ASSASSIN_THRUST_IMAGE, this.color), -7 * k, -15 * k * 1.8, 120 * k, 30 * k * 1.8);
             ctx.globalAlpha = a * 0.55;
-            ctx.drawImage(ASSASSIN_THRUST_IMAGE, -7 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
+            ctx.drawImage(ASSASSIN_THRUST_IMAGE, -7 * k, -15 * k * 1.8, 120 * k, 30 * k * 1.8);
             ctx.restore();
         }
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
