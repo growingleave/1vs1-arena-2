@@ -9,6 +9,11 @@ const EMPTY_INPUT = Object.freeze({
     skills: Object.freeze([false, false, false, false]),
 });
 
+// attacks[from..]에 새로 생긴 공격을 궁극기 공격으로 표시
+function markUltAttacks(attacks, from) {
+    for (let i = from; i < attacks.length; i++) attacks[i].isUlt = true;
+}
+
 class Player {
     constructor(x, y, color, playerNum = 1) {
         this.color = color;
@@ -220,7 +225,16 @@ class Player {
 
             if (idx === 3) { // 궁극기
                 if (this.ultGauge >= 100.0 && ability.canUse()) {
+                    // 궁극기로 생긴 공격에는 isUlt 표시 (궁극기 피해는 궁극기 게이지를 채우지 않는다).
+                    // 시전 시간 뒤에 나가는 공격(pendingAction)도 같은 표시를 받는다
+                    const before = attacks.length;
                     ability.use(this, this.facing, attacks, this.color);
+                    markUltAttacks(attacks, before);
+                    if (this.pendingAction && !this.pendingAction.isUltWrapped) {
+                        const action = this.pendingAction;
+                        this.pendingAction = () => { const n = attacks.length; action(); markUltAttacks(attacks, n); };
+                        this.pendingAction.isUltWrapped = true;
+                    }
                     this.ultGauge = 0.0;
                 }
             } else if (ability.canUse()) {

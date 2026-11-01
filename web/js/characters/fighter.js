@@ -634,8 +634,7 @@ class FighterUltManager {
         if (hitWall && moved < FIGHTER_ULT.knockPower / 60 * 0.6) {
             delete k.target.statusEffects.forced_move;
             if (canBeHit(this, k.target)) {
-                const finalDamage = k.target.takeDamage(FIGHTER_ULT.wallDamage);
-                this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+                k.target.takeDamage(FIGHTER_ULT.wallDamage); // 궁극기 피해는 게이지를 채우지 않는다
             }
             Vfx.spawn(new FighterWallHitVFX(r.centerx + k.dir[0] * r.w / 2, r.centery + k.dir[1] * r.h / 2, Math.atan2(k.dir[1], k.dir[0])));
             Vfx.shake(9, 0.25);
