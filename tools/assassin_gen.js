@@ -5,6 +5,7 @@
 //   assassin_wind.png   160x60 : 대쉬 바람 줄 (앞쪽 끝 x 150, 가운데 y 30, 뒤로 흩어짐) — 흰 빛, 색 입혀 'lighter'
 //   assassin_hook.png   40x40  : 갈고리 머리 (오른쪽을 향함, 줄 거는 고리 x 7, 촉 끝 x 38, 가운데 y 20) — 보통
 //   assassin_gas.png    64x64  : 대쉬 가스 뭉치 (흰 반투명, 가운데) — 보통
+//   assassin_xslash.png 600x60 : 궁극기 참격 한 획 (왼쪽 끝 x 10 → 오른쪽 끝 x 590, 가운데 y 30, 판정 길이 520 + 양끝 30) — 흰 빛, 색 입혀 'lighter'
 //   preview_assassin.png (확인용)
 // 실행: node tools/assassin_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
@@ -104,15 +105,37 @@ const OUT = process.argv[2] || __dirname;
     }
     const gas = (() => { const o = mk(64, 64), x = o.getContext('2d'); x.filter = 'blur(2px)'; x.drawImage(gs, 0, 0, 64, 64); return o; })();
 
+    // ---------- 궁극기 참격 한 획: 길고 날카로운 직선 칼자국 (양끝 뾰족, 가운데 밝은 날, 붓질 결) ----------
+    const xs = mk(1200, 120), q = xs.getContext('2d'); const QY = 60, QL = 20, QR = 1180;
+    const band = (y, x0, x1, w, a) => {   // 양끝이 뾰족한 띠
+      q.globalAlpha = a; q.fillStyle = '#fff'; q.beginPath();
+      const n = 40;
+      for (let i = 0; i <= n; i++) { const u = i / n, x = x0 + (x1 - x0) * u, ww = w * Math.pow(Math.sin(Math.PI * u), 0.55); (i ? q.lineTo : q.moveTo).call(q, x, y - ww / 2); }
+      for (let i = n; i >= 0; i--) { const u = i / n, x = x0 + (x1 - x0) * u, ww = w * Math.pow(Math.sin(Math.PI * u), 0.55); q.lineTo(x, y + ww / 2); }
+      q.closePath(); q.fill(); q.globalAlpha = 1;
+    };
+    band(QY, QL, QR, 26, 0.55);                                  // 넓은 칼바람
+    band(QY, QL + 60, QR - 40, 12, 1);                           // 날
+    for (let k = 0; k < 18; k++) {                               // 결 (위아래로 어긋난 가는 붓질)
+      const x0 = R(QL, QR - 300), len = R(150, 500), dy = R(-22, 22);
+      band(QY + dy, x0, Math.min(QR, x0 + len), R(1.5, 4) * (1 - Math.abs(dy) / 30), R(0.35, 0.8));
+    }
+    q.fillStyle = '#fff';                                        // 튀는 파편
+    for (let k = 0; k < 22; k++) {
+      const x = R(QL + 80, QR - 80), y = QY + (rnd() < 0.5 ? -1 : 1) * R(20, 50), len = R(8, 18);
+      q.save(); q.translate(x, y); q.rotate(R(-0.25, 0.25)); q.beginPath(); q.moveTo(-len, 0); q.lineTo(0, -1.2); q.lineTo(len, 0); q.lineTo(0, 1.2); q.closePath(); q.fill(); q.restore();
+    }
+    const xslash = bakeGlow(xs, [[4, 0.6], [1.5, 0.4]]);
+
     const tint = (img, col) => { const c = mk(img.width, img.height), x = c.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return c; };
     const pv = mk(480, 200), pc = pv.getContext('2d');
     pc.fillStyle = '#1e1e24'; pc.fillRect(0, 0, 480, 200); pc.globalCompositeOperation = 'lighter';
     pc.drawImage(tint(thrust, '#c080ff'), 10, 80, 240, 60); pc.drawImage(thrust, 10, 80, 240, 60);
     pc.globalAlpha = 1; pc.drawImage(tint(spin, '#c080ff'), 270, 0, 200, 200); pc.globalAlpha = 0.5; pc.drawImage(spin, 270, 0, 200, 200);
     pc.globalCompositeOperation = 'lighter'; pc.drawImage(tint(wind, '#c080ff'), 10, 140, 160, 60); pc.globalCompositeOperation = 'source-over'; pc.drawImage(hook, 200, 150, 40, 40);
-    return { thrust: thrust.toDataURL(), spin: spin.toDataURL(), wind: wind.toDataURL(), hook: hook.toDataURL(), gas: gas.toDataURL(), pv: pv.toDataURL() };
+    return { thrust: thrust.toDataURL(), spin: spin.toDataURL(), wind: wind.toDataURL(), hook: hook.toDataURL(), gas: gas.toDataURL(), xslash: xslash.toDataURL(), pv: pv.toDataURL() };
   });
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
-  save('assassin_thrust.png', res.thrust); save('assassin_wind.png', res.wind); save('assassin_hook.png', res.hook); save('assassin_gas.png', res.gas); save('assassin_spin.png', res.spin); save('preview_assassin.png', res.pv);
+  save('assassin_thrust.png', res.thrust); save('assassin_wind.png', res.wind); save('assassin_hook.png', res.hook); save('assassin_gas.png', res.gas); save('assassin_xslash.png', res.xslash); save('assassin_spin.png', res.spin); save('preview_assassin.png', res.pv);
   await b.close();
 })();
