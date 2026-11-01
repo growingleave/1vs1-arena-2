@@ -40,13 +40,14 @@ function createLoadoutOrb(n) {
 }
 
 // 선택창 카드 배치 (구역 안 기준)
-const SELECT_COLS = 4, SELECT_CARD_W = 132, SELECT_CARD_H = 84, SELECT_GAP = 12;
+const SELECT_COLS = 4, SELECT_CARD_W = 132, SELECT_CARD_H = 62, SELECT_GAP = 8;
 const SELECT_GRID_X = Math.round((LOADOUT_SIDE_W - (SELECT_COLS * SELECT_CARD_W + (SELECT_COLS - 1) * SELECT_GAP)) / 2);
-const SELECT_GRID_Y = 64;
+const SELECT_GRID_Y = 58;
 
 // 캐릭터 설명을 항목별로 나눈다 ("평타: ..., 스킬 1: ..." → 항목 목록)
 function characterSummaryItems(idx) {
-    return getCharacterData(idx).desc.split(/,\s*(?=평타|강화|스킬|궁극기|패시브)/).map((t) => t.trim()).filter(Boolean);
+    // 항목은 ", 머리말:" 로 나뉜다 (머리말 안에는 쉼표를 쓰지 않는다)
+    return getCharacterData(idx).desc.split(/,\s*(?=[^,:：]{1,24}[:：])/).map((t) => t.trim()).filter(Boolean);
 }
 
 // 글자를 너비에 맞춰 여러 줄로 나눈다 (그리기 전용)
@@ -119,6 +120,11 @@ class Game {
     constructor() {
         this.state = 'TITLE';
 
+        // 선택창 요약에 쓰는 기본 능력치 (캐릭터를 한 번씩 만들어 읽어 둔다)
+        this.charStats = CHARACTER_REGISTRY.map((_, i) => {
+            const p = spawnCharacterPlayer(0, 0, COLOR_RED, i, 1);
+            return { hp: p.maxHp, atk: p.baseAtk, speed: p.speed };
+        });
         this.loadoutWalls = buildTrainingWalls();
         this.trainPads = [buildTrainingPads(1), buildTrainingPads(2)];
 
@@ -503,14 +509,14 @@ class Game {
             ctx.fillStyle = sel ? '#2c2c3a' : COLOR_CARD_BG;
             ctx.beginPath(); ctx.roundRect(x, y, SELECT_CARD_W, SELECT_CARD_H, 8); ctx.fill();
             ctx.fillStyle = fx; ctx.globalAlpha = sel ? 0.9 : 0.35; ctx.fillRect(x + 6, y + SELECT_CARD_H - 8, SELECT_CARD_W - 12, 3); ctx.globalAlpha = 1;
-            const tx = x + 40, ty = y + 36;
-            if (isImageReady(data.thumbnail)) ctx.drawImage(data.thumbnail, tx - 26, ty - 26, 52, 52);
+            const tx = x + 34, ty = y + SELECT_CARD_H / 2 - 2;
+            if (isImageReady(data.thumbnail)) ctx.drawImage(data.thumbnail, tx - 22, ty - 22, 44, 44);
             else {
-                ctx.fillStyle = fx; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(tx, ty, 22, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+                ctx.fillStyle = fx; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(tx, ty, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
                 drawText(ctx, data.name[0], tx, ty, 20, '#15151b', { bold: true, align: 'center', baseline: 'middle' });
             }
-            drawText(ctx, data.name, x + 76 + 26, y + 28, 15, sel ? COLOR_WHITE : '#c8c8d0', { bold: true, align: 'center' });
-            if (i === current) drawText(ctx, '사용 중', x + 102, y + 50, 11, COLOR_GOLD, { bold: true, align: 'center' });
+            drawText(ctx, data.name, x + 94, y + 16, 15, sel ? COLOR_WHITE : '#c8c8d0', { bold: true, align: 'center' });
+            if (i === current) drawText(ctx, '사용 중', x + 94, y + 38, 11, COLOR_GOLD, { bold: true, align: 'center' });
             ctx.strokeStyle = sel ? COLOR_GOLD : '#3a3a48'; ctx.lineWidth = sel ? 3 : 1.5;
             ctx.beginPath(); ctx.roundRect(x + 1, y + 1, SELECT_CARD_W - 2, SELECT_CARD_H - 2, 8); ctx.stroke();
         });
@@ -524,18 +530,20 @@ class Game {
         ctx.fillStyle = '#1d1d26'; ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 10); ctx.fill();
         ctx.fillStyle = data.fxColor || COLOR_GRAY; ctx.fillRect(px, py + 10, 4, ph - 20);
         drawText(ctx, data.name, px + 18, py + 12, 24, data.fxColor || COLOR_WHITE, { bold: true });
-        let ly = py + 48;
+        const st = this.charStats[side.cursor];
+        if (st) drawText(ctx, `체력 ${st.hp} · 공격력 ${st.atk} · 이동속도 ${st.speed}`, px + pw - 16, py + 20, 14, '#b4b4be', { align: 'right' });
+        let ly = py + 46;
         const maxY = py + ph - 18;
         for (const item of characterSummaryItems(side.cursor)) {
-            const m = item.match(/^([^:：]{1,14})[:：]\s*(.*)$/);
+            const m = item.match(/^([^:：]{1,24})[:：]\s*(.*)$/);
             const head = m ? m[1] : '', body = m ? m[2] : item;
-            const headW = head ? textWidth(ctx, head, 14, true) + 10 : 0;
-            const lines = wrapText(ctx, body, pw - 36 - headW, 14, false);
-            for (let i = 0; i < lines.length && ly < maxY; i++, ly += 19) {
-                if (i === 0 && head) drawText(ctx, head, px + 18, ly, 14, COLOR_GOLD, { bold: true });
-                drawText(ctx, lines[i], px + 18 + headW, ly, 14, '#d8d8e0');
+            const headW = head ? textWidth(ctx, head, 13, true) + 8 : 0;
+            const lines = wrapText(ctx, body, pw - 36 - headW, 13, false);
+            for (let i = 0; i < lines.length && ly < maxY; i++, ly += 17) {
+                if (i === 0 && head) drawText(ctx, head, px + 18, ly, 13, COLOR_GOLD, { bold: true });
+                drawText(ctx, lines[i], px + 18 + headW, ly, 13, '#d8d8e0');
             }
-            ly += 5;
+            ly += 4;
             if (ly >= maxY) break;
         }
 
