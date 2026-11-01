@@ -22,7 +22,7 @@ const times = TIMES.split(',').map(Number);
     window.__run = (ms, o) => { for (let t = 0; t < ms; t += 1000 / 60) { game.step(1 / 60, __mk(o), __mk()); __vu(1 / 60); } };
     window.__use = (i) => { const k = [false, false, false, false]; k[i] = true; game.step(1 / 60, __mk({ skills: k }), __mk()); __vu(1 / 60); };
     // 장면: P1을 (320,330)에 오른쪽 보게, 허수아비는 오른쪽 위
-    Time.now += 5000; game.attacks = []; Vfx.clear();
+    game.confirmSelection(1); Time.now += 5000; game.attacks = []; Vfx.clear();
     CHARACTER_REGISTRY[ch].apply(game.player1);
     const pl = game.player1; pl.rect.setCenter(320, 330); pl.facing = [1, 0];
     pl.statusEffects = {}; pl.castTimer = 0; pl.ultGauge = 100;

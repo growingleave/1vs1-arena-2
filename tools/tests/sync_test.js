@@ -19,7 +19,7 @@ const { chromium } = require(require('child_process').execSync('npm root -g').to
     const scriptRng = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
     const run = (c1, c2, renderEvery) => {
       Time.now = 0; seedRandom(12345); applyControlScheme('chromebook');
-      const g = new Game(); g.state = 'LOADOUT'; g.p1CharIdx = c1; g.p2CharIdx = c2; g.enterLoadout();
+      const g = new Game(); g.state = 'LOADOUT'; g.p1CharIdx = c1; g.p2CharIdx = c2; g.enterLoadout(); g.sides.forEach((s) => { s.mode = 'train'; });
       const rng = scriptRng(c1 * 100 + c2 + 7); const sums = []; const held = [new Set(), new Set()];
       let vfxSeen = 0;
       for (let f = 0; f < 2400; f++) {
