@@ -3,10 +3,10 @@
 const MAX_ASSASSIN_CHARGE = 3;
 
 // 그림 (tools/assassin_gen.js로 생성, 흰 빛 → 캐릭터 색을 입혀 'lighter')
-// 회전 베기: 거친 칼자국이 오른쪽(0도)에서 시작해 시계 방향으로 한 바퀴, 끝으로 갈수록 두꺼움 (150x150, 반지름 ≈ 56)
+// 회전 베기: 검사 평타처럼 붓질 호가 모인 원. 오른쪽(0도)에서 시작해 시계 방향 한 바퀴, 앞쪽 끝이 가장 두꺼움 (150x150, 바깥 테 = 크기의 0.467)
 const ASSASSIN_SPIN_IMAGE = loadImage('assets/assassin_spin.png');
 const ASSASSIN_SPIN_IMAGE_START = 0;
-// 찌르기: 120x30, 꼬리 x 5, 칼끝 x 114, 가운데 y 15
+// 찌르기: 120x30 예각삼각형, 뒤쪽 밑변 x 7, 칼끝 x 117, 가운데 y 15
 const ASSASSIN_THRUST_IMAGE = loadImage('assets/assassin_thrust.png');
 
 // 찌르기 이펙트 (화면 전용): 칼끝이 순식간에 앞으로 뻗고, 살짝 더 밀려나가며 사라짐 + 칼끝 불똥
@@ -32,15 +32,15 @@ class AssassinThrustVFX extends SparkVFX {
             const ext = Math.min(1, t / 0.3);                   // 0.05초 만에 다 뻗음
             const len = 62 * (0.55 + 0.45 * (1 - (1 - ext) ** 2));
             const push = 10 * Math.max(0, (t - 0.3) / 0.7);     // 그 뒤 살짝 더 밀려나감
-            const k = len / 109, a = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+            const k = len / 110, a = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
             ctx.translate(r.centerx + this.dir[0] * (4 + push), r.centery + this.dir[1] * (4 + push));
             ctx.rotate(this.angle);
             ctx.globalAlpha = Math.min(1, a * 1.1);
-            ctx.drawImage(vfxTinted(ASSASSIN_THRUST_IMAGE, this.color), -5 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
+            ctx.drawImage(vfxTinted(ASSASSIN_THRUST_IMAGE, this.color), -7 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
             ctx.globalAlpha = a * 0.55;
-            ctx.drawImage(ASSASSIN_THRUST_IMAGE, -5 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
+            ctx.drawImage(ASSASSIN_THRUST_IMAGE, -7 * k, -15 * k * 1.2, 120 * k, 30 * k * 1.2);
             ctx.restore();
         }
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
@@ -109,25 +109,22 @@ class AssassinSpinAttack {
 
         // 그림 이펙트: 어쌔신 앞의 보이지 않는 막대가 시계 방향으로 돌며 그림을 드러낸다 (화면 효과 전용)
         const face = Math.atan2(owner.facing[1], owner.facing[0]);
+        // 검사 평타 부채꼴을 360도로: 그림이 돌면서 시작선(바라보는 방향) 뒤에서 빠져나온다 (화면 효과 전용)
         Vfx.spawn(new RingSlashVFX(0, 0, {
             image: ASSASSIN_SPIN_IMAGE,
             follow: owner,
-            size: 150,
+            size: 128,                  // 바깥 테 반지름 ≈ 60 (판정 56)
             color: owner.fxColor || '#ffffff',
             rotation: face - ASSASSIN_SPIN_IMAGE_START,
             startAngle: ASSASSIN_SPIN_IMAGE_START,
             sweepAngle: Math.PI * 2,
             sweep: this.lifespan / 1000,
             fade: 0.3,
-            // 그림은 제자리에 두고, 어쌔신 앞에서 시작하는 보이지 않는 막대가 시계 방향으로
-            // 일정한 속도로 한 바퀴 돌며 지나간 자리를 드러낸다
             spinTotal: 0,
+            ghosts: 0,
             revealEase: 'linear',
-            softEdge: 25 * Math.PI / 180,
-            // 다 드러나면 막대가 돌던 속도를 이어받아 어쌔신을 중심으로 계속 돌며(점점 느리게) 사라진다.
-            // 막대 속도 = 한 바퀴 / 0.22초. 점점 느려지는 곡선(처음 속도 = 3 x 각도 / 시간)에 맞춘 각도
-            afterSpin: (Math.PI * 2 / (this.lifespan / 1000)) * 0.3 / 3,
-            ghosts: 3,                  // 도는 동안 뒤따라오는 잔상
+            revealMode: 'rotate',
+            softEdge: 20 * Math.PI / 180,
         }));
         // 칼끝을 따라 바깥으로 튀는 불똥 (한 바퀴)
         Vfx.spawn(new SweepSparkVFX({ follow: owner, color: owner.fxColor || '#ffffff', radius: 58, fromAngle: face, toAngle: face + Math.PI * 2, sweep: this.lifespan / 1000, count: 14 }));
