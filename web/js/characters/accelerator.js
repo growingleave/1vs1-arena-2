@@ -436,8 +436,8 @@ class AccHealVFX extends SparkVFX {
     }
 }
 
-// 스킬 2 회복량: 처음 50, 쓸 때마다 10씩 줄어 최소 20 (50 → 40 → 30 → 20 → 20 ...)
-const ACC_HEAL_START = 50, ACC_HEAL_STEP = 10, ACC_HEAL_MIN = 20;
+// 스킬 2 회복량: 처음 50, 쓸 때마다 5씩 줄어 최소 20 (50 → 45 → 40 → ... → 20 → 20 ...)
+const ACC_HEAL_START = 50, ACC_HEAL_STEP = 5, ACC_HEAL_MIN = 20;
 
 class AcceleratorHealSkill extends Skill {
     constructor() {
@@ -619,6 +619,16 @@ function applyAccelerator(player) {
     // 과열 게이지는 기본 update 전에 계산
     player.preUpdateHooks.push((dtSec) => timeSkill.updateCharge(player, dtSec));
 
+    // 다음 스킬 2 회복량: 캐릭터 오른쪽 위에 초록 십자 + 숫자 (화면 전용)
+    player.postDrawHooks.push((ctx) => {
+        if (player.hidden) return;
+        const x = player.rect.right + 6, y = player.rect.top - 10;
+        const low = healSkill.healAmount <= ACC_HEAL_MIN;
+        ctx.fillStyle = low ? '#8a9a8e' : '#46ff82';
+        ctx.fillRect(x - 1.5, y - 5, 3, 10); ctx.fillRect(x - 5, y - 1.5, 10, 3);
+        drawText(ctx, String(healSkill.healAmount), x + 8, y, 13, low ? '#b4b4be' : '#ffffff', { bold: true, baseline: 'middle' });
+    });
+
     // 과열 게이지 막대 (P1은 왼쪽, P2는 오른쪽)
     player.postDrawHooks.push((ctx) => {
         const pct = Math.max(0, Math.min(100, (timeSkill.charge / timeSkill.maxCharge) * 100));
@@ -643,7 +653,7 @@ const ACCELERATOR_CHARACTER_DATA = {
     id: 'ACCELERATOR',
     fxColor: '#64dcff',
     name: '가속자',
-    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(6씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 35 피해를 입고 1.5초 기절합니다, 스킬 2(3초): 체력을 회복하고(50 → 40 → 30 → 20, 쓸 때마다 10씩 줄어 최소 20) 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 10씩 점점 빠르게 깎입니다',
+    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(6씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 35 피해를 입고 1.5초 기절합니다, 스킬 2(3초): 체력을 회복하고(처음 50, 쓸 때마다 5씩 줄어 최소 20. 다음 회복량은 캐릭터 옆에 표시) 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 10씩 점점 빠르게 깎입니다',
     apply: applyAccelerator,
     thumbnail: ACCELERATOR_IMAGE,
 };
