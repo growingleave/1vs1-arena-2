@@ -116,6 +116,37 @@ class DmxPuffVFX {
     }
 }
 
+// 스킬1 연기: 뿜은 사다리꼴 안에 퍼지며 앞으로 흘러가는 연기 여러 뭉치 (이펙트 하나로 묶음, 화면 전용)
+class DmxConeSmokeVFX {
+    constructor(x, y, angle, back, front, halfFront, red) {
+        const c = Math.cos(angle), s = Math.sin(angle);
+        this.puffs = [];
+        const n = red ? 9 : 7;
+        for (let i = 0; i < n; i++) {
+            const u = 0.15 + 0.85 * (i + Math.random() * 0.8) / n;          // 앞쪽으로 갈수록
+            const d = back + (front - back) * u * 0.85;
+            const side = (Math.random() * 2 - 1) * halfFront * u * 0.8;
+            const sp = 25 + Math.random() * 35;
+            this.puffs.push({ x: x + c * d - s * side, y: y + s * d + c * side, vx: c * sp, vy: s * sp - 12,
+                size: (red ? 46 : 36) * (0.6 + 0.8 * u), life: 0.7 + Math.random() * 0.5, delay: u * 0.12, rot: Math.random() * 6 });
+        }
+        this.elapsed = 0; this.duration = 1.4;
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) {
+        this.elapsed += dt;
+        for (const p of this.puffs) if (this.elapsed > p.delay) { p.x += p.vx * dt; p.y += p.vy * dt; }
+    }
+    draw(ctx) {
+        for (const p of this.puffs) {
+            const t = (this.elapsed - p.delay) / p.life;
+            if (t <= 0 || t >= 1) continue;
+            const a = 0.6 * Math.min(1, t * 6) * (1 - t);
+            dmxDraw(ctx, DMX_SMOKE_IMAGE, p.x, p.y, p.size * (0.7 + 0.7 * t), { alpha: a, angle: p.rot + t });
+        }
+    }
+}
+
 // 밀려나는 몸 뒤로 남는 바람 줄 (코드, 화면 전용). dir = 밀려가는 방향
 function dmxDrawStreaks(ctx, rect, dir, alpha, color = '255, 235, 210') {
     if (alpha <= 0) return;
@@ -352,6 +383,7 @@ class DemolitionistSkill1Effect {
         Vfx.spawn(new DmxSparkBurstVFX(this.fxX, this.fxY, this.screenAngle, red));
         Vfx.spawn(new DmxPuffVFX(this.fxX + direction[0] * 10, this.fxY + direction[1] * 10, red ? 60 : 44,
             { vx: direction[0] * 40, vy: direction[1] * 40 - 20, duration: 0.6, alpha: 0.5, image: DMX_SMOKE_IMAGE }));
+        Vfx.spawn(new DmxConeSmokeVFX(this.fxX, this.fxY, this.screenAngle, ...this.fxShape, red));
 
         if (red) Vfx.shake(3, 0.12);
     }
