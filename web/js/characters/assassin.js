@@ -113,6 +113,16 @@ class AssassinDashVFX extends SparkVFX {
     }
 }
 
+// 몸 주위로 가스가 퍽 퍼짐 (은신 들어갈 때·나올 때, 화면 전용)
+function assassinGasBurst(owner, n) {
+    const r = owner.rect;
+    for (let i = 0; i < n; i++) {
+        const a = vfxRand(0, Math.PI * 2), sp = vfxRand(40, 110);
+        Vfx.spawn(new DmxPuffVFX(r.centerx + Math.cos(a) * 8, r.centery + Math.sin(a) * 8, vfxRand(30, 46),
+            { vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, duration: vfxRand(0.5, 0.8), alpha: 0.55, image: ASSASSIN_GAS_IMAGE }));
+    }
+}
+
 // 갈고리 줄 + 머리 그리기 (줄은 코드: 어두운 줄 + 밝은 결)
 function drawAssassinHook(ctx, ox, oy, hx, hy, alpha = 1) {
     ctx.save();
@@ -190,10 +200,11 @@ class AssassinThrustAttack {
         this.createdTime = Time.now;
         this.lifespan = 130;
         this.hitPlayers = [];
-        this.width = 46;
-        this.height = 16;
-        this.posX = owner.rect.centerx + direction[0] * 28;
-        this.posY = owner.rect.centery + direction[1] * 28;
+        // 판정 = 찌르기 그림 크기 (몸 중심에서 8~88, 폭 30). 원래 46x16 (5~51)
+        this.width = 80;
+        this.height = 30;
+        this.posX = owner.rect.centerx + direction[0] * 48;
+        this.posY = owner.rect.centery + direction[1] * 48;
         this.angle = directionToAngle(direction);
         this.screenAngle = Math.atan2(direction[1], direction[0]);
         Vfx.spawn(new AssassinThrustVFX(owner, direction));
@@ -220,7 +231,7 @@ class AssassinSpinAttack {
     constructor(owner) {
         this.owner = owner;
         this.damage = owner.baseAtk * 1.2;
-        this.radius = 56;
+        this.radius = 60; // 회전 베기 그림 바깥 테에 맞춤 (원래 56)
         this.createdTime = Time.now;
         this.lifespan = 220;
         this.hitPlayers = [];
@@ -529,6 +540,16 @@ class AssassinXSlashAttack {
         if (idx === -1) {
             this.currentBladePts = null;
             this.currentBladeCenter = null;
+            if (!this.burst) { // 화면 전용: X가 완성되면 두 칼자국을 따라 불똥이 한꺼번에 튐
+                this.burst = true;
+                for (const deg of this.strokeAngles) {
+                    const rad = deg * Math.PI / 180, dx = Math.cos(rad), dy = -Math.sin(rad);
+                    for (let k = 0; k < 14; k++) {
+                        const d = vfxRand(-250, 250);
+                        this.sparks.addSpark(this.posX + dx * d, this.posY + dy * d, Math.atan2(dy, dx) + (vfxRand(0, 1) < 0.5 ? 1 : -1) * Math.PI / 2 + vfxRand(-0.4, 0.4), vfxRand(60, 200), vfxRand(0.2, 0.45), vfxRand(1, 2));
+                    }
+                }
+            }
         } else {
             const angle = this.strokeAngles[idx];
             const rad = angle * Math.PI / 180;
@@ -539,6 +560,7 @@ class AssassinXSlashAttack {
             this.currentBladeCenter = [cx, cy];
             // 화면 전용: 획이 시작될 때 살짝 흔들림, 칼끝에서 불똥
             if (idx !== this.lastIdx) { this.lastIdx = idx; Vfx.shake(3, 0.1); }
+            if (idx === 1 && t >= 0.5 && !this.crossed) { this.crossed = true; Vfx.shake(5, 0.15); }
             const travel = Math.atan2(Math.sin(rad), -Math.cos(rad));
             for (let k = 0; k < 2; k++) this.sparks.addSpark(cx, cy, travel + Math.PI + vfxRand(-0.6, 0.6), vfxRand(120, 320), vfxRand(0.15, 0.35), vfxRand(1, 2.2));
         }
@@ -557,6 +579,27 @@ class AssassinXSlashAttack {
         Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: this.fxColor, angle: Math.atan2(Math.sin(rad), -Math.cos(rad)), count: 16, size: 32 }));
     }
 
+    // X자 가운데 번쩍임: 두 번째 획이 가운데를 지날 때 십자 빛 + 퍼지는 고리 (화면 전용)
+    drawCrossFlash(ctx, elapsed) {
+        const t = (elapsed - this.phaseDuration * 1.5) / 350;
+        if (t < 0 || t >= 1) return;
+        const [r, g, b] = [parseInt(this.fxColor.slice(1, 3), 16), parseInt(this.fxColor.slice(3, 5), 16), parseInt(this.fxColor.slice(5, 7), 16)];
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.translate(this.posX, this.posY);
+        const a = 1 - t, L = 90 + 60 * t;
+        ctx.fillStyle = `rgba(255,255,255,${a})`;
+        for (const rot of [0, Math.PI / 2]) {
+            ctx.save(); ctx.rotate(rot + Math.PI / 4);
+            ctx.beginPath(); ctx.moveTo(-L, 0); ctx.lineTo(0, -4 * a); ctx.lineTo(L, 0); ctx.lineTo(0, 4 * a); ctx.closePath(); ctx.fill();
+            ctx.restore();
+        }
+        ctx.strokeStyle = `rgba(${r},${g},${b},${a})`; ctx.lineWidth = 3 * a + 1;
+        ctx.beginPath(); ctx.arc(0, 0, 20 + 70 * (1 - (1 - t) ** 2), 0, Math.PI * 2); ctx.stroke();
+        const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 40); gr.addColorStop(0, `rgba(255,255,255,${0.9 * a})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
     // 참격 그림이 칼끝(판정)이 지나간 만큼 대각선을 따라 드러나고, 두 획이 끝나면 함께 사라진다
     draw(ctx) {
         if (!isImageReady(ASSASSIN_XSLASH_IMAGE)) return;
@@ -564,6 +607,7 @@ class AssassinXSlashAttack {
         const fade = Math.max(0, (elapsed - this.phaseDuration * 2) / this.fadeTime);
         if (fade >= 1) return;
         const tinted = vfxTinted(ASSASSIN_XSLASH_IMAGE, this.fxColor);
+        this.drawCrossFlash(ctx, elapsed);
         for (let idx = 0; idx < 2; idx++) {
             const t = Math.min(1, (elapsed - idx * this.phaseDuration) / this.phaseDuration);
             if (t <= 0) continue;
@@ -579,6 +623,10 @@ class AssassinXSlashAttack {
             ctx.drawImage(tinted, -290, -30 * widen, 580, 60 * widen);
             ctx.globalAlpha = (1 - fade) * 0.6;
             ctx.drawImage(ASSASSIN_XSLASH_IMAGE, -290, -30 * widen, 580, 60 * widen);
+            // 나란히 따라오는 가는 칼자국 두 줄 (조금 늦게, 옅게)
+            ctx.globalAlpha = (1 - fade) * 0.55;
+            ctx.drawImage(tinted, -250, -16 - 9 * widen, 500, 22);
+            ctx.drawImage(tinted, -230, 16 + 9 * widen - 22, 460, 22);
             ctx.restore();
             // 칼끝 번쩍임 (잘린 경계를 가린다)
             if (t < 1) {
@@ -607,6 +655,7 @@ class AssassinStealthManager {
 
         owner.invincible = true;
         owner.isInvisible = true;
+        assassinGasBurst(owner, 8); // 화면 전용: 사라질 때 가스가 퍽
         silence(owner, (this.duration + ULT_SLASH_PHASE_DURATION * 2) / 1000);
     }
 
@@ -617,6 +666,7 @@ class AssassinStealthManager {
             this.owner.invincible = false;
             this.owner.isInvisible = false;
             this.owner.assassinJumpTime = Time.now; // 다시 나타나며 살짝 뛰어오르는 연출
+            assassinGasBurst(this.owner, 5);
             this.attacks.push(new AssassinXSlashAttack(this.owner, this.castDirection, this.color, this.castPosition));
             return true;
         }
