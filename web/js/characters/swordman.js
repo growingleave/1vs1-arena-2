@@ -537,8 +537,7 @@ class SwordmanUltDashAttack {
         const color = SWORDMAN_COLOR;
         for (const target of this.marked) {
             if (!canBeHit(this, target)) continue;
-            const finalDamage = target.takeDamage(this.damage / SWORDMAN_ULT_HITS);
-            this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+            target.takeDamage(this.damage / SWORDMAN_ULT_HITS); // 궁극기 피해는 궁극기 게이지를 채우지 않는다
             Vfx.spawn(new StraightSlashVFX(target.rect.centerx, target.rect.centery, { color, length: 190 }));
         }
         Vfx.shake(4, 0.08);
@@ -560,8 +559,7 @@ class SwordmanUltDashAttack {
             silence(target, stunTime); // 이동 불가 + 침묵 = 기절
             this.marked.push(target);
             // 1타: 닿는 순간 바로 피해
-            const finalDamage = target.takeDamage(this.dashDamage);
-            this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+            target.takeDamage(this.dashDamage); // 궁극기 피해는 궁극기 게이지를 채우지 않는다
             Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
                 { color: SWORDMAN_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]), count: 16, size: 34 }));
         }
@@ -614,7 +612,7 @@ class SwordmanEnhanceSkill extends Skill {
 class SwordmanUltSkill extends Skill {
     constructor() {
         super('Massive Ult Dash', 500, ['dash', 'ult'], -99999);
-        this.ultChargeRate = 10.0;
+        this.ultChargeRate = 3.0;
     }
 
     use(owner, direction, attacks, color) {

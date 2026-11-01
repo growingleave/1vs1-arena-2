@@ -275,6 +275,7 @@ class Game {
     // 공격들을 움직이고, 맞은 대상에게 피해를 준다. getTarget(attack)은 그 공격이 노리는 대상
     updateAttacks(walls, getTarget) {
         for (const attack of [...this.attacks]) {
+            const before = this.attacks.length;
             attack.update(walls);
             let hitNow = false;
 
@@ -283,12 +284,16 @@ class Game {
                 // 방어력 계산은 takeDamage 안에서 하고, 실제 들어간 피해만큼 궁극기 충전
                 const finalDamage = target.takeDamage(attack.damage);
                 attack.hitPlayers.push(target);
-                attack.owner.addUltGauge(finalDamage * attack.owner.ultChargeMultiplier);
+                // 궁극기 공격의 피해는 궁극기 게이지를 채우지 않는다
+                if (!attack.isUlt) attack.owner.addUltGauge(finalDamage * attack.owner.ultChargeMultiplier);
                 if (attack.applyEffect) attack.applyEffect(target);
                 hitNow = true;
             }
 
-            if (attack.isExpired()) {
+            const expired = attack.isExpired();
+            // 궁극기 공격이 이번 틱에 만들어 낸 공격(폭발, 연속 타격 등)도 궁극기 공격
+            if (attack.isUlt) markUltAttacks(this.attacks, before);
+            if (expired) {
                 this.attacks.splice(this.attacks.indexOf(attack), 1);
                 // 맞혀서 사라진 게 아니면(벽·사거리 끝·시간 끝) 사라진 자리에 파티클 (화면용)
                 if (!hitNow) spawnProjectileFizzle(attack);

@@ -327,8 +327,7 @@ class MageSkyBombardment {
         if (!this.canHitTarget(target)) return false;
         for (const b of this.justExploded) {
             if (Math.hypot(target.rect.centerx - b.x, target.rect.centery - b.y) <= MAGE_ULT.bombRadius + 15) {
-                const finalDamage = target.takeDamage(this.owner.baseAtk * MAGE_ULT.bombDamage);
-                this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
+                target.takeDamage(this.owner.baseAtk * MAGE_ULT.bombDamage); // 궁극기 피해는 게이지를 채우지 않는다
                 Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
                     { color: '#b478ff', angle: Math.atan2(target.rect.centery - b.y, target.rect.centerx - b.x), count: 6, size: 16 }));
             }
@@ -483,7 +482,7 @@ class MageGhostSkill extends Skill {
 class MageUltSkill extends Skill {
     constructor() {
         super('Sky Bombardment', 500, ['ult', 'projectile'], -99999);
-        this.ultChargeRate = 8.0;
+        this.ultChargeRate = 3.0;
     }
 
     use(owner, direction, attacks, color) {
