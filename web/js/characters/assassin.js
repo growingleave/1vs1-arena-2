@@ -113,15 +113,26 @@ class AssassinDashVFX extends SparkVFX {
     }
 }
 
-// 몸 주위로 가스가 퍽 퍼짐 (은신 들어갈 때·나올 때, 화면 전용)
-function assassinGasBurst(owner, n) {
-    const r = owner.rect;
-    for (let i = 0; i < n; i++) {
-        const a = vfxRand(0, Math.PI * 2), sp = vfxRand(40, 110);
-        Vfx.spawn(new DmxPuffVFX(r.centerx + Math.cos(a) * 8, r.centery + Math.sin(a) * 8, vfxRand(30, 46),
-            { vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, duration: vfxRand(0.5, 0.8), alpha: 0.55, image: ASSASSIN_GAS_IMAGE }));
+// 몸 주위로 가스가 퍽 퍼짐 (은신 들어갈 때·나올 때, 화면 전용). 뭉치 여러 개를 이펙트 하나로 그린다
+class AssassinGasBurstVFX {
+    constructor(x, y, n) {
+        this.elapsed = 0; this.duration = 0.8;
+        this.puffs = [];
+        for (let i = 0; i < n; i++) {
+            const a = vfxRand(0, Math.PI * 2), sp = vfxRand(40, 110);
+            this.puffs.push({ x: x + Math.cos(a) * 8, y: y + Math.sin(a) * 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, size: vfxRand(30, 46), life: vfxRand(0.5, 0.8), rot: vfxRand(0, 6) });
+        }
+    }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; for (const p of this.puffs) { p.x += p.vx * dt; p.y += p.vy * dt; } }
+    draw(ctx) {
+        for (const p of this.puffs) {
+            const u = this.elapsed / p.life;
+            if (u < 1) dmxDraw(ctx, ASSASSIN_GAS_IMAGE, p.x, p.y, p.size * (0.7 + 0.6 * u), { alpha: 0.55 * (1 - u), angle: p.rot + u });
+        }
     }
 }
+function assassinGasBurst(owner, n) { Vfx.spawn(new AssassinGasBurstVFX(owner.rect.centerx, owner.rect.centery, n)); }
 
 // 갈고리 줄 + 머리 그리기 (줄은 코드: 어두운 줄 + 밝은 결)
 function drawAssassinHook(ctx, ox, oy, hx, hy, alpha = 1) {
