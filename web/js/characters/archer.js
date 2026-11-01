@@ -1,8 +1,68 @@
 // 궁수 (abilities/archer.py를 옮김)
 
-const ARROW_TYPES = ['iron', 'explosive', 'slow'];
-const ARROW_COLORS = { iron: '200, 200, 200', explosive: '255, 120, 40', slow: '100, 200, 255' };
-const ARROW_LABELS = { iron: '철 화살', explosive: '폭파 화살', slow: '감속 화살' };
+// 평타 화살 종류: 충격(맞으면 밀쳐냄) → 폭파 → 감속 (원래 '철 화살' 자리를 충격 화살이 대신함)
+const ARROW_TYPES = ['impact', 'explosive', 'slow'];
+const ARROW_COLORS = { impact: '111, 180, 255', explosive: '255, 120, 40', slow: '127, 224, 255' };
+const ARROW_LABELS = { impact: '충격 화살', explosive: '폭파 화살', slow: '감속 화살' };
+
+// 그림 (tools/archer_gen.js로 생성, 물체 그림이라 보통으로)
+const ARCHER_BOW_IMAGE = loadImage('assets/archer_bow.png'); // 120x310 활, 쏘는 방향 = 오른쪽, 손잡이 (81,155), 줄 고리 위 (25,6)·아래 (25,304)
+const ARCHER_ARROW_IMAGES = {                                 // 120x24 화살, 오른쪽을 향함, 오늬 x 1, 촉 끝 x 118
+    impact: loadImage('assets/archer_arrow_impact.png'),
+    explosive: loadImage('assets/archer_arrow_explosive.png'),
+    slow: loadImage('assets/archer_arrow_frost.png'),
+    homing: loadImage('assets/archer_arrow_homing.png'),
+};
+const ARCHER_PURPLE = '#a55cff';
+
+// 화살 그림: (x,y)가 화살 가운데, angle은 화면 각도(라디안), len은 그릴 길이
+function drawArcherArrow(ctx, type, x, y, angle, len) {
+    const img = ARCHER_ARROW_IMAGES[type];
+    if (!isImageReady(img)) return;
+    const h = len * 24 / 120;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+    ctx.drawImage(img, -len / 2, -h / 2, len, h);
+    ctx.restore();
+}
+
+// 활 그림 + 코드로 그린 시위: 손잡이가 몸 앞 28px, 쏘는 방향을 보게. drawRatio(0~1)만큼 시위를 뒤로 당긴다. 화살 거는 곳을 돌려준다
+function drawArcherBow(ctx, cx, cy, facing, drawRatio, alpha = 1) {
+    const [fx, fy] = normalizeOr(facing);
+    const ang = Math.atan2(fy, fx), k = 70 / 310;            // 활 높이 70px
+    const gx = cx + fx * 28, gy = cy + fy * 28;               // 손잡이 위치 (몸 앞 28px)
+    const local = (lx, ly) => [gx + (lx * Math.cos(ang) - ly * Math.sin(ang)) * k, gy + (lx * Math.sin(ang) + ly * Math.cos(ang)) * k];
+    const tip1 = local(25 - 81, 6 - 155), tip2 = local(25 - 81, 304 - 155);
+    const rest = local(25 - 81, 0);
+    const pull = 22 * drawRatio;
+    const nock = [rest[0] - fx * pull, rest[1] - fy * pull];
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#d8d8de'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(tip1[0], tip1[1]); ctx.lineTo(nock[0], nock[1]); ctx.lineTo(tip2[0], tip2[1]); ctx.stroke();
+    if (isImageReady(ARCHER_BOW_IMAGE)) {
+        ctx.translate(gx, gy); ctx.rotate(ang);
+        ctx.drawImage(ARCHER_BOW_IMAGE, -81 * k, -155 * k, 120 * k, 310 * k);
+    }
+    ctx.restore();
+    return nock;
+}
+
+// 충격 화살 적중: 파란 충격 고리가 퍼짐 (화면 전용)
+class ArcherImpactVFX {
+    constructor(x, y, angle) { this.x = x; this.y = y; this.angle = angle; this.elapsed = 0; this.duration = 0.28; }
+    get finished() { return this.elapsed >= this.duration; }
+    update(dt) { this.elapsed += dt; }
+    draw(ctx) {
+        const t = this.elapsed / this.duration, a = 1 - t;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+        for (const [r0, w] of [[10, 3], [4, 2]]) {
+            ctx.strokeStyle = `rgba(111, 180, 255, ${a})`; ctx.lineWidth = w * a + 1;
+            ctx.beginPath(); ctx.ellipse(6 + 14 * t, 0, (r0 + 18 * t) * 0.55, r0 + 18 * t, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
 const MAX_CHARGE_TIME = 900; // 이 시간(ms) 이상 누르고 있으면 최대 충전
 
 // 화면 밖도 벽으로 친다
@@ -20,62 +80,6 @@ function scaledDamage(owner, chargeRatio) {
     return owner.baseAtk * (0.5 + 1.5 * chargeRatio);
 }
 
-// 화살 모양 (화살대 + 촉 + 깃). (x, y)가 화살의 가운데, angleDeg는 위쪽이 + 인 각도
-function drawArrowShape(ctx, x, y, angleDeg, length, color, thickness = 3) {
-    length = Math.max(12, Math.trunc(length));
-    thickness = Math.max(2, thickness);
-    const headLen = Math.max(6, length * 0.3);
-    const fletchLen = Math.max(5, length * 0.22);
-    const surfH = Math.max(10, Math.trunc(thickness * 4));
-    const midY = surfH / 2;
-    const shaftStart = fletchLen * 0.6;
-    const shaftEnd = length - headLen;
-
-    ctx.save();
-    ctx.translate(Math.trunc(x), Math.trunc(y));
-    ctx.rotate(-angleDeg * Math.PI / 180);
-    ctx.translate(-length / 2, -surfH / 2);
-
-    drawLine(ctx, shaftStart, midY, shaftEnd, midY, `rgb(${color})`, Math.trunc(thickness));
-    const head = [[length, midY], [shaftEnd, midY - thickness * 1.8], [shaftEnd, midY + thickness * 1.8]];
-    drawPolygon(ctx, head, `rgb(${color})`, COLOR_WHITE, 1);
-    fillPolygon(ctx, [[0, midY - thickness * 1.6], [shaftStart, midY], [0, midY - 1]], `rgb(${color})`);
-    fillPolygon(ctx, [[0, midY + thickness * 1.6], [shaftStart, midY], [0, midY + 1]], `rgb(${color})`);
-    ctx.restore();
-}
-
-// 플레이어 앞에 활을 그리고 drawRatio(0~1)만큼 시위를 당긴다. 화살을 거는 위치를 돌려준다
-function drawBow(ctx, cx, cy, facing, drawRatio, limbColor, stringColor = 'rgb(225, 225, 215)') {
-    const [fx, fy] = normalizeOr(facing);
-    const px = -fy;
-    const py = fx;
-    const ox = cx + fx * 18;
-    const oy = cy + fy * 18;
-    const half = 32;
-
-    const tip1 = [ox + px * half, oy + py * half];
-    const tip2 = [ox - px * half, oy - py * half];
-    const belly = [ox + fx * 10, oy + fy * 10];
-
-    ctx.strokeStyle = limbColor;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let i = 0; i <= 8; i++) {
-        const t = i / 8;
-        const bx = (1 - t) ** 2 * tip1[0] + 2 * (1 - t) * t * belly[0] + t ** 2 * tip2[0];
-        const by = (1 - t) ** 2 * tip1[1] + 2 * (1 - t) * t * belly[1] + t ** 2 * tip2[1];
-        if (i === 0) ctx.moveTo(bx, by);
-        else ctx.lineTo(bx, by);
-    }
-    ctx.stroke();
-
-    const pull = 20 * drawRatio;
-    const nock = [ox - fx * pull, oy - fy * pull];
-    drawLine(ctx, tip1[0], tip1[1], nock[0], nock[1], stringColor, 2);
-    drawLine(ctx, tip2[0], tip2[1], nock[0], nock[1], stringColor, 2);
-    return nock;
-}
-
 // ==========================================
 // 폭파 화살의 폭발 (피해는 폭발이 준다)
 // ==========================================
@@ -90,6 +94,7 @@ class ArcherExplosion {
         this.lifespan = 260;
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
+        Vfx.spawn(new DmxBoomVFX(x, y, radius, {})); // 폭발 그림은 폭파광과 같은 폭발 (화면 전용)
     }
 
     update() {}
@@ -101,15 +106,11 @@ class ArcherExplosion {
         return Math.hypot(target.rect.centerx - this.posX, target.rect.centery - this.posY) <= this.radius;
     }
 
-    draw(ctx) {
-        const p = Math.min(1.0, Math.max(0.0, (Time.now - this.createdTime) / this.lifespan));
-        const alpha = Math.max(0, Math.trunc(200 * (1.0 - p))) / 255;
-        drawCircle(ctx, this.posX, this.posY, Math.max(1, Math.trunc(this.radius * p)), `rgba(255, 140, 40, ${alpha})`);
-    }
+    draw() {}
 }
 
 // ==========================================
-// 평타 화살 (철/폭파/감속). 3연사로 쏜 화살은 벽에 3번 튕긴다
+// 평타 화살 (충격/폭파/감속). 3연사로 쏜 화살은 벽에 3번 튕긴다
 // ==========================================
 class ArcherArrow {
     constructor(owner, direction, attacks, chargeRatio, arrowType, bounces = 0) {
@@ -211,14 +212,23 @@ class ArcherArrow {
     }
 
     applyEffect(target) {
-        if (this.arrowType === 'slow') slow(target, 1.6, 20 + 45 * this.chargeRatio);
+        const ang = Math.atan2(this.direction[1], this.direction[0]);
+        if (this.arrowType === 'slow') {
+            slow(target, 1.6, 20 + 45 * this.chargeRatio);
+            Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: '#bff4ff', angle: ang, count: 10, size: 20 }));
+        } else if (this.arrowType === 'impact') {
+            // 충격 화살: 맞은 상대를 화살 방향으로 밀쳐낸다 (많이 당길수록 멀리, 약 40~100px)
+            forcedMove(target, 0.2, 200 + 300 * this.chargeRatio, [this.direction[0], this.direction[1]]);
+            Vfx.spawn(new ArcherImpactVFX(target.rect.centerx, target.rect.centery, ang));
+            Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: '#6fb4ff', angle: ang, count: 10, size: 20 }));
+            Vfx.shake(2 + 2 * this.chargeRatio, 0.1);
+        }
         this.lifespan = 0;
     }
 
     draw(ctx) {
         if (this.exploded) return;
-        drawArrowShape(ctx, this.posX, this.posY, this.angle, 22 + 18 * this.chargeRatio,
-                       ARROW_COLORS[this.arrowType], 2 + 2 * this.chargeRatio);
+        drawArcherArrow(ctx, this.arrowType, this.posX, this.posY, Math.atan2(this.direction[1], this.direction[0]), 30 + 18 * this.chargeRatio);
     }
 }
 
@@ -371,15 +381,24 @@ class ArcherHomingArrow {
         return canBeHit(this, target) && this.getRect().colliderect(target.rect);
     }
 
-    applyEffect() {
+    applyEffect(target) {
         this.lifespan = 0;
+        Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery, { color: ARCHER_PURPLE, angle: Math.atan2(this.direction[1], this.direction[0]), count: 10, size: 20 }));
     }
 
+    // 보라 초능력 화살: 뒤로 흔들리는 보라 빛 꼬리 + 주위 기운
     draw(ctx) {
-        drawCircle(ctx, Math.trunc(this.posX), Math.trunc(this.posY), 14, `rgba(255, 215, 0, ${70 / 255})`);
-        // 원본은 6도 단위로 회전한 그림을 캐싱해서 쓴다
-        const bucket = (Math.round(this.angle / 6) * 6) % 360;
-        drawArrowShape(ctx, this.posX, this.posY, bucket, 26, '255, 215, 0', 3);
+        const ang = Math.atan2(this.direction[1], this.direction[0]), t = Time.now - this.createdTime;
+        const bx = -this.direction[0], by = -this.direction[1], px = -by, py = bx;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        for (let i = 1; i <= 5; i++) {
+            const w = Math.sin(t * 0.02 + i) * 3;
+            ctx.fillStyle = `rgba(165, 92, 255, ${0.35 - i * 0.05})`;
+            ctx.beginPath(); ctx.arc(this.posX + bx * i * 7 + px * w, this.posY + by * i * 7 + py * w, 6 - i * 0.7, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = 'rgba(165, 92, 255, 0.18)'; ctx.beginPath(); ctx.arc(this.posX, this.posY, 13 + Math.sin(t * 0.015) * 2, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        drawArcherArrow(ctx, 'homing', this.posX, this.posY, ang, 36);
     }
 }
 
@@ -409,8 +428,13 @@ class ArcherUltCastEffect {
         const cx = this.owner.rect.centerx;
         const cy = this.owner.rect.centery;
 
-        drawCircle(ctx, cx, cy, Math.trunc(34 * (1.0 - p * 0.5)), `rgba(255, 215, 0, ${Math.trunc(90 * (1.0 - p)) / 255})`);
-        drawBow(ctx, cx, cy, [fx, fy], drawRatio, `rgba(255, 215, 0, ${alpha})`, `rgba(255, 255, 255, ${alpha})`);
+        // 보라 기운이 퍼지며 활을 끝까지 당겼다 놓는다
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(165, 92, 255, ${alpha})`; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, 20 + 40 * p, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = `rgba(165, 92, 255, ${0.3 * (1 - p)})`; ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        drawArcherBow(ctx, cx, cy, [fx, fy], drawRatio, alpha);
     }
 }
 
@@ -441,7 +465,7 @@ function applyArcher(player) {
     player.hp = player.maxHp;
     player.baseAtk = 13;
     player.speed = 4.5;
-    player.archerArrowType = 'iron';
+    player.archerArrowType = 'impact';
     player.archerCharging = false;
     player.archerChargeRatio = 0.0;
     player.archerTripleShotPending = false;
@@ -460,35 +484,28 @@ function applyArcher(player) {
         const color = ARROW_COLORS[player.archerArrowType];
 
         if (player.archerCharging) {
-            // 옆에 충전 막대 (화살 색으로 채움)
+            // 발밑에 가로 충전 막대 (화살 색으로 채움, 앞쪽의 활과 겹치지 않게)
             const ratio = player.archerChargeRatio;
-            const barW = 8;
-            const barH = 44;
-            const gx = r.right + 8;
-            const gy = r.centery - Math.floor(barH / 2);
+            const barW = r.w, barH = 5, gx = r.x, gy = r.bottom + 5;
             ctx.fillStyle = '#1e1e23';
             ctx.fillRect(gx, gy, barW, barH);
             ctx.strokeStyle = 'rgb(200, 200, 200)';
             ctx.lineWidth = 1;
             ctx.strokeRect(gx + 0.5, gy + 0.5, barW - 1, barH - 1);
-            const fillH = Math.trunc(barH * ratio);
-            if (fillH > 0) {
+            const fillW = Math.trunc(barW * ratio);
+            if (fillW > 0) {
                 ctx.fillStyle = `rgb(${color})`;
-                ctx.fillRect(gx, gy + barH - fillH, barW, fillH);
+                ctx.fillRect(gx, gy, fillW, barH);
             }
 
             // 활과 시위에 걸린 화살 (3연사 대기 중이면 3발)
-            const nock = drawBow(ctx, r.centerx, r.centery, player.facing, ratio, 'rgb(120, 80, 40)');
-            const [fx, fy] = player.facing;
-            const tipDist = 16 + 10 * ratio;
-            if (player.archerTripleShotPending) {
-                const base = Math.atan2(fy, fx);
-                for (const offset of [-12, 0, 12]) {
-                    const a = base + offset * Math.PI / 180;
-                    drawLine(ctx, nock[0], nock[1], nock[0] + Math.cos(a) * tipDist, nock[1] + Math.sin(a) * tipDist, `rgb(${color})`, 3);
-                }
-            } else {
-                drawLine(ctx, nock[0], nock[1], nock[0] + fx * tipDist, nock[1] + fy * tipDist, `rgb(${color})`, 3);
+            const nock = drawArcherBow(ctx, r.centerx, r.centery, player.facing, ratio);
+            const [fx, fy] = normalizeOr(player.facing);
+            const len = 34, base = Math.atan2(fy, fx);
+            const offsets = player.archerTripleShotPending ? [-12, 0, 12] : [0];
+            for (const offset of offsets) {
+                const a = base + offset * Math.PI / 180;
+                drawArcherArrow(ctx, player.archerArrowType, nock[0] + Math.cos(a) * len / 2, nock[1] + Math.sin(a) * len / 2, a, len);
             }
         }
 
@@ -504,7 +521,7 @@ const ARCHER_CHARACTER_DATA = {
     id: 'ARCHER',
     fxColor: '#a8e070',
     name: '궁수',
-    desc: '평타: 활을 쏩니다(최대 26, 최소 7), 스킬 1: 화살 종류를 바꿀 수 있습니다(감속 화살, 폭발 화살, 철 화살), 스킬 2: 화살을 3개로 바꿔주고 벽에 닿으면 3번 튕깁니다, 궁극기: 부채꼴로 유도 화살 5개를 쏩니다(한발당 8)',
+    desc: '평타: 활을 쏩니다(최대 26, 최소 7), 스킬 1: 화살 종류를 바꿀 수 있습니다(충격 화살: 맞으면 밀쳐냄, 폭발 화살, 감속 화살), 스킬 2: 화살을 3개로 바꿔주고 벽에 닿으면 3번 튕깁니다, 궁극기: 부채꼴로 유도 화살 5개를 쏩니다(한발당 8)',
     apply: applyArcher,
     thumbnail: null,
 };
