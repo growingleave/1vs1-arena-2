@@ -4,7 +4,7 @@
 //   hk_cube.png   64x64  : 홀로그램 데이터 큐브 (가운데, 바깥 네모 한 변 ≈ 56)
 //   hk_portal.png 64x64  : 텔레포트 포털 (모서리 괄호 + 주사선, 가운데)
 //   hk_ring.png   256x256: 궁극기 해킹 파동 고리 (회로 무늬, 바깥 반지름 ≈ 124)
-//   hk_skull.png  128x128: 해킹된 상대 몸에 뜨는 해골 표시 (가운데)
+//   (hk_skull.png는 사용자가 준 해골 그림을 누끼 따고 초록으로 바꾼 것이라 여기서 만들지 않음)
 //   preview_hacker.png (확인용)
 // 실행: node tools/hacker_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
@@ -82,32 +82,14 @@ const OUT = process.argv[2] || __dirname;
     for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; r.fillRect(RC + Math.cos(a) * 244 - 3, RC + Math.sin(a) * 244 - 3, 6, 6); } // 고리 위 마디
     const ring = bakeGlow(rg, [[8, 0.7], [3, 0.5]]);
 
-    // ---------- 해킹된 상대 몸에 뜨는 해골: 육각형 머리 + 각진 눈구멍 + 아래 이빨 홈 + 세로 글리치 줄 ----------
-    const sk = mk(256, 256), k = sk.getContext('2d');
-    k.fillStyle = W; k.lineJoin = 'round';
-    k.beginPath();                                            // 머리 (위가 납작한 육각형 + 아래 턱)
-    k.moveTo(80, 22); k.lineTo(176, 22); k.lineTo(232, 92); k.lineTo(222, 170); k.lineTo(190, 186); k.lineTo(186, 230);
-    k.lineTo(70, 230); k.lineTo(66, 186); k.lineTo(34, 170); k.lineTo(24, 92); k.closePath(); k.fill();
-    k.globalCompositeOperation = 'destination-out';
-    const eye = (cx, sx) => { k.beginPath(); k.moveTo(cx - sx * 30, 86); k.lineTo(cx + sx * 26, 98); k.lineTo(cx + sx * 30, 136); k.lineTo(cx, 150); k.lineTo(cx - sx * 32, 130); k.closePath(); k.fill(); };
-    eye(84, 1); eye(172, -1);                                  // 안쪽 위가 내려간 각진 눈구멍
-    k.beginPath(); k.moveTo(116, 166); k.lineTo(140, 166); k.lineTo(128, 184); k.closePath(); k.fill(); // 코
-    for (const x of [92, 116, 140, 164]) k.fillRect(x - 5, 200, 10, 34);                                  // 이빨 홈
-    k.globalCompositeOperation = 'destination-out'; k.globalAlpha = 0.45;                                 // 세로 글리치 줄 (조금 비침)
-    for (let i = 0; i < 9; i++) k.fillRect(R(40, 210), 0, R(2, 6), 256);
-    k.globalAlpha = 1; k.globalCompositeOperation = 'source-over';
-    k.fillStyle = W; for (const [x, y] of [[60, 60], [196, 60]]) { k.globalAlpha = 0.9; k.fillRect(x - 3, y - 3, 6, 6); }   // 이마 마디
-    k.globalAlpha = 1;
-    const skull = bakeGlow(sk, [[6, 0.7], [2, 0.5]]);
-
     const tint = (img, col) => { const t = mk(img.width, img.height), x = t.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, t.width, t.height); return t; };
     const show = (x, img, dx, dy, w, h) => { x.drawImage(tint(img, '#5cff8a'), dx, dy, w, h); x.globalAlpha = 0.5; x.drawImage(img, dx, dy, w, h); x.globalAlpha = 1; };
     const pv = mk(700, 270), pc = pv.getContext('2d');
     pc.fillStyle = '#141419'; pc.fillRect(0, 0, 700, 270); pc.globalCompositeOperation = 'lighter';
-    show(pc, scan, 10, 20, 256, 80); show(pc, cube, 290, 20, 64, 64); show(pc, portal, 370, 20, 64, 64); show(pc, ring, 450, 10, 240, 240); show(pc, skull, 290, 120, 128, 128);
-    return { scan: scan.toDataURL(), cube: cube.toDataURL(), portal: portal.toDataURL(), ring: ring.toDataURL(), skull: skull.toDataURL(), pv: pv.toDataURL() };
+    show(pc, scan, 10, 20, 256, 80); show(pc, cube, 290, 20, 64, 64); show(pc, portal, 370, 20, 64, 64); show(pc, ring, 450, 10, 240, 240);
+    return { scan: scan.toDataURL(), cube: cube.toDataURL(), portal: portal.toDataURL(), ring: ring.toDataURL(), pv: pv.toDataURL() };
   });
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
-  save('hk_scan.png', res.scan); save('hk_cube.png', res.cube); save('hk_portal.png', res.portal); save('hk_ring.png', res.ring); save('hk_skull.png', res.skull); save('preview_hacker.png', res.pv);
+  save('hk_scan.png', res.scan); save('hk_cube.png', res.cube); save('hk_portal.png', res.portal); save('hk_ring.png', res.ring); save('preview_hacker.png', res.pv);
   await b.close();
 })();

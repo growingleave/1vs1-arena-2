@@ -7,7 +7,7 @@ const HK_SCAN_IMAGE = loadImage('assets/hk_scan.png');     // 256x80 스캔 빔,
 const HK_CUBE_IMAGE = loadImage('assets/hk_cube.png');     // 64x64 데이터 큐브, 바깥 네모 한 변 ≈ 56
 const HK_PORTAL_IMAGE = loadImage('assets/hk_portal.png'); // 64x64 텔레포트 포털
 const HK_RING_IMAGE = loadImage('assets/hk_ring.png');     // 256x256 해킹 파동 고리, 바깥 반지름 ≈ 124
-const HK_SKULL_IMAGE = loadImage('assets/hk_skull.png');   // 128x128 해킹된 상대 몸에 뜨는 해골
+const HK_SKULL_IMAGE = loadImage('assets/hk_skull.png');   // 128x128 해킹된 상대 몸에 뜨는 해골 (사용자 그림을 초록으로, 이미 색이 있어 보통으로 그림)
 const HK_GREEN = '#5cff8a';
 
 function hkGlow(ctx, img, x, y, w, h, { angle = 0, alpha = 1, ax = 0.5, ay = 0.5, core = 0.45 } = {}) {
@@ -150,17 +150,15 @@ function attachHackerGauge(target) {
             const fade = Math.min(1, hackLeft / 500);
             const glitch = Math.floor(Time.now / 90) % 7 === 0;                             // 가끔 가로로 어긋나는 글리치
             const size = Math.max(r.w, r.h) * 1.15 * pop, x0 = r.centerx - size / 2, y0 = r.centery - size / 2;
-            const tinted = vfxTinted(HK_SKULL_IMAGE, HK_GREEN);
-            ctx.save(); ctx.globalCompositeOperation = 'lighter';
-            ctx.globalAlpha = 0.75 * fade * (0.85 + 0.15 * Math.sin(Time.now * 0.02));
+            ctx.save();
+            ctx.globalAlpha = 0.85 * fade * (0.85 + 0.15 * Math.sin(Time.now * 0.02));
             if (glitch) {
                 for (let i = 0; i < 3; i++) {
                     const sy = i * 128 / 3, dy = i * size / 3, off = (i - 1) * 5;
-                    ctx.drawImage(tinted, 0, sy, 128, 128 / 3, x0 + off, y0 + dy, size, size / 3);
+                    ctx.drawImage(HK_SKULL_IMAGE, 0, sy, 128, 128 / 3, x0 + off, y0 + dy, size, size / 3);
                 }
             } else {
-                ctx.drawImage(tinted, x0, y0, size, size);
-                ctx.globalAlpha *= 0.4; ctx.drawImage(HK_SKULL_IMAGE, x0, y0, size, size);
+                ctx.drawImage(HK_SKULL_IMAGE, x0, y0, size, size);
             }
             ctx.restore();
             drawText(ctx, '해킹됨', r.centerx, r.bottom + 12, 14, `rgba(92, 255, 138, ${fade})`, { bold: true, align: 'center', baseline: 'middle' });
