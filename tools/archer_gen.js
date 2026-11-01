@@ -1,7 +1,7 @@
 // 궁수 그림 생성 (미리 구워두는 용도). 결과는 게임용 1/2 크기 → web/assets/에 복사
 //   archer_bow.png 132x322 : 활 + 적붉은 빛 테두리 (세로로 섬, 쏘는 방향 = 오른쪽, 손잡이 가운데 (87,161), 줄 거는 고리 위 (31,12)·아래 (31,310), 줄은 게임에서 그림) — 보통
 //   archer_bow_glow.png 132x322 : 다 당겼을 때 활 전체가 빛나는 그림 (활과 같은 크기·좌표, 'lighter')
-//   archer_arrow_impact.png / _explosive / _frost / _homing  120x24 : 화살 (오른쪽을 향함, 오늬 x 1, 촉 끝 x 118, 가운데 y 12) — 보통
+//   archer_arrow_impact.png / _explosive / _frost / _homing  132x36 : 화살 + 종류 색 빛 테두리 (오른쪽을 향함, 오늬 x 7, 촉 끝 x 124, 가운데 y 18) — 보통
 //     충격(평타, 맞으면 밀쳐냄)·폭발·감속·유도(궁극기). 몸통·깃 모양은 같고 촉과 색만 다름
 //   preview_archer.png (확인용)
 // 실행: node tools/archer_gen.js <저장할 폴더>  (Playwright 필요)
@@ -91,11 +91,17 @@ const OUT = process.argv[2] || __dirname;
       a.fillStyle = col.band; a.fillRect(76, Y - 3.5, 4, 7);
       a.fillStyle = '#c0c3cb'; a.beginPath(); a.roundRect(2, Y - 5, 8, 10, 2); a.fill(); a.stroke();   // 오늬
       head(a, Y);
-      return half(c);
+      // 빛 테두리: 화살 실루엣을 종류 색으로 칠해 번지게 깔고 그 위에 화살 (가장자리 여백 12px)
+      const P = 12, o = mk(c.width + P * 2, c.height + P * 2), ox = o.getContext('2d');
+      const sil = mk(c.width, c.height), sx = sil.getContext('2d');
+      sx.drawImage(c, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = col.glow; sx.fillRect(0, 0, sil.width, sil.height);
+      for (const [bl, al] of [[6, 1], [2.5, 0.9]]) { ox.filter = `blur(${bl}px)`; ox.globalAlpha = al; ox.drawImage(sil, P, P); }
+      ox.filter = 'none'; ox.globalAlpha = 1; ox.drawImage(c, P, P);
+      return half(o);
     };
     const glowDot = (a, x, y, r, rgb) => { const gr = a.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${rgb},0.9)`); gr.addColorStop(1, `rgba(${rgb},0)`); a.fillStyle = gr; a.beginPath(); a.arc(x, y, r, 0, Math.PI * 2); a.fill(); };
     // 1) 충격 화살 (평타): 뭉툭하고 넓은 쇠망치 촉 + 파란 충격 고리 — 맞으면 밀쳐냄
-    const impact = arrow({ feather: '#3d7bd9', band: '#6fb4ff' }, (a, Y) => {
+    const impact = arrow({ feather: '#3d7bd9', band: '#6fb4ff', glow: '#6fb4ff' }, (a, Y) => {
       const hg = a.createLinearGradient(0, Y - 16, 0, Y + 16); hg.addColorStop(0, '#f1f3f7'); hg.addColorStop(0.5, '#8d939f'); hg.addColorStop(1, '#4b505a');
       a.fillStyle = hg; a.strokeStyle = OUTL; a.lineWidth = 2.5;
       a.beginPath(); a.moveTo(180, Y - 6); a.lineTo(196, Y - 15); a.lineTo(226, Y - 15); a.quadraticCurveTo(236, Y, 226, Y + 15); a.lineTo(196, Y + 15); a.lineTo(180, Y + 6); a.closePath(); a.fill(); a.stroke();
@@ -105,7 +111,7 @@ const OUT = process.argv[2] || __dirname;
       a.globalAlpha = 1;
     });
     // 2) 폭발 화살: 짧은 촉 뒤에 붉은 폭탄 통 + 불붙은 심지
-    const explosive = arrow({ feather: '#e0602a', band: '#ffb040' }, (a, Y) => {
+    const explosive = arrow({ feather: '#e0602a', band: '#ffb040', glow: '#ff8a40' }, (a, Y) => {
       const bg = a.createLinearGradient(0, Y - 11, 0, Y + 11); bg.addColorStop(0, '#ff6a4a'); bg.addColorStop(0.5, '#b3141f'); bg.addColorStop(1, '#5a0710');
       a.fillStyle = bg; a.strokeStyle = OUTL; a.lineWidth = 2.5; a.beginPath(); a.roundRect(172, Y - 11, 38, 22, 8); a.fill(); a.stroke();
       a.fillStyle = '#2a2a30'; a.fillRect(184, Y - 11, 5, 22); a.fillRect(196, Y - 11, 5, 22);
@@ -114,7 +120,7 @@ const OUT = process.argv[2] || __dirname;
       glowDot(a, 179, Y - 19, 7, '255,190,60');
     });
     // 3) 감속 화살: 푸른 얼음 결정 촉 + 서리 조각
-    const frost = arrow({ feather: '#7fe0ff', band: '#bff4ff' }, (a, Y) => {
+    const frost = arrow({ feather: '#7fe0ff', band: '#bff4ff', glow: '#9fecff' }, (a, Y) => {
       const ig = a.createLinearGradient(180, Y - 12, 230, Y + 12); ig.addColorStop(0, '#e9fdff'); ig.addColorStop(0.5, '#72d6ff'); ig.addColorStop(1, '#2a7fb8');
       a.fillStyle = ig; a.strokeStyle = '#123a55'; a.lineWidth = 2.5;
       a.beginPath(); a.moveTo(180, Y); a.lineTo(198, Y - 13); a.lineTo(236, Y); a.lineTo(198, Y + 13); a.closePath(); a.fill(); a.stroke();
@@ -122,7 +128,7 @@ const OUT = process.argv[2] || __dirname;
       a.fillStyle = '#bff4ff'; for (const [x, y] of [[172, Y - 10], [170, Y + 9], [164, Y - 4]]) { a.beginPath(); a.moveTo(x, y - 3); a.lineTo(x + 3, y); a.lineTo(x, y + 3); a.lineTo(x - 3, y); a.closePath(); a.fill(); }
     });
     // 4) 유도 화살 (궁극기): 보라색 초능력 — 빛나는 보라 에너지 촉 + 촉을 감싸는 소용돌이 기운 + 보라 깃
-    const homing = arrow({ feather: '#8a3cff', band: '#d6a8ff' }, (a, Y) => {
+    const homing = arrow({ feather: '#8a3cff', band: '#d6a8ff', glow: '#b478ff' }, (a, Y) => {
       // 촉 주위 보라 기운 (번지는 빛)
       a.save(); a.globalCompositeOperation = 'lighter';
       glowDot(a, 214, Y, 22, '160,80,255'); glowDot(a, 196, Y, 14, '200,140,255');
@@ -144,7 +150,7 @@ const OUT = process.argv[2] || __dirname;
 
     const pv = mk(560, 240), pc = pv.getContext('2d');
     pc.fillStyle = '#d8d8dc'; pc.fillRect(0, 0, 280, 240); pc.fillStyle = '#1e1e24'; pc.fillRect(280, 0, 280, 240);
-    arrows.forEach((ar, i) => { pc.drawImage(ar, 20, 20 + i * 55, 240, 48); pc.drawImage(ar, 300, 20 + i * 55, 240, 48); });
+    arrows.forEach((ar, i) => { pc.drawImage(ar, 14, 14 + i * 55, 264, 72); pc.drawImage(ar, 294, 14 + i * 55, 264, 72); });
     return { bow: bowH.toDataURL(), bowGlow: bowGlow.toDataURL(), arrows: arrows.map((ar) => ar.toDataURL()), pv: pv.toDataURL() };
   });
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
