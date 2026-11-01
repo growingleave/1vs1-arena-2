@@ -198,6 +198,38 @@ function finishDash(owner) {
     owner.speedMultiplier = 1.0;
 }
 
+// 돌진하는 동안 발밑에서 일어나는 흙먼지·연기 (화면 전용, 이펙트 하나로 묶음).
+// 그림은 폭파광 먼지·연기 그림을 쓴다 (demolitionist.js가 나중에 로드되지만, 쓰는 시점엔 이미 있음)
+class SwordmanDashDustVFX {
+    constructor(owner, direction, isActive, { big = false } = {}) {
+        this.owner = owner; this.dir = direction; this.isActive = isActive; this.big = big;
+        this.elapsed = 0; this.puffs = []; this.carry = 0; this.active = true;
+    }
+    get finished() { return !this.active && this.puffs.every((p) => p.t >= p.life); }
+    update(dt) {
+        this.elapsed += dt;
+        for (const p of this.puffs) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+        if (this.active && !this.isActive()) this.active = false;
+        if (!this.active) return;
+        this.carry += dt * (this.big ? 45 : 30);
+        const r = this.owner.rect;
+        while (this.carry >= 1) {
+            this.carry -= 1;
+            const side = vfxRand(-1, 1) * (this.big ? 16 : 10);
+            const smoke = Math.random() < 0.35;
+            this.puffs.push({ x: r.centerx - this.dir[1] * side, y: r.bottom - 6 + this.dir[0] * side * 0.3, vx: -this.dir[0] * vfxRand(20, 60), vy: -vfxRand(8, 22),
+                size: vfxRand(22, 34) * (this.big ? 1.3 : 1), life: vfxRand(0.45, 0.7), t: 0, rot: vfxRand(0, 6), img: smoke ? 'smoke' : 'dust' });
+        }
+    }
+    draw(ctx) {
+        for (const p of this.puffs) {
+            const u = p.t / p.life;
+            if (u >= 1) continue;
+            dmxDraw(ctx, p.img === 'smoke' ? DMX_SMOKE_IMAGE : DMX_DUST_IMAGE, p.x, p.y, p.size * (0.7 + 0.6 * u), { alpha: 0.45 * (1 - u), angle: p.rot + u });
+        }
+    }
+}
+
 // ==========================================
 // [검사 - 스킬 1] 돌진 베기
 // ==========================================
@@ -220,21 +252,23 @@ class SwordmanDashAttack {
         this.isDash = true;
         this.canPenetrateWalls = false;
 
-        // 돌진 베기 그림: 출발점에서 플레이어가 지나간 만큼 드러난다 (화면 효과라 게임 결과와는 무관)
+        // 돌진 자국: 궁극기 1타와 같은 가는 가로줄 그림, 지나간 만큼 드러난다 (화면 효과라 게임 결과와는 무관)
+        const fullDist = this.dashSpeed * this.duration / (1000 / 60);
         Vfx.spawn(new StretchSlashVFX({
-            image: SWORDMAN_DASH_IMAGE,
+            images: SWORDMAN_ULT_DASH_IMAGES,
+            frameTime: 0.05,
+            colored: true,
             follow: owner,
             isActive: () => Time.now - this.startTime < this.duration, // 벽에 막히면 startTime이 당겨져 일찍 끝난다
             angle: Math.atan2(direction[1], direction[0]),
-            imageX0: SWORDMAN_DASH_X0, imageX1: SWORDMAN_DASH_X1, imageCY: SWORDMAN_DASH_CY,
-            scaleY: SWORDMAN_DASH_SCALE_Y,
+            imageX0: 60, imageX1: 690, imageCY: 105,
+            scaleY: (fullDist + 60) / 630 * 0.8, // 가로 배율보다 살짝 얇게
             back: 30, front: 30, // 판정 상자 절반만큼 앞뒤로
-            // 그림은 끝까지 돌진한 크기(18px x 12틱)로 고정하고, 지나간 만큼 천천히 드러낸다
-            fullDist: this.dashSpeed * this.duration / (1000 / 60),
+            fullDist,
             softEdge: 40,
-            color: SWORDMAN_COLOR,
             fade: 0.3,
         }));
+        Vfx.spawn(new SwordmanDashDustVFX(owner, direction, () => Time.now - this.startTime < this.duration));
         // 돌진 꼬리: 뒤로 흩날리는 은빛 불꽃
         Vfx.spawn(new TrailSparkVFX(owner, () => Time.now - this.startTime < this.duration,
             { color: SWORDMAN_COLOR, angle: Math.atan2(direction[1], direction[0]), rate: 90, side: 18 }));
@@ -265,9 +299,9 @@ class SwordmanDashAttack {
             { color: SWORDMAN_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]), count: 14, size: 30 }));
     }
 
-    // 돌진 베기 그림(StretchSlashVFX)이 대신 보여서, 그림이 아직 안 불러와졌을 때만 상자를 그린다
+    // 돌진 자국 그림(StretchSlashVFX)이 대신 보여서, 그림이 아직 안 불러와졌을 때만 상자를 그린다
     draw(ctx) {
-        if (isImageReady(SWORDMAN_DASH_IMAGE)) return;
+        if (isImageReady(SWORDMAN_ULT_DASH_IMAGES[0])) return;
         const r = this.rect;
         ctx.fillStyle = withAlpha(this.color, 100 / 255);
         ctx.fillRect(r.x, r.y, r.w, r.h);
@@ -389,7 +423,8 @@ class SwordmanUltDashAttack {
         this.owner = owner;
         this.direction = direction;
         this.color = color;
-        this.damage = owner.baseAtk * 4.5;
+        this.damage = owner.baseAtk * 3.15;      // 2타(납도 후 9연타) 전체 피해 (원래 4.5 → 1타에 나눠 줌)
+        this.dashDamage = owner.baseAtk * 1.5;   // 1타: 돌진에 닿는 순간 피해
 
         this.dashSpeed = 22.0;
         this.duration = 350;
@@ -430,6 +465,7 @@ class SwordmanUltDashAttack {
         }));
         Vfx.spawn(new TrailSparkVFX(owner, () => this.phase === 'dash',
             { color: SWORDMAN_COLOR, angle: Math.atan2(direction[1], direction[0]), rate: 160, side: 60, spread: 0.4, size: 1.3 }));
+        Vfx.spawn(new SwordmanDashDustVFX(owner, direction, () => this.phase === 'dash', { big: true }));
     }
 
     update(walls) {
@@ -512,7 +548,7 @@ class SwordmanUltDashAttack {
         return rotatedRectPoints(this.posX, this.posY, this.width, this.height, this.angle);
     }
 
-    // 돌진 중 닿으면 피해 없이 기절만 건다 (피해는 납도가 끝난 뒤 slashHit()에서 나눠서).
+    // 돌진 중 닿으면 1타 피해 + 기절 (나머지 피해는 납도가 끝난 뒤 slashHit()에서 나눠서).
     // 그래서 game.js가 바로 피해를 주지 않도록 항상 false를 돌려준다
     collidesWith(target) {
         if (this.phase !== 'dash' || this.marked.includes(target)) return false;
@@ -523,6 +559,9 @@ class SwordmanUltDashAttack {
             slow(target, stunTime, 100);
             silence(target, stunTime); // 이동 불가 + 침묵 = 기절
             this.marked.push(target);
+            // 1타: 닿는 순간 바로 피해
+            const finalDamage = target.takeDamage(this.dashDamage);
+            this.owner.addUltGauge(finalDamage * this.owner.ultChargeMultiplier);
             Vfx.spawn(new HitSparkVFX(target.rect.centerx, target.rect.centery,
                 { color: SWORDMAN_COLOR, angle: Math.atan2(this.direction[1], this.direction[0]), count: 16, size: 34 }));
         }
@@ -531,7 +570,7 @@ class SwordmanUltDashAttack {
 
     // 그림(돌진 자국, 납도, 베기)이 대신 보여서 판정 범위는 그리지 않는다
     draw(ctx) {
-        if (isImageReady(SWORDMAN_DASH_IMAGE)) return;
+        if (isImageReady(SWORDMAN_ULT_DASH_IMAGES[0])) return;
         if (this.phase === 'dash') drawPolygon(ctx, this.getPolygonPoints(), `rgba(255, 215, 0, ${90 / 255})`, COLOR_WHITE, 3);
     }
 }
@@ -611,7 +650,7 @@ const SWORDMAN_CHARACTER_DATA = {
     id: 'SWORDMAN',
     fxColor: SWORDMAN_COLOR,
     name: '검사',
-    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 검을 넣는 순간 지나온 길이 베이며 9번 연속 참격이 들어갑니다(5x9)',
+    desc: '평타: 부채꼴로 가까운 적을 공격합니다(15), 스킬 1(1.5초): 앞으로 돌진합니다(20), 스킬 2(6초): 평타 강화로 슬로우를 묻히는 검기 3개가 나옴(슬로우 30% 2초, 검기 12), 궁극기: 0.6초 기를 모은 뒤 앞으로 돌진해 닿은 적을 기절시키고, 닿을 때 한 번 베고(15), 검을 넣는 순간 지나온 길이 베이며 9번 연속 참격이 들어갑니다(3.5x9)',
     apply: applySwordmanToPlayer,
     thumbnail: null,
 };
