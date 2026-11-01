@@ -59,36 +59,42 @@ class AssassinDashVFX extends SparkVFX {
         super(owner.fxColor || '#ffffff');
         this.owner = owner; this.dir = direction; this.angle = Math.atan2(direction[1], direction[0]);
         this.sx = owner.rect.centerx; this.sy = owner.rect.centery;
-        this.moveTime = duration / 1000; this.duration = this.moveTime + 0.3;
+        this.moveTime = duration / 1000; this.duration = this.moveTime + 0.75;
         this.ex = this.sx; this.ey = this.sy;
+        this.puffs = []; // 가스·먼지 뭉치를 이 이펙트 하나가 다 그린다 (이펙트 개수 아끼기)
         // 출발: 뒤로 확 뿜어지는 가스 + 발밑 흙먼지
         const bx = -direction[0], by = -direction[1];
         for (let i = 0; i < 6; i++) {
             const sp = vfxRand(70, 160), sideA = vfxRand(-0.6, 0.6);
-            const vx = (bx * Math.cos(sideA) - by * Math.sin(sideA)) * sp, vy = (bx * Math.sin(sideA) + by * Math.cos(sideA)) * sp;
-            Vfx.spawn(new DmxPuffVFX(this.sx + bx * 10, this.sy + by * 10, vfxRand(30, 46), { vx, vy: vy - 8, duration: vfxRand(0.5, 0.75), alpha: 0.55, image: ASSASSIN_GAS_IMAGE }));
+            this.addPuff(this.sx + bx * 10, this.sy + by * 10, vfxRand(30, 46), (bx * Math.cos(sideA) - by * Math.sin(sideA)) * sp,
+                (bx * Math.sin(sideA) + by * Math.cos(sideA)) * sp - 8, vfxRand(0.5, 0.75), 0.55, ASSASSIN_GAS_IMAGE);
         }
-        for (let i = 0; i < 4; i++) Vfx.spawn(new DmxPuffVFX(this.sx + bx * (4 + i * 8) + vfxRand(-6, 6), owner.rect.bottom - 4, 26 + i * 5,
-            { vx: bx * 50 + vfxRand(-20, 20), vy: -12, duration: 0.55, alpha: 0.5 }));
+        for (let i = 0; i < 4; i++) this.addPuff(this.sx + bx * (4 + i * 8) + vfxRand(-6, 6), owner.rect.bottom - 4, 26 + i * 5, bx * 50 + vfxRand(-20, 20), -12, 0.55, 0.5, DMX_DUST_IMAGE);
     }
+    addPuff(x, y, size, vx, vy, life, alpha, img) { this.puffs.push({ x, y, size, vx, vy, life, alpha, img, t: 0, rot: vfxRand(0, 6) }); }
     get finished() { return this.elapsed >= this.duration && this.sparksDone; }
     update(dt) {
         super.update(dt);
+        for (const p of this.puffs) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; }
         if (this.elapsed <= this.moveTime + 0.02) {
             const r = this.owner.rect;
             this.ex = r.centerx; this.ey = r.centery;
             for (let i = 0; i < 2; i++) this.addSpark(r.centerx + vfxRand(-8, 8), r.centery + vfxRand(-8, 8), this.angle + Math.PI + vfxRand(-0.5, 0.5), vfxRand(100, 260), vfxRand(0.15, 0.3), vfxRand(1, 2));
             // 지나가는 길에 남는 가스
-            Vfx.spawn(new DmxPuffVFX(r.centerx - this.dir[0] * 12, r.centery - this.dir[1] * 12, vfxRand(26, 38),
-                { vx: -this.dir[0] * 40 + vfxRand(-15, 15), vy: -this.dir[1] * 40 + vfxRand(-15, 15) - 6, duration: vfxRand(0.45, 0.65), alpha: 0.45, image: ASSASSIN_GAS_IMAGE }));
-            if (!this.landed && this.elapsed >= this.moveTime) {   // 도착: 앞쪽에 작은 먼지
+            this.addPuff(r.centerx - this.dir[0] * 12, r.centery - this.dir[1] * 12, vfxRand(26, 38), -this.dir[0] * 40 + vfxRand(-15, 15), -this.dir[1] * 40 + vfxRand(-15, 15) - 6, vfxRand(0.45, 0.65), 0.45, ASSASSIN_GAS_IMAGE);
+            if (!this.landed && this.elapsed >= this.moveTime) {   // 도착: 발밑 먼지 + 가스
                 this.landed = true;
-                Vfx.spawn(new DmxPuffVFX(r.centerx + this.dir[0] * 8, r.bottom - 4, 32, { vx: this.dir[0] * 30, vy: -12, duration: 0.45, alpha: 0.45 }));
-                Vfx.spawn(new DmxPuffVFX(r.centerx, r.centery, 40, { vx: this.dir[0] * 20, vy: -10, duration: 0.5, alpha: 0.35, image: ASSASSIN_GAS_IMAGE }));
+                this.addPuff(r.centerx + this.dir[0] * 8, r.bottom - 4, 32, this.dir[0] * 30, -12, 0.45, 0.45, DMX_DUST_IMAGE);
+                this.addPuff(r.centerx, r.centery, 40, this.dir[0] * 20, -10, 0.5, 0.35, ASSASSIN_GAS_IMAGE);
             }
         }
     }
     draw(ctx) {
+        for (const p of this.puffs) {
+            const u = p.t / p.life;
+            if (u >= 1) continue;
+            dmxDraw(ctx, p.img, p.x, p.y, p.size * (0.7 + 0.6 * u), { alpha: p.alpha * (1 - u), angle: p.rot + u });
+        }
         const t = Math.max(0, (this.elapsed - this.moveTime) / 0.3);
         if (t < 1 && isImageReady(ASSASSIN_WIND_IMAGE)) {
             const len = Math.hypot(this.ex - this.sx, this.ey - this.sy) + 40;
