@@ -50,34 +50,51 @@ class AssassinThrustVFX extends SparkVFX {
 // 대쉬 바람 줄: 160x60, 앞쪽 끝 x 150, 가운데 y 30 / 갈고리 머리: 40x40, 줄 고리 x 7, 촉 끝 x 38, 가운데 y 20
 const ASSASSIN_WIND_IMAGE = loadImage('assets/assassin_wind.png');
 const ASSASSIN_HOOK_IMAGE = loadImage('assets/assassin_hook.png');
+const ASSASSIN_GAS_IMAGE = loadImage('assets/assassin_gas.png'); // 64x64 흰 가스 뭉치 (보통)
 // 흙먼지는 폭파광과 같은 그림을 쓴다 (demolitionist.js가 먼저 로드됨: DMX_DUST_IMAGE, DmxPuffVFX)
 
-// 대쉬 (화면 전용): 출발점에서 지금 위치까지 뻗는 바람 줄(그림) + 발밑 흙먼지 + 뒤로 흩날리는 불똥
+// 대쉬 (화면 전용): 가스를 뒤로 뿜으며 튀어나가는 느낌. 뒤로 뿜는 가스(그림) + 발밑 흙먼지 + 옅은 바람 줄(그림) + 불똥
 class AssassinDashVFX extends SparkVFX {
     constructor(owner, direction, duration) {
         super(owner.fxColor || '#ffffff');
         this.owner = owner; this.dir = direction; this.angle = Math.atan2(direction[1], direction[0]);
         this.sx = owner.rect.centerx; this.sy = owner.rect.centery;
-        this.moveTime = duration / 1000; this.duration = this.moveTime + 0.3;
+        this.moveTime = duration / 1000; this.duration = this.moveTime + 0.75;
         this.ex = this.sx; this.ey = this.sy;
-        // 출발할 때 뒤쪽으로 차고 나가는 흙먼지
-        for (let i = 0; i < 3; i++) Vfx.spawn(new DmxPuffVFX(this.sx - direction[0] * (6 + i * 8), owner.rect.bottom - 4, 26 + i * 6,
-            { vx: -direction[0] * 60 + vfxRand(-15, 15), vy: -direction[1] * 60 - 10, duration: 0.45, alpha: 0.45 }));
+        this.puffs = []; // 가스·먼지 뭉치를 이 이펙트 하나가 다 그린다 (이펙트 개수 아끼기)
+        // 출발: 뒤로 확 뿜어지는 가스 + 발밑 흙먼지
+        const bx = -direction[0], by = -direction[1];
+        for (let i = 0; i < 6; i++) {
+            const sp = vfxRand(70, 160), sideA = vfxRand(-0.6, 0.6);
+            this.addPuff(this.sx + bx * 10, this.sy + by * 10, vfxRand(30, 46), (bx * Math.cos(sideA) - by * Math.sin(sideA)) * sp,
+                (bx * Math.sin(sideA) + by * Math.cos(sideA)) * sp - 8, vfxRand(0.5, 0.75), 0.55, ASSASSIN_GAS_IMAGE);
+        }
+        for (let i = 0; i < 4; i++) this.addPuff(this.sx + bx * (4 + i * 8) + vfxRand(-6, 6), owner.rect.bottom - 4, 26 + i * 5, bx * 50 + vfxRand(-20, 20), -12, 0.55, 0.5, DMX_DUST_IMAGE);
     }
+    addPuff(x, y, size, vx, vy, life, alpha, img) { this.puffs.push({ x, y, size, vx, vy, life, alpha, img, t: 0, rot: vfxRand(0, 6) }); }
     get finished() { return this.elapsed >= this.duration && this.sparksDone; }
     update(dt) {
         super.update(dt);
+        for (const p of this.puffs) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; }
         if (this.elapsed <= this.moveTime + 0.02) {
             const r = this.owner.rect;
             this.ex = r.centerx; this.ey = r.centery;
-            for (let i = 0; i < 3; i++) this.addSpark(r.centerx + vfxRand(-8, 8), r.centery + vfxRand(-8, 8), this.angle + Math.PI + vfxRand(-0.5, 0.5), vfxRand(100, 260), vfxRand(0.15, 0.3), vfxRand(1, 2));
-            if (!this.landed && this.elapsed >= this.moveTime) {   // 도착: 앞쪽에 작은 먼지
+            for (let i = 0; i < 2; i++) this.addSpark(r.centerx + vfxRand(-8, 8), r.centery + vfxRand(-8, 8), this.angle + Math.PI + vfxRand(-0.5, 0.5), vfxRand(100, 260), vfxRand(0.15, 0.3), vfxRand(1, 2));
+            // 지나가는 길에 남는 가스
+            this.addPuff(r.centerx - this.dir[0] * 12, r.centery - this.dir[1] * 12, vfxRand(26, 38), -this.dir[0] * 40 + vfxRand(-15, 15), -this.dir[1] * 40 + vfxRand(-15, 15) - 6, vfxRand(0.45, 0.65), 0.45, ASSASSIN_GAS_IMAGE);
+            if (!this.landed && this.elapsed >= this.moveTime) {   // 도착: 발밑 먼지 + 가스
                 this.landed = true;
-                Vfx.spawn(new DmxPuffVFX(r.centerx + this.dir[0] * 8, r.bottom - 4, 30, { vx: this.dir[0] * 30, vy: -12, duration: 0.4, alpha: 0.35 }));
+                this.addPuff(r.centerx + this.dir[0] * 8, r.bottom - 4, 32, this.dir[0] * 30, -12, 0.45, 0.45, DMX_DUST_IMAGE);
+                this.addPuff(r.centerx, r.centery, 40, this.dir[0] * 20, -10, 0.5, 0.35, ASSASSIN_GAS_IMAGE);
             }
         }
     }
     draw(ctx) {
+        for (const p of this.puffs) {
+            const u = p.t / p.life;
+            if (u >= 1) continue;
+            dmxDraw(ctx, p.img, p.x, p.y, p.size * (0.7 + 0.6 * u), { alpha: p.alpha * (1 - u), angle: p.rot + u });
+        }
         const t = Math.max(0, (this.elapsed - this.moveTime) / 0.3);
         if (t < 1 && isImageReady(ASSASSIN_WIND_IMAGE)) {
             const len = Math.hypot(this.ex - this.sx, this.ey - this.sy) + 40;
@@ -85,10 +102,10 @@ class AssassinDashVFX extends SparkVFX {
             ctx.save();
             ctx.globalCompositeOperation = 'lighter';
             ctx.translate(this.ex + this.dir[0] * 14, this.ey + this.dir[1] * 14); ctx.rotate(this.angle);
-            const h = 60 * Math.min(1.1, k) * (1 + 0.3 * t);       // 사라지며 살짝 퍼짐
-            ctx.globalAlpha = 1 - t;
+            const h = 40 * Math.min(1.1, k) * (1 + 0.3 * t);       // 옅고 가늘게, 사라지며 살짝 퍼짐
+            ctx.globalAlpha = 0.45 * (1 - t);
             ctx.drawImage(vfxTinted(ASSASSIN_WIND_IMAGE, this.color), -150 * k, -h / 2, 160 * k, h);
-            ctx.globalAlpha = (1 - t) * 0.6;
+            ctx.globalAlpha = (1 - t) * 0.2;
             ctx.drawImage(ASSASSIN_WIND_IMAGE, -150 * k, -h / 2, 160 * k, h);
             ctx.restore();
         }
@@ -645,6 +662,22 @@ function applyAssassinToPlayer(player) {
     player.assassinCharge = 0;
     player.isInvisible = false;
     player.assassinJumpTime = -99999;
+
+    // 강화 평타(회전 베기) 남은 수: 캐릭터 오른쪽 위에 작은 회전 베기 그림 + 숫자 (은신 중엔 숨김, 왼쪽은 쿨타임 표시 자리)
+    player.postDrawHooks.push((ctx) => {
+        const n = player.assassinCharge || 0;
+        if (n <= 0 || player.isInvisible || player.hidden) return;
+        const x = player.rect.right + 12, y = player.rect.top + 2;
+        if (isImageReady(ASSASSIN_SPIN_IMAGE)) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.translate(x, y); ctx.rotate(Time.now * 0.004);
+            ctx.drawImage(vfxTinted(ASSASSIN_SPIN_IMAGE, player.fxColor || '#ffffff'), -11, -11, 22, 22);
+            ctx.globalAlpha = 0.5; ctx.drawImage(ASSASSIN_SPIN_IMAGE, -11, -11, 22, 22);
+            ctx.restore();
+        }
+        drawText(ctx, String(n), x, y + 1, 13, '#ffffff', { bold: true, align: 'center', baseline: 'middle' });
+    });
 
     player.abilities = [
         new AssassinBasicSkill(), // 평타 (찌르기 / 차지 소모 시 회전 베기)

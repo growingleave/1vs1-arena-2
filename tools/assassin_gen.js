@@ -4,6 +4,7 @@
 //                                  검사 평타처럼 붓질 호가 모인 원, 바깥 테 반지름 70 = 그림 크기의 0.467) — 흰 빛, 색 입혀 'lighter'
 //   assassin_wind.png   160x60 : 대쉬 바람 줄 (앞쪽 끝 x 150, 가운데 y 30, 뒤로 흩어짐) — 흰 빛, 색 입혀 'lighter'
 //   assassin_hook.png   40x40  : 갈고리 머리 (오른쪽을 향함, 줄 거는 고리 x 7, 촉 끝 x 38, 가운데 y 20) — 보통
+//   assassin_gas.png    64x64  : 대쉬 가스 뭉치 (흰 반투명, 가운데) — 보통
 //   preview_assassin.png (확인용)
 // 실행: node tools/assassin_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
@@ -94,15 +95,24 @@ const OUT = process.argv[2] || __dirname;
     h.fillStyle = '#2a2d35'; h.beginPath(); h.arc(14, HY, 6, 0, Math.PI * 2); h.fill(); h.strokeStyle = '#c9ced8'; h.lineWidth = 2; h.stroke(); // 줄 거는 고리
     const hook = (() => { const o = mk(40, 40), x = o.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(hk, 0, 0, 40, 40); return o; })();
 
+    // ---------- 대쉬 가스: 부드러운 흰 가스 뭉치 (물체처럼 보통으로, 반투명) ----------
+    const gs = mk(128, 128), gx = gs.getContext('2d');
+    for (let i = 0; i < 9; i++) {
+      const a = R(0, Math.PI * 2), d = R(0, 22), rr = R(16, 30), px = 64 + Math.cos(a) * d, py = 64 + Math.sin(a) * d;
+      const rg = gx.createRadialGradient(px, py, 0, px, py, rr); rg.addColorStop(0, 'rgba(240,240,248,0.55)'); rg.addColorStop(1, 'rgba(240,240,248,0)');
+      gx.fillStyle = rg; gx.beginPath(); gx.arc(px, py, rr, 0, Math.PI * 2); gx.fill();
+    }
+    const gas = (() => { const o = mk(64, 64), x = o.getContext('2d'); x.filter = 'blur(2px)'; x.drawImage(gs, 0, 0, 64, 64); return o; })();
+
     const tint = (img, col) => { const c = mk(img.width, img.height), x = c.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return c; };
     const pv = mk(480, 200), pc = pv.getContext('2d');
     pc.fillStyle = '#1e1e24'; pc.fillRect(0, 0, 480, 200); pc.globalCompositeOperation = 'lighter';
     pc.drawImage(tint(thrust, '#c080ff'), 10, 80, 240, 60); pc.drawImage(thrust, 10, 80, 240, 60);
     pc.globalAlpha = 1; pc.drawImage(tint(spin, '#c080ff'), 270, 0, 200, 200); pc.globalAlpha = 0.5; pc.drawImage(spin, 270, 0, 200, 200);
     pc.globalCompositeOperation = 'lighter'; pc.drawImage(tint(wind, '#c080ff'), 10, 140, 160, 60); pc.globalCompositeOperation = 'source-over'; pc.drawImage(hook, 200, 150, 40, 40);
-    return { thrust: thrust.toDataURL(), spin: spin.toDataURL(), wind: wind.toDataURL(), hook: hook.toDataURL(), pv: pv.toDataURL() };
+    return { thrust: thrust.toDataURL(), spin: spin.toDataURL(), wind: wind.toDataURL(), hook: hook.toDataURL(), gas: gas.toDataURL(), pv: pv.toDataURL() };
   });
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
-  save('assassin_thrust.png', res.thrust); save('assassin_wind.png', res.wind); save('assassin_hook.png', res.hook); save('assassin_spin.png', res.spin); save('preview_assassin.png', res.pv);
+  save('assassin_thrust.png', res.thrust); save('assassin_wind.png', res.wind); save('assassin_hook.png', res.hook); save('assassin_gas.png', res.gas); save('assassin_spin.png', res.spin); save('preview_assassin.png', res.pv);
   await b.close();
 })();
