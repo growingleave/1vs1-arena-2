@@ -38,6 +38,13 @@ class SansBoneChipsVFX {
     }
 }
 
+// 후딜레이: sec초 동안 이동 불가. 이미 더 오래 남은 슬로우(상대가 건 것 등)가 있으면 덮어쓰지 않는다
+function sansPostDelay(owner, sec) {
+    const e = owner.statusEffects.slow;
+    if (e && e.duration >= sec) return;
+    slow(owner, sec, 100);
+}
+
 // 흰 빛 점 (한 번 만들어 재사용)
 let _sansGlowDot = null;
 function sansGlowDot() {
@@ -201,6 +208,7 @@ class SansBasicAttack extends Skill {
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
         attacks.push(new SansSpinningBarBullet(owner, direction));
+        sansPostDelay(owner, 0.15); // 후딜레이: 0.15초 이동 불가
     }
 }
 
@@ -235,6 +243,7 @@ class SansSkill1 extends Skill {
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
         attacks.push(new SansGasterLaser(owner, direction));
+        sansPostDelay(owner, 0.38); // 후딜레이: 레이저가 다 나갈 때까지(경고 0.18초 + 발사 0.2초) 이동 불가
     }
 }
 
@@ -331,6 +340,7 @@ class SansSkill2 extends Skill {
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
         attacks.push(new SansMovingWallBullet(owner, direction));
+        sansPostDelay(owner, 0.2); // 후딜레이: 0.2초 이동 불가
     }
 }
 
