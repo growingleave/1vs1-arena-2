@@ -436,10 +436,14 @@ class AccHealVFX extends SparkVFX {
     }
 }
 
+// 스킬 2 회복량: 처음 50, 쓸 때마다 10씩 줄어 최소 20 (50 → 40 → 30 → 20 → 20 ...)
+const ACC_HEAL_START = 50, ACC_HEAL_STEP = 10, ACC_HEAL_MIN = 20;
+
 class AcceleratorHealSkill extends Skill {
     constructor() {
         super('Time Stabilization', 3000);
         this.owner = null;
+        this.healAmount = ACC_HEAL_START; // 쓸 때마다 줄어든다 (최소 ACC_HEAL_MIN)
     }
 
     use(owner, direction, attacks) {
@@ -451,7 +455,8 @@ class AcceleratorHealSkill extends Skill {
         const timeSkill = owner.abilities[1];
         if (timeSkill && timeSkill.charge !== undefined) timeSkill.charge = Math.max(0.0, timeSkill.charge - 45.0);
 
-        owner.hp = Math.min(owner.maxHp, owner.hp + 50.0);
+        owner.hp = Math.min(owner.maxHp, owner.hp + this.healAmount);
+        this.healAmount = Math.max(ACC_HEAL_MIN, this.healAmount - ACC_HEAL_STEP);
         Vfx.spawn(new AccHealVFX(owner));
     }
 }
@@ -638,7 +643,7 @@ const ACCELERATOR_CHARACTER_DATA = {
     id: 'ACCELERATOR',
     fxColor: '#64dcff',
     name: '가속자',
-    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(6씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 35 피해를 입고 1.5초 기절합니다, 스킬 2(3초): 체력을 50 회복하고 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 10씩 점점 빠르게 깎입니다',
+    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(6씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 35 피해를 입고 1.5초 기절합니다, 스킬 2(3초): 체력을 회복하고(50 → 40 → 30 → 20, 쓸 때마다 10씩 줄어 최소 20) 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 10씩 점점 빠르게 깎입니다',
     apply: applyAccelerator,
     thumbnail: ACCELERATOR_IMAGE,
 };
