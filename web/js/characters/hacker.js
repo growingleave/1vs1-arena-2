@@ -7,6 +7,7 @@ const HK_SCAN_IMAGE = loadImage('assets/hk_scan.png');     // 256x80 스캔 빔,
 const HK_CUBE_IMAGE = loadImage('assets/hk_cube.png');     // 64x64 데이터 큐브, 바깥 네모 한 변 ≈ 56
 const HK_PORTAL_IMAGE = loadImage('assets/hk_portal.png'); // 64x64 텔레포트 포털
 const HK_RING_IMAGE = loadImage('assets/hk_ring.png');     // 256x256 해킹 파동 고리, 바깥 반지름 ≈ 124
+const HK_SKULL_IMAGE = loadImage('assets/hk_skull.png');   // 128x128 해킹된 상대 몸에 뜨는 해골
 const HK_GREEN = '#5cff8a';
 
 function hkGlow(ctx, img, x, y, w, h, { angle = 0, alpha = 1, ax = 0.5, ay = 0.5, core = 0.45 } = {}) {
@@ -65,17 +66,35 @@ function triggerFullHack(owner, target) {
     Vfx.spawn(new HackerPortalVFX(target.rect.centerx, target.rect.centery, true));
 }
 
+// 해킹 게이지: 12칸으로 나뉜 빛나는 고리가 시계 방향으로 차오르고, 바깥에 도는 점선 고리 + 가운데 숫자.
+// 75% 넘으면 깜빡이며 경고 (화면 전용)
 function drawClockwiseDonut(ctx, x, y, radius, percent) {
-    drawCircle(ctx, x, y, radius - 1.5, null, 'rgb(120, 130, 150)', 3);
-    if (percent > 0) {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.arc(x, y, radius - 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (percent / 100));
-        ctx.closePath();
-        ctx.fillStyle = 'rgb(0, 255, 150)';
-        ctx.fill();
+    const N = 12, gap = 0.12, seg = Math.PI * 2 / N, filled = percent / 100 * N, t = Time.now;
+    const hot = percent >= 75 ? 0.6 + 0.4 * Math.sin(t * 0.025) : 1;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8, 20, 14, 0.75)'; ctx.beginPath(); ctx.arc(x, y, radius - 4, 0, Math.PI * 2); ctx.fill();
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < N; i++) {
+        const a0 = -Math.PI / 2 + i * seg + gap / 2, full = a0 + seg - gap;
+        ctx.strokeStyle = 'rgba(92, 255, 138, 0.18)'; ctx.lineWidth = 5;               // 빈 칸
+        ctx.beginPath(); ctx.arc(x, y, radius - 6, a0, full); ctx.stroke();
+        const f = Math.max(0, Math.min(1, filled - i));
+        if (f > 0) {
+            const a1 = a0 + (seg - gap) * f;
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = `rgba(92, 255, 138, ${0.35 * hot})`; ctx.lineWidth = 9;  // 번지는 빛
+            ctx.beginPath(); ctx.arc(x, y, radius - 6, a0, a1); ctx.stroke();
+            ctx.strokeStyle = `rgba(190, 255, 210, ${hot})`; ctx.lineWidth = 4;         // 찬 칸
+            ctx.beginPath(); ctx.arc(x, y, radius - 6, a0, a1); ctx.stroke();
+            ctx.globalCompositeOperation = 'source-over';
+        }
     }
-    drawCircle(ctx, x, y, radius - 7, null, 'rgb(120, 130, 150)', 2);
+    ctx.setLineDash([2, 5]); ctx.lineDashOffset = -t * 0.03;                             // 바깥에서 도는 점선
+    ctx.strokeStyle = 'rgba(92, 255, 138, 0.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    drawText(ctx, String(Math.floor(percent)), x, y + 1, 11, `rgba(190, 255, 210, ${hot})`, { bold: true, align: 'center', baseline: 'middle' });
 }
 
 // 대상에게 해킹 게이지를 처음 붙일 때 한 번만 호출된다 (여러 번 불러도 안전)
@@ -123,8 +142,28 @@ function attachHackerGauge(target) {
             ctx.restore();
         }
 
-        if (Time.now - target.hackerTextTimer < 2000) {
-            drawText(ctx, '해킹!', r.centerx + 50, r.top - 58, 24, 'rgb(0, 255, 150)', { bold: true, align: 'center', baseline: 'middle' });
+        // 해킹 상태: 몸 위에 해골이 지직거리며 뜨고, 발밑에 '해킹됨' (화면 전용)
+        const hackLeft = (target.hackedUntil || 0) - Time.now;
+        if (hackLeft > 0 && !target.hidden && isImageReady(HK_SKULL_IMAGE)) {
+            const since = Time.now - target.hackerTextTimer;
+            const pop = since < 250 ? 1.6 - 0.6 * (since / 250) : 1;                       // 처음엔 크게 떴다가 몸 크기로
+            const fade = Math.min(1, hackLeft / 500);
+            const glitch = Math.floor(Time.now / 90) % 7 === 0;                             // 가끔 가로로 어긋나는 글리치
+            const size = Math.max(r.w, r.h) * 1.15 * pop, x0 = r.centerx - size / 2, y0 = r.centery - size / 2;
+            const tinted = vfxTinted(HK_SKULL_IMAGE, HK_GREEN);
+            ctx.save(); ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.75 * fade * (0.85 + 0.15 * Math.sin(Time.now * 0.02));
+            if (glitch) {
+                for (let i = 0; i < 3; i++) {
+                    const sy = i * 128 / 3, dy = i * size / 3, off = (i - 1) * 5;
+                    ctx.drawImage(tinted, 0, sy, 128, 128 / 3, x0 + off, y0 + dy, size, size / 3);
+                }
+            } else {
+                ctx.drawImage(tinted, x0, y0, size, size);
+                ctx.globalAlpha *= 0.4; ctx.drawImage(HK_SKULL_IMAGE, x0, y0, size, size);
+            }
+            ctx.restore();
+            drawText(ctx, '해킹됨', r.centerx, r.bottom + 12, 14, `rgba(92, 255, 138, ${fade})`, { bold: true, align: 'center', baseline: 'middle' });
         }
 
         // 해킹 상태에서 큐브에 맞아 생긴 보라색 도트 피해 표시
