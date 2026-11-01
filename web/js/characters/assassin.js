@@ -663,20 +663,20 @@ function applyAssassinToPlayer(player) {
     player.isInvisible = false;
     player.assassinJumpTime = -99999;
 
-    // 강화 평타(회전 베기) 남은 수: 캐릭터 오른쪽 위에 작은 회전 베기 그림 + 숫자 (은신 중엔 숨김, 왼쪽은 쿨타임 표시 자리)
+    // 강화 평타(회전 베기) 남은 수: 캐릭터 오른쪽 위에 숫자, 그 아래 작은 마름모 칸 (찬 칸 = 남은 수, 최대 3칸)
+    // (은신 중엔 숨김, 왼쪽은 쿨타임 표시 자리)
     player.postDrawHooks.push((ctx) => {
         const n = player.assassinCharge || 0;
         if (n <= 0 || player.isInvisible || player.hidden) return;
-        const x = player.rect.right + 12, y = player.rect.top + 2;
-        if (isImageReady(ASSASSIN_SPIN_IMAGE)) {
-            ctx.save();
-            ctx.globalCompositeOperation = 'lighter';
-            ctx.translate(x, y); ctx.rotate(Time.now * 0.004);
-            ctx.drawImage(vfxTinted(ASSASSIN_SPIN_IMAGE, player.fxColor || '#ffffff'), -11, -11, 22, 22);
-            ctx.globalAlpha = 0.5; ctx.drawImage(ASSASSIN_SPIN_IMAGE, -11, -11, 22, 22);
-            ctx.restore();
+        const x = player.rect.right + 12, y = player.rect.top - 10;
+        drawText(ctx, String(n), x, y, 13, '#ffffff', { bold: true, align: 'center', baseline: 'middle' });
+        const color = player.fxColor || '#ffffff';
+        for (let i = 0; i < MAX_ASSASSIN_CHARGE; i++) {
+            const px = x + (i - (MAX_ASSASSIN_CHARGE - 1) / 2) * 7, py = y + 10;
+            ctx.beginPath(); ctx.moveTo(px, py - 3.5); ctx.lineTo(px + 2.5, py); ctx.lineTo(px, py + 3.5); ctx.lineTo(px - 2.5, py); ctx.closePath();
+            if (i < n) { ctx.fillStyle = color; ctx.fill(); }
+            else { ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; ctx.lineWidth = 1; ctx.stroke(); }
         }
-        drawText(ctx, String(n), x, y + 1, 13, '#ffffff', { bold: true, align: 'center', baseline: 'middle' });
     });
 
     player.abilities = [
