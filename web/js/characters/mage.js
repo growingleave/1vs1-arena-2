@@ -670,7 +670,7 @@ function drawMageFloatUnder(ctx) {
 // 캐릭터 등록
 // ==========================================
 function applyMageToPlayer(player) {
-    player.maxHp = 150;
+    player.maxHp = 245;
     player.hp = player.maxHp;
     player.baseAtk = 15;
     player.speed = 3.6;

@@ -109,7 +109,7 @@ class Pickup {
         this.kind = kind; // 'heal' 또는 'ult'
         this.color = kind === 'heal' ? COLOR_HEAL : COLOR_ULT;
         this.radius = 20;
-        this.healAmount = 15.0;
+        this.healAmount = 22.0;
         this.ultAmount = 15.0;
         this.respawnTime = 12000; // ms
 

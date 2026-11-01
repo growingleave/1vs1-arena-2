@@ -542,8 +542,8 @@ class DioUltimateSkill extends Skill {
 // ==========================================
 function applyDio(player) {
     player.baseAtk = 15;
-    player.maxHp = 100;
-    player.hp = 100;
+    player.maxHp = 240;
+    player.hp = player.maxHp;
     player.speed = 4.7;
     player.dioKnifeStopped = false;
     player.dioLastHitTime = 0;

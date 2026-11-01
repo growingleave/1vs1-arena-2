@@ -615,8 +615,8 @@ class HackerBasicAttack extends Skill {
 // ==========================================
 function applyHacker(player) {
     player.baseAtk = 18;
-    player.maxHp = 110;
-    player.hp = 110;
+    player.maxHp = 260;
+    player.hp = player.maxHp;
     player.speed = 4.3;
     player.spriteImage = HACKER_IMAGE;
     player.abilities = [

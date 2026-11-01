@@ -717,7 +717,7 @@ class AssassinUltSkill extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applyAssassinToPlayer(player) {
-    player.maxHp = 85;
+    player.maxHp = 225;
     player.hp = player.maxHp;
     player.baseAtk = 14;
     player.speed = 5.1;

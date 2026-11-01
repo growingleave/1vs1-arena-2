@@ -570,8 +570,8 @@ class GrinderBasicAttack extends Skill {
 // ==========================================
 function applyGrinder(player) {
     player.baseAtk = 20;
-    player.maxHp = 130;
-    player.hp = 130;
+    player.maxHp = 300;
+    player.hp = player.maxHp;
     player.speed = 4.1;
     player.grinderSpinActive = false;
     player.abilities = [

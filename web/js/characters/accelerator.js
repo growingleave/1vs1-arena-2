@@ -324,7 +324,7 @@ class AcceleratorTimeSkill extends Skill {
             if (this.charge >= this.maxCharge) {
                 this.charge = 0.0;
                 this.isActive = false;
-                player.takeDamage(15.0);
+                player.takeDamage(22.0);
                 slow(player, 1.5, 100);
                 silence(player, 1.5);
                 Vfx.spawn(new AccClockBreakVFX(player));
@@ -495,7 +495,7 @@ class AcceleratorUltField {
 
         // 2.5초 뒤부터 점점 짧은 간격으로 자기 체력이 깎인다
         if (elapsed >= this.delayBeforeDamage && Time.now - this.lastDamageTick >= this.damageInterval) {
-            this.owner.takeDamage(4.0);
+            this.owner.takeDamage(6.0);
             this.lastDamageTick = Time.now;
             Vfx.spawn(new HitSparkVFX(this.owner.rect.centerx, this.owner.rect.centery, { color: '#ff5050', angle: -Math.PI / 2, count: 8, size: 16 }));
             this.flashTimer = 180;
@@ -590,8 +590,8 @@ class AcceleratorUltSkill extends Skill {
 // ==========================================
 function applyAccelerator(player) {
     player.baseAtk = 12;
-    player.maxHp = 100;
-    player.hp = 100;
+    player.maxHp = 240;
+    player.hp = player.maxHp;
     player.speed = 4.7;
     player.isUltActive = false;
     player.spriteImage = ACCELERATOR_IMAGE;
@@ -638,7 +638,7 @@ const ACCELERATOR_CHARACTER_DATA = {
     id: 'ACCELERATOR',
     fxColor: '#64dcff',
     name: '가속자',
-    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(6씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 15 피해를 입고 1.5초 기절합니다, 스킬 2(3초): 체력을 25 회복하고 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 4씩 점점 빠르게 깎입니다',
+    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(6씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 22 피해를 입고 1.5초 기절합니다, 스킬 2(3초): 체력을 25 회복하고 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 6씩 점점 빠르게 깎입니다',
     apply: applyAccelerator,
     thumbnail: ACCELERATOR_IMAGE,
 };
