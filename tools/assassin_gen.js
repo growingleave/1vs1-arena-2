@@ -34,7 +34,7 @@ const OUT = process.argv[2] || __dirname;
     // 선 하나: (x0,y0)에서 시작해 살짝 휘며 칼끝으로, 중간에 잔가지 하나
     const line = (x0, y0, w, a) => {
       const mx = x0 + (TX - x0) * 0.45, my = y0 + (TY - y0) * 0.2 + R(-2, 2);
-      const g = t.createLinearGradient(x0, 0, TX, 0); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.25, `rgba(255,255,255,${a})`); g.addColorStop(1, 'rgba(255,255,255,1)');
+      const g = t.createLinearGradient(x0, 0, TX, 0); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.12, `rgba(255,255,255,${a})`); g.addColorStop(1, 'rgba(255,255,255,1)');
       t.strokeStyle = g; t.lineWidth = w;
       t.beginPath(); t.moveTo(x0, y0); t.quadraticCurveTo(mx, my, TX, TY); t.stroke();
       if (rnd() < 0.6) { // 잔가지
@@ -42,11 +42,11 @@ const OUT = process.argv[2] || __dirname;
         t.lineWidth = w * 0.6; t.beginPath(); t.moveTo(bx, by); t.lineTo(bx - R(14, 26), by + (by - TY) * R(0.15, 0.35)); t.stroke();
       }
     };
-    t.lineWidth = 2; const cg = t.createLinearGradient(12, 0, TX, 0); cg.addColorStop(0, 'rgba(255,255,255,0.25)'); cg.addColorStop(1, '#fff');
+    t.lineWidth = 3.2; const cg = t.createLinearGradient(12, 0, TX, 0); cg.addColorStop(0, 'rgba(255,255,255,0.5)'); cg.addColorStop(1, '#fff');
     t.strokeStyle = cg; t.beginPath(); t.moveTo(12, TY); t.lineTo(TX, TY); t.stroke();          // 가운데 선
-    for (const [x0, dy, w, a] of [[60, -20, 2, 0.8], [90, -13, 1.6, 0.9], [120, -7, 1.4, 0.9], [40, 22, 2, 0.75], [80, 15, 1.6, 0.9], [130, 8, 1.3, 0.9], [105, -24, 1.2, 0.6], [110, 25, 1.2, 0.6]]) line(x0, TY + dy, w, a);
-    t.fillStyle = '#fff'; t.beginPath(); t.moveTo(TX - 26, TY - 2); t.lineTo(TX + 3, TY); t.lineTo(TX - 26, TY + 2); t.closePath(); t.fill(); // 칼끝
-    const thrust = bakeGlow(th, [[2, 0.4]]);
+    for (const [x0, dy, w, a] of [[60, -20, 3.2, 1], [90, -13, 2.8, 1], [120, -7, 2.4, 1], [40, 22, 3.2, 1], [80, 15, 2.8, 1], [130, 8, 2.2, 1], [105, -24, 2, 0.85], [110, 25, 2, 0.85]]) line(x0, TY + dy, w, a);
+    t.fillStyle = '#fff'; t.beginPath(); t.moveTo(TX - 34, TY - 3.5); t.lineTo(TX + 4, TY); t.lineTo(TX - 34, TY + 3.5); t.closePath(); t.fill(); // 칼끝
+    const thrust = bakeGlow(th, [[2, 0.3]]);
 
     // ---------- 회전 베기: 검사 평타 부채꼴을 360도로 (붓질 같은 호 여러 줄, 바깥 테가 진함) ----------
     const sp = mk(300, 300), s = sp.getContext('2d'); const C = 150, RR = 140;

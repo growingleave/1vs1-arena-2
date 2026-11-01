@@ -4,8 +4,8 @@
 //   dmx_fireball.png     160x160: 폭발 불덩이 (주황 멀티컬러, 가운데, 불꽃 끝 반지름 ≈ 72) — 'lighter' 그대로
 //   dmx_fireball_red.png 160x160: 변신용 불덩이 (붉은 멀티컬러, 더 뾰족) — 'lighter' 그대로
 //   dmx_ring.png         160x160: 충격파 고리 (흰 빛, 고리 반지름 70) — 색 입혀 'lighter'
-//   dmx_cone.png         200x140: 스킬1 앞으로 뿜는 폭발 (뒤쪽 기준점 x10,y70, 오른쪽으로 길이 ≈ 185) — 'lighter' 그대로
-//   dmx_cone_red.png     200x140: 변신 스킬1 (붉은) — 'lighter' 그대로
+//   dmx_cone.png         160x180: 스킬1 폭발 = 판정 사다리꼴 모양 (왼쪽 끝이 뒤쪽 밑변, 오른쪽 끝이 앞쪽, 뒤쪽 높이 = 앞쪽의 0.4) — 'lighter' 그대로
+//   dmx_cone_red.png     160x180: 변신 스킬1 (같은 모양, 붉은 색) — 'lighter' 그대로
 //   dmx_smoke.png        128x128: 검은 연기 뭉치 (가운데) — 보통
 //   dmx_dust.png         128x128: 옅은 흙먼지 (가운데) — 보통
 //   dmx_scorch.png       160x160: 바닥 그을림 (가운데, 반지름 ≈ 70) — 보통
@@ -90,24 +90,28 @@ const OUT = process.argv[2] || __dirname;
     const ring = bakeGlow(rgc, [[8, 0.8], [3, 0.6]]);
 
     // ---------- 스킬1 원뿔 폭발 ----------
+    // 스킬1 판정(사다리꼴)과 같은 모양의 폭발: 뒤쪽 반높이 0.4, 앞쪽 반높이 1 (길이:앞폭 = 80:90)
+    // 사다리꼴 옆선을 뒤로 늘리면 만나는 점(-213,180)에서 불줄기를 뿜어 자연스럽게 퍼지게 한 뒤 사다리꼴로 자른다
     const cone = (cols) => {
-      const c = mk(400, 280), x = c.getContext('2d'); const OX = 20, OY = 140;
+      const c = mk(320, 360), x = c.getContext('2d'); const FX = -213, FY = 180, SL = 0.3375;
+      x.save(); x.beginPath(); x.moveTo(0, FY - 72); x.lineTo(320, 0); x.lineTo(320, 360); x.lineTo(0, FY + 72); x.closePath(); x.clip();
       x.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 26; i++) {
-        const a = R(-0.42, 0.42), len = R(220, 370), w = R(0.04, 0.09);
-        const lg = x.createLinearGradient(OX, OY, OX + Math.cos(a) * len, OY + Math.sin(a) * len); lg.addColorStop(0, cols[0]); lg.addColorStop(0.4, cols[1]); lg.addColorStop(1, 'rgba(0,0,0,0)');
-        x.fillStyle = lg; x.globalAlpha = R(0.25, 0.55); x.beginPath(); x.moveTo(OX, OY - 8); x.lineTo(OX + Math.cos(a - w) * len, OY + Math.sin(a - w) * len); x.lineTo(OX + Math.cos(a + w) * len, OY + Math.sin(a + w) * len); x.lineTo(OX, OY + 8); x.closePath(); x.fill();
+      for (let i = 0; i < 34; i++) {                             // 불줄기
+        const a = R(-Math.atan(SL), Math.atan(SL)) * 0.95, len = R(460, 580), w = R(0.02, 0.05);
+        const lg = x.createLinearGradient(0, 0, 400, 0); lg.addColorStop(0, cols[0]); lg.addColorStop(0.45, cols[1]); lg.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = lg; x.globalAlpha = R(0.3, 0.6);
+        x.beginPath(); x.moveTo(FX, FY); x.lineTo(FX + Math.cos(a - w) * len, FY + Math.sin(a - w) * len); x.lineTo(FX + Math.cos(a + w) * len, FY + Math.sin(a + w) * len); x.closePath(); x.fill();
       }
-      for (let i = 0; i < 12; i++) {
-        const t = R(0.2, 0.85), a = R(-0.32, 0.32), d = 40 + t * 280, rr = 18 + t * 40;
-        const px = OX + Math.cos(a) * d, py = OY + Math.sin(a) * d;
+      for (let i = 0; i < 16; i++) {                             // 뭉게 불덩이 (앞쪽일수록 크게)
+        const u = R(0.1, 0.95), px = u * 320, half = 72 + 108 * u, py = FY + R(-0.8, 0.8) * half, rr = 22 + 50 * u;
         const rg = x.createRadialGradient(px, py, 0, px, py, rr); rg.addColorStop(0, cols[1]); rg.addColorStop(1, 'rgba(0,0,0,0)');
-        x.fillStyle = rg; x.globalAlpha = 0.5 * (1 - t * 0.5); x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill();
+        x.fillStyle = rg; x.globalAlpha = 0.45; x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill();
       }
       x.globalAlpha = 1;
-      const core = x.createRadialGradient(OX + 30, OY, 0, OX + 30, OY, 50); core.addColorStop(0, '#fff'); core.addColorStop(0.5, cols[0]); core.addColorStop(1, 'rgba(0,0,0,0)');
-      x.fillStyle = core; x.beginPath(); x.arc(OX + 30, OY, 50, 0, Math.PI * 2); x.fill();
-      return bakeGlow(c, [[7, 0.6]]);
+      const core = x.createRadialGradient(10, FY, 0, 10, FY, 80); core.addColorStop(0, '#fff'); core.addColorStop(0.45, cols[0]); core.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = core; x.beginPath(); x.arc(10, FY, 80, 0, Math.PI * 2); x.fill();
+      x.restore();
+      return bakeGlow(c, [[4, 0.5]]);
     };
     const coneImg = cone(['rgb(255,220,140)', 'rgb(255,130,40)']);
     const coneRed = cone(['rgb(255,170,110)', 'rgb(255,45,20)']);
@@ -157,7 +161,7 @@ const OUT = process.argv[2] || __dirname;
     pc.globalCompositeOperation = 'lighter';
     pc.drawImage(fireball, 340, 20); pc.drawImage(fireballRed, 500, 20);
     pc.drawImage(tint(ring, '#ffa040'), 660, 0, 80, 80); pc.drawImage(tint(warn, '#ff3030'), 660, 40, 160, 160);
-    const pv2 = mk(420, 150), p2 = pv2.getContext('2d'); p2.fillStyle = '#3a3a40'; p2.fillRect(0, 0, 420, 150); p2.globalCompositeOperation = 'lighter'; p2.drawImage(coneImg, 0, 5); p2.drawImage(coneRed, 210, 5);
+    const pv2 = mk(420, 200), p2 = pv2.getContext('2d'); p2.fillStyle = '#3a3a40'; p2.fillRect(0, 0, 420, 200); p2.globalCompositeOperation = 'lighter'; p2.drawImage(coneImg, 0, 5); p2.drawImage(coneRed, 210, 5);
     const u = (c) => c.toDataURL();
     return { grenade: u(grenade), bigbomb: u(bigbomb), fireball: u(fireball), fireballRed: u(fireballRed), ring: u(ring), cone: u(coneImg), coneRed: u(coneRed),
       smoke: u(smoke), dust: u(dust), scorch: u(scorch), warn: u(warn), pv: u(pv), pv2: u(pv2) };

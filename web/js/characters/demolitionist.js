@@ -18,8 +18,8 @@ const DMX_BIGBOMB_IMAGE = loadImage('assets/dmx_bigbomb.png');     // 40x64 떨�
 const DMX_FIRE_IMAGE = loadImage('assets/dmx_fireball.png');       // 160x160 불덩이(주황), 불꽃 끝 반지름 ≈ 72 — 'lighter'
 const DMX_FIRE_RED_IMAGE = loadImage('assets/dmx_fireball_red.png'); // 160x160 불덩이(붉은) — 'lighter'
 const DMX_RING_IMAGE = loadImage('assets/dmx_ring.png');           // 160x160 흰 충격파 고리, 반지름 70 — 색 입혀 'lighter'
-const DMX_CONE_IMAGE = loadImage('assets/dmx_cone.png');           // 200x140 스킬1 폭발(주황), 뒤쪽 기준점 (10,70), 길이 ≈ 185 — 'lighter'
-const DMX_CONE_RED_IMAGE = loadImage('assets/dmx_cone_red.png');   // 200x140 변신 스킬1 (붉은) — 'lighter'
+const DMX_CONE_IMAGE = loadImage('assets/dmx_cone.png');           // 160x180 스킬1 폭발(주황) = 판정 사다리꼴 모양 (왼쪽 끝 = 뒤쪽 밑변) — 'lighter'
+const DMX_CONE_RED_IMAGE = loadImage('assets/dmx_cone_red.png');   // 160x180 변신 스킬1 (같은 모양, 붉은) — 'lighter'
 const DMX_SMOKE_IMAGE = loadImage('assets/dmx_smoke.png');         // 128x128 검은 연기, 가운데 — 보통
 const DMX_DUST_IMAGE = loadImage('assets/dmx_dust.png');           // 128x128 옅은 흙먼지, 가운데 — 보통
 const DMX_SCORCH_IMAGE = loadImage('assets/dmx_scorch.png');       // 160x160 바닥 그을림, 반지름 ≈ 70 — 보통
@@ -153,11 +153,17 @@ class DmxPushTrailVFX {
     }
 }
 
-// 스킬1 앞으로 뿜는 폭발 그림 (몸 앞쪽에서 시작, 순식간에 뻗었다 사라짐)
-function dmxDrawCone(ctx, img, x, y, angle, length, t) {
-    if (t >= 1) return;
-    const k = length / 185 * (0.65 + 0.35 * dmxEaseOut(Math.min(1, t * 3)));
-    dmxDraw(ctx, img, x, y, 200 * k, { lighter: true, angle, alpha: 1.2 * (1 - t * t), ax: 10 / 200, ay: 0.5 });
+// 스킬1 폭발 그림을 판정 사다리꼴에 딱 맞춰 그린다 (back~front: 바라보는 방향으로 몸 중심에서의 거리, halfFront: 앞쪽 반폭)
+// 뒤쪽부터 순식간에 앞으로 뻗었다가 사라진다
+function dmxDrawCone(ctx, img, cx, cy, angle, back, front, halfFront, t) {
+    if (t >= 1 || !isImageReady(img)) return;
+    const reach = 0.55 + 0.45 * dmxEaseOut(Math.min(1, t * 3));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, 1.2 * (1 - t * t));
+    ctx.translate(cx, cy); ctx.rotate(angle);
+    ctx.drawImage(img, back, -halfFront * reach, (front - back) * reach, halfFront * 2 * reach);
+    ctx.restore();
 }
 
 // 변신 스킬2: 하늘에서 폭탄이 떨어져 땅에 닿는 순간 터진다 (떨어지는 시간 260ms 뒤 폭발 판정)
@@ -338,7 +344,8 @@ class DemolitionistSkill1Effect {
         // 화면 전용: 뿜는 자리(몸 앞)와 길이 (사다리꼴 앞 끝까지)
         this.fxX = owner.rect.centerx + direction[0] * 14;
         this.fxY = owner.rect.centery + direction[1] * 14;
-        this.fxLen = this.isTransformed ? 125 : 95;
+        // 그림 사다리꼴 (몸 중심 기준 뒤~앞 거리, 앞 반폭). 판정(평소 15~95·반폭 45 / 변신 5~125·반폭 65)은 그대로 두고 그림만 크게
+        this.fxShape = this.isTransformed ? [2, 155, 85] : [12, 120, 60];
 
         const red = this.isTransformed;
         // 사용 순간: 앞으로 튀는 불똥 + 총구 연기
@@ -346,15 +353,7 @@ class DemolitionistSkill1Effect {
         Vfx.spawn(new DmxPuffVFX(this.fxX + direction[0] * 10, this.fxY + direction[1] * 10, red ? 60 : 44,
             { vx: direction[0] * 40, vy: direction[1] * 40 - 20, duration: 0.6, alpha: 0.5, image: DMX_SMOKE_IMAGE }));
 
-        if (red) {
-            // 변신: 사다리꼴 안을 따라 뒤→앞 순서로 3번 터지는 폭발
-            this.bursts = [0.2, 0.55, 0.9].map((t) => {
-                const lx = -30 + t * 120, halfH = 25 + t * 40;
-                const [wx, wy] = transformLocalPoints(this.posX, this.posY, this.angle, [[lx, 0]])[0];
-                return { wx, wy, radius: halfH, at: t * 110, spawned: false };
-            });
-            Vfx.shake(4, 0.15);
-        }
+        if (red) Vfx.shake(3, 0.12);
     }
 
     getTrapPoints() {
@@ -364,14 +363,7 @@ class DemolitionistSkill1Effect {
         return transformLocalPoints(this.posX, this.posY, this.angle, local);
     }
 
-    update() {
-        // 변신 연쇄 폭발 그림을 시간차로 띄운다 (화면 전용)
-        if (!this.bursts) return;
-        const el = Time.now - this.createdTime;
-        for (const b of this.bursts) {
-            if (!b.spawned && el >= b.at) { b.spawned = true; Vfx.spawn(new DmxBoomVFX(b.wx, b.wy, b.radius, { red: true })); }
-        }
-    }
+    update() {}
 
     isExpired() { return Time.now - this.createdTime >= this.lifespan; }
 
@@ -394,7 +386,8 @@ class DemolitionistSkill1Effect {
 
     draw(ctx) {
         const t = Math.min(1, (Time.now - this.createdTime) / this.lifespan);
-        dmxDrawCone(ctx, this.isTransformed ? DMX_CONE_RED_IMAGE : DMX_CONE_IMAGE, this.fxX, this.fxY, this.screenAngle, this.fxLen, t);
+        const [back, front, half] = this.fxShape;
+        dmxDrawCone(ctx, this.isTransformed ? DMX_CONE_RED_IMAGE : DMX_CONE_IMAGE, this.owner.rect.centerx, this.owner.rect.centery, this.screenAngle, back, front, half, t);
     }
 }
 
