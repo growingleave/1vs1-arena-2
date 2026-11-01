@@ -109,7 +109,7 @@ class Pickup {
         this.kind = kind; // 'heal' 또는 'ult'
         this.color = kind === 'heal' ? COLOR_HEAL : COLOR_ULT;
         this.radius = 20;
-        this.healAmount = 22.0;
+        this.healAmount = 35.0;
         this.ultAmount = 15.0;
         this.respawnTime = 12000; // ms
 
@@ -253,10 +253,10 @@ const MAPS = [
             new Pickup(150, 570, 'ult'),
             new Pickup(1130, 570, 'heal'),
         ],
-        buildHazards: () => [new LavaPit(640, 360, 90, 4)],
+        buildHazards: () => [new LavaPit(640, 360, 90, 10)],
         // 화면 가장자리와 가운데 용암 구덩이 근처는 피해서 떨어진다
         buildEvents: () => [new LavaFallEvent(new Rect(140, 140, 1280 - 280, 720 - 280), {
-            radius: 70, tickDamage: 4, intervalRange: [2.0, 4.0], warningDuration: 1.3, activeDuration: 6.0,
+            radius: 70, tickDamage: 10, intervalRange: [2.0, 4.0], warningDuration: 1.3, activeDuration: 6.0,
             avoidZones: [[640, 360, 170]], dropsPerWave: 2,
         })],
     },
@@ -290,7 +290,7 @@ const MAPS = [
         // 화톳불: 네 모서리 빈 공간 + 가운데
         buildEvents: () => [new BlizzardEvent(
             [[200, 200], [1080, 200], [200, 520], [1080, 520], [640, 360]],
-            { safeRadius: 130, stormTickDamage: 6, stormSlowPower: 35, intervalRange: [10.0, 15.0],
+            { safeRadius: 130, stormTickDamage: 15, stormSlowPower: 35, intervalRange: [10.0, 15.0],
               announceDuration: 2.5, prepareDuration: 4.0, stormDuration: 7.0 },
         )],
     },
