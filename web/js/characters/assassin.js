@@ -30,7 +30,7 @@ class AssassinThrustVFX extends SparkVFX {
         if (t < 1 && isImageReady(ASSASSIN_THRUST_IMAGE)) {
             const r = this.owner.rect;
             const ext = Math.min(1, t / 0.3);                   // 0.05초 만에 다 뻗음
-            const len = 62 * (0.55 + 0.45 * (1 - (1 - ext) ** 2));
+            const len = 80 * (0.55 + 0.45 * (1 - (1 - ext) ** 2));
             const push = 10 * Math.max(0, (t - 0.3) / 0.7);     // 그 뒤 살짝 더 밀려나감
             const k = len / 110, a = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
             ctx.save();
@@ -38,9 +38,9 @@ class AssassinThrustVFX extends SparkVFX {
             ctx.translate(r.centerx + this.dir[0] * (8 + push), r.centery + this.dir[1] * (8 + push));
             ctx.rotate(this.angle);
             ctx.globalAlpha = Math.min(1, a * 1.1);
-            ctx.drawImage(vfxTinted(ASSASSIN_THRUST_IMAGE, this.color), -7 * k, -15 * k * 1.8, 120 * k, 30 * k * 1.8);
-            ctx.globalAlpha = a * 0.55;
-            ctx.drawImage(ASSASSIN_THRUST_IMAGE, -7 * k, -15 * k * 1.8, 120 * k, 30 * k * 1.8);
+            ctx.drawImage(vfxTinted(ASSASSIN_THRUST_IMAGE, this.color), -7 * k, -15 * k * 2.2, 120 * k, 30 * k * 2.2);
+            ctx.globalAlpha = a * 0.8;
+            ctx.drawImage(ASSASSIN_THRUST_IMAGE, -7 * k, -15 * k * 2.2, 120 * k, 30 * k * 2.2);
             ctx.restore();
         }
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore();
