@@ -152,3 +152,15 @@ class BeamLaser {
         return checkPolygonCollision(this.getPolygonPoints(), target.rect);
     }
 }
+
+// 캐릭터 오른쪽 위에 남은 횟수: 숫자 + 그 아래 작은 마름모 칸 (찬 칸 = 남은 수). 화면 전용
+function drawChargePips(ctx, player, n, max, color) {
+    const x = player.rect.right + 12, y = player.rect.top - 10;
+    drawText(ctx, String(n), x, y, 13, '#ffffff', { bold: true, align: 'center', baseline: 'middle' });
+    for (let i = 0; i < max; i++) {
+        const px = x + (i - (max - 1) / 2) * 7, py = y + 10;
+        ctx.beginPath(); ctx.moveTo(px, py - 3.5); ctx.lineTo(px + 2.5, py); ctx.lineTo(px, py + 3.5); ctx.lineTo(px - 2.5, py); ctx.closePath();
+        if (i < n) { ctx.fillStyle = color; ctx.fill(); }
+        else { ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+}

@@ -730,15 +730,7 @@ function applyAssassinToPlayer(player) {
     player.postDrawHooks.push((ctx) => {
         const n = player.assassinCharge || 0;
         if (n <= 0 || player.isInvisible || player.hidden) return;
-        const x = player.rect.right + 12, y = player.rect.top - 10;
-        drawText(ctx, String(n), x, y, 13, '#ffffff', { bold: true, align: 'center', baseline: 'middle' });
-        const color = player.fxColor || '#ffffff';
-        for (let i = 0; i < MAX_ASSASSIN_CHARGE; i++) {
-            const px = x + (i - (MAX_ASSASSIN_CHARGE - 1) / 2) * 7, py = y + 10;
-            ctx.beginPath(); ctx.moveTo(px, py - 3.5); ctx.lineTo(px + 2.5, py); ctx.lineTo(px, py + 3.5); ctx.lineTo(px - 2.5, py); ctx.closePath();
-            if (i < n) { ctx.fillStyle = color; ctx.fill(); }
-            else { ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; ctx.lineWidth = 1; ctx.stroke(); }
-        }
+        drawChargePips(ctx, player, n, MAX_ASSASSIN_CHARGE, player.fxColor || '#ffffff');
     });
 
     player.abilities = [

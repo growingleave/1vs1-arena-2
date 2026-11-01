@@ -642,6 +642,12 @@ function applySwordmanToPlayer(player) {
         new SwordmanUltSkill(),     // 궁극기 (일섬 돌진)
     ];
     player.ultChargeRate = player.abilities[3].ultChargeRate;
+
+    // 강화 평타(검기) 남은 수: 어쌔신처럼 캐릭터 오른쪽 위에 숫자 + 마름모 칸
+    player.postDrawHooks.push((ctx) => {
+        const n = player.slashEnhanceCount || 0;
+        if (n > 0 && !player.hidden) drawChargePips(ctx, player, n, 3, SWORDMAN_COLOR);
+    });
 }
 
 const SWORDMAN_CHARACTER_DATA = {
