@@ -500,6 +500,17 @@ class AssassinHookSkill extends Skill {
 // 궁극기 참격 한 획 그림: 600x60, 왼쪽 끝 x 10 → 오른쪽 끝 x 590, 가운데 y 30 (흰 빛)
 const ASSASSIN_XSLASH_IMAGE = loadImage('assets/assassin_xslash.png');
 
+// 흰 빛 점 (한 번만 만들어 두고 계속 쓴다: 매 프레임 그라디언트를 새로 만들지 않기 위해)
+let _assassinGlowDot = null;
+function assassinGlowDot() {
+    if (_assassinGlowDot) return _assassinGlowDot;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    return (_assassinGlowDot = c);
+}
+
 // 칼끝을 따라 튀는 불똥 묶음 (참격이 addSpark로 채운다, 화면 전용)
 class AssassinBladeSparksVFX extends SparkVFX {
     constructor(color, duration) { super(color); this.duration = duration; }
@@ -606,8 +617,7 @@ class AssassinXSlashAttack {
         }
         ctx.strokeStyle = `rgba(${r},${g},${b},${a})`; ctx.lineWidth = 3 * a + 1;
         ctx.beginPath(); ctx.arc(0, 0, 20 + 70 * (1 - (1 - t) ** 2), 0, Math.PI * 2); ctx.stroke();
-        const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 40); gr.addColorStop(0, `rgba(255,255,255,${0.9 * a})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.9 * a; ctx.drawImage(assassinGlowDot(), -40, -40, 80, 80);
         ctx.restore();
     }
 
@@ -643,9 +653,7 @@ class AssassinXSlashAttack {
             if (t < 1) {
                 const hx = this.posX + Math.cos(travel) * (head - 20), hy = this.posY + Math.sin(travel) * (head - 20);
                 ctx.save(); ctx.globalCompositeOperation = 'lighter';
-                const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 26);
-                g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-                ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 26, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 0.95; ctx.drawImage(assassinGlowDot(), hx - 26, hy - 26, 52, 52);
                 ctx.restore();
             }
         }
