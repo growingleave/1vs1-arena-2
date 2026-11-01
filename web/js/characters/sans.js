@@ -4,8 +4,10 @@ const SANS_IMAGE = loadImage('assets/sans.png');
 
 // 그림 (tools/sans_gen.js로 생성)
 const SANS_BONE_IMAGE = loadImage('assets/sans_bone.png');         // 48x14 뼈다귀 (가운데) — 보통
-const SANS_SKULL_TOP_IMAGE = loadImage('assets/sans_skull_top.png'); // 41x34 도트 해골 윗부분 (앞을 봄, 아래쪽 가운데가 입) — 픽셀 그대로 키워서
-const SANS_SKULL_JAW_IMAGE = loadImage('assets/sans_skull_jaw.png'); // 41x11 도트 아래턱 (윗부분 바로 아래) — 픽셀 그대로 키워서
+// 해골 블래스터 (사용자 그림 누끼, 앞을 봄, 아래쪽이 입): 발사 전 / 발사 중 두 장을 바꿔 그린다
+const SANS_BLASTER_IDLE_IMAGE = loadImage('assets/sans_blaster_idle.png'); // 332x443 발사 전 — 보통
+const SANS_BLASTER_FIRE_IMAGE = loadImage('assets/sans_blaster_fire.png'); // 388x524 발사 중 (입이 열림) — 보통
+const SANS_BLASTER_MOUTH_Y = 0.82; // 그림 높이에서 입(빔이 나오는 곳)의 위치 비율 (가로는 가운데)
 const SANS_BEAM_IMAGE = loadImage('assets/sans_beam.png');         // 128x64 빔 몸통 (가로로 늘림) — 흰 빛, 색 입혀 'lighter'
 const SANS_BEAM_COLOR = '#9ad8ff';
 
@@ -20,14 +22,14 @@ function sansGlowDot() {
     return (_sansGlowDot = c);
 }
 
-// 해골 블래스터 (화면 전용): 도트 해골이 입을 쏠 방향으로 향한 채 샌즈 뒤에서 나타나 아래턱을 내리고(경고 동안) 빔을 뿜은 뒤 입을 닫고 사라진다.
+// 해골 블래스터 (화면 전용): 해골(발사 전 그림)이 입을 쏠 방향으로 향한 채 샌즈 뒤에서 나타나 기를 모으고, 발사 중엔 입 벌린 그림으로 바뀌어(경고 동안) 빔을 뿜은 뒤 입을 닫고 사라진다.
 // 빔은 판정(BeamLaser)과 같은 자리·크기로 그린다: 몸 중심 + 방향*30 에서 시작, 길이 length, 폭 width
 class SansBlasterVFX extends SparkVFX {
     constructor(laser, { scale, shake }) {
         super(SANS_BEAM_COLOR);
         this.laser = laser; this.owner = laser.owner; this.dir = laser.dirVec;
         this.angle = Math.atan2(this.dir[1], this.dir[0]);
-        this.scale = scale; this.shakePower = shake; // scale = 도트 한 칸의 크기(px)
+        this.width = scale; this.scale = scale / 41; this.shakePower = shake; // scale = 해골 그림 가로 크기(px)
         this.delay = laser.delay / 1000; this.active = laser.activeDuration / 1000;
         this.duration = this.delay + this.active + 0.4;
         this.nextShake = 0;
@@ -51,32 +53,26 @@ class SansBlasterVFX extends SparkVFX {
     draw(ctx) {
         const t = this.elapsed, s = this.scale, end = this.delay + this.active;
         const [ox, oy] = this.origin();
-        // 나타남(0~0.12초) → 입 벌림(경고 끝까지) → 쏘는 동안 벌림 + 떨림 → 닫으며 사라짐
+        // 나타남(0~0.15초) → 기 모으기(발사 전 그림) → 발사(발사 중 그림 + 떨림) → 발사 전 그림으로 돌아와 사라짐
         const appear = Math.min(1, t / Math.min(0.15, this.delay * 0.6));
-        const openT = Math.min(1, Math.max(0, (t - this.delay * 0.4) / (this.delay * 0.6)));
-        const close = Math.max(0, (t - end) / 0.25);
-        const jaw = 6 * (1 - (1 - openT) ** 2) * (1 - close); // 아래턱이 내려간 칸 수
         const alpha = appear * (1 - Math.max(0, (t - end - 0.1) / 0.3));
         if (alpha <= 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; this.drawSparks(ctx); ctx.restore(); return; }
         const firing = t >= this.delay && t < end;
         const jitter = firing ? Math.sin(t * 90) * 0.6 * s : 0;
         const back = 12 * s * (1 - appear) + (firing ? 1.5 * s : 0) - jitter;
 
-        // 도트 해골: 입(윗부분 아래쪽 가운데)이 빔 시작점에 오게, 아래쪽이 쏘는 방향을 보게 돌린다
-        const skull = (part) => {
-            const img = part === 'top' ? SANS_SKULL_TOP_IMAGE : SANS_SKULL_JAW_IMAGE;
-            if (!isImageReady(img)) return;
-            const k = s * (0.85 + 0.15 * appear);
+        // 해골: 입이 빔 시작점에 오게, 그림 아래쪽이 쏘는 방향을 보게 돌린다
+        const img = firing ? SANS_BLASTER_FIRE_IMAGE : SANS_BLASTER_IDLE_IMAGE;
+        if (isImageReady(img)) {
+            const w = this.width * (0.85 + 0.15 * appear) * (firing ? 1.06 : 1), h = w * img.naturalHeight / img.naturalWidth;
             ctx.save();
-            ctx.imageSmoothingEnabled = false;
             ctx.globalAlpha = alpha;
+            ctx.imageSmoothingQuality = 'high'; // 줄여 그릴 때 도트가 지글거리지 않게
             ctx.translate(ox - this.dir[0] * back, oy - this.dir[1] * back);
             ctx.rotate(this.angle - Math.PI / 2);
-            if (part === 'top') ctx.drawImage(img, -20.5 * k, -34 * k, 41 * k, 34 * k);
-            else ctx.drawImage(img, -20.5 * k, jaw * k, 41 * k, 11 * k);
+            ctx.drawImage(img, -w / 2, -h * SANS_BLASTER_MOUTH_Y, w, h);
             ctx.restore();
-        };
-        skull('jaw');
+        }
 
         // 빔 (판정 위치 그대로): 순식간에 뻗고, 깜빡이며 굵기가 살짝 출렁, 끝나면 가늘어지며 사라짐
         const bt = (t - this.delay) / this.active;
@@ -94,7 +90,6 @@ class SansBlasterVFX extends SparkVFX {
             ctx.drawImage(sansGlowDot(), -fl / 2, -fl / 2, fl, fl);
             ctx.restore();
         }
-        skull('top');
 
         // 기 모으기: 입 앞에 커지는 빛 + 빨려 들어가는 빛 알갱이 (경고 동안)
         if (t < this.delay) {
@@ -187,7 +182,7 @@ class SansBasicAttack extends Skill {
 class SansGasterLaser extends BeamLaser {
     constructor(owner, direction) {
         super(owner, direction, { damageMult: 2.2, delay: 180, activeDuration: 200, width: 40, length: 550 });
-        Vfx.spawn(new SansBlasterVFX(this, { scale: 2.4, shake: 4 })); // 해골·빔 그림은 이펙트가 그린다
+        Vfx.spawn(new SansBlasterVFX(this, { scale: 100, shake: 4 })); // 해골·빔 그림은 이펙트가 그린다
     }
 
     applyEffect(target) {
@@ -327,7 +322,7 @@ class SansMegaLaserBeam extends BeamLaser {
         const lockSec = (SANS_ULT_WINDUP_MS + SANS_ULT_FIRE_MS) / 1000 + 0.6;
         silence(owner, lockSec);
         slow(owner, lockSec, 100);
-        Vfx.spawn(new SansBlasterVFX(this, { scale: 6.5, shake: 6 })); // 거대 해골·빔 그림은 이펙트가 그린다
+        Vfx.spawn(new SansBlasterVFX(this, { scale: 280, shake: 6 })); // 거대 해골·빔 그림은 이펙트가 그린다
     }
 
     applyEffect(target) {
