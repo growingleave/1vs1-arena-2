@@ -11,14 +11,15 @@ const LOADOUT_SIDE_W = LOADOUT_DIVIDER_X;
 
 // 훈련장 배치는 P1 기준으로 적고, P2는 좌우를 뒤집어 쓴다
 function trainX(n, x, w = 0) { return n === 1 ? x : WIDTH - x - w; }
-const TRAIN_SPAWN = [150, 400];
-const TRAIN_DUMMY = [330, 230];
-const TRAIN_ORB = [330, 320];
+// 위쪽(0~240)은 이름·스킬 아이콘·능력 설명 자리라 훈련장은 그 아래에 둔다
+const TRAIN_SPAWN = [150, 480];
+const TRAIN_DUMMY = [330, 360];
+const TRAIN_ORB = [330, 455];
 
 function buildTrainingWalls() {
     const walls = [new Wall(LOADOUT_DIVIDER_X, 0, 6, HEIGHT, '#3a3a46')]; // 중앙 분리벽 (P1/P2 구역)
     for (const n of [1, 2]) {
-        for (const [x, y, w, h] of [[150, 450, 140, 36], [470, 420, 56, 56], [70, 170, 26, 110]]) {
+        for (const [x, y, w, h] of [[150, 530, 140, 30], [480, 470, 56, 56], [70, 290, 26, 110]]) {
             walls.push(new Wall(trainX(n, x, w), y, w, h, '#5c5c6a'));
         }
     }
@@ -61,6 +62,21 @@ function wrapText(ctx, text, maxW, size, bold) {
     }
     if (line) out.push(line);
     return out;
+}
+
+// 훈련장 설명 패널용으로 줄바꿈해 둔 설명 (캐릭터별로 한 번만 계산)
+const _trainDescCache = new Map();
+function trainingDescLines(ctx, idx, width) {
+    if (_trainDescCache.has(idx)) return _trainDescCache.get(idx);
+    const rows = [];
+    for (const item of characterSummaryItems(idx)) {
+        const m = item.match(/^([^:：]{1,24})[:：]\s*(.*)$/);
+        const head = m ? m[1] : '', body = m ? m[2] : item;
+        const headW = head ? textWidth(ctx, head, 12, true) + 8 : 0;
+        wrapText(ctx, body, width - headW, 12, false).forEach((text, i) => rows.push({ head: i === 0 ? head : '', headW, text }));
+    }
+    _trainDescCache.set(idx, rows);
+    return rows;
 }
 
 // 훈련장 바닥 (한 번만 그려 두고 재사용)
@@ -487,9 +503,22 @@ class Game {
         drawText(ctx, `P${n} 훈련장 · ${data.name}`, x, 14, 20, color, { bold: true, align });
         drawSkillIcons(ctx, player, n === 1 ? x : x - 120, 44);
         drawText(ctx, `발판을 밟아 능력 바꾸기 / 허수아비 복귀 · ${k.ready}: 준비`, x, 84, 13, '#9a9aa6', { align });
+
+        // 내 능력 설명 (반투명 패널, 뒤의 훈련장이 비쳐 보이게)
+        const px = ox + 14, pw = LOADOUT_SIDE_W - 28;
+        const rows = trainingDescLines(ctx, n === 1 ? this.p1CharIdx : this.p2CharIdx, pw - 24);
+        const ph = rows.length * 15 + 14;
+        ctx.fillStyle = 'rgba(10, 10, 16, 0.72)';
+        ctx.beginPath(); ctx.roundRect(px, 104, pw, ph, 8); ctx.fill();
+        ctx.fillStyle = data.fxColor || COLOR_GRAY; ctx.fillRect(px, 112, 3, ph - 16);
+        rows.forEach((row, i) => {
+            const y = 111 + i * 15;
+            if (row.head) drawText(ctx, row.head, px + 12, y, 12, COLOR_GOLD, { bold: true });
+            drawText(ctx, row.text, px + 12 + row.headW, y, 12, '#d8d8e0');
+        });
         if (ready) {
             drawText(ctx, 'READY', player.rect.centerx, player.rect.top - 28, 24, COLOR_GOLD, { bold: true, align: 'center' });
-            drawText(ctx, '상대를 기다리는 중... (다시 누르면 취소)', ox + LOADOUT_SIDE_W / 2, 110, 15, COLOR_GOLD, { bold: true, align: 'center' });
+            drawText(ctx, '상대를 기다리는 중... (다시 누르면 취소)', ox + LOADOUT_SIDE_W / 2, 250, 15, COLOR_GOLD, { bold: true, align: 'center' });
         }
     }
 
