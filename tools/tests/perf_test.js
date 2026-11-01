@@ -27,7 +27,7 @@ const THROTTLE = Number(process.env.THROTTLE || 6);
       const codes = [['KeyW','KeyS','KeyA','KeyD','KeyG','KeyH','KeyJ','KeyY'], ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyL','Semicolon','Quote','KeyP']];
       let seed = c1 * 100 + c2 + 3; const rng = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
       Time.now = 0; seedRandom(777); applyControlScheme('chromebook'); Vfx.clear();
-      const g = new Game(); g.state = 'LOADOUT'; g.p1CharIdx = c1; g.p2CharIdx = c2; g.enterLoadout();
+      const g = new Game(); g.state = 'LOADOUT'; g.p1CharIdx = c1; g.p2CharIdx = c2; g.enterLoadout(); g.sides.forEach((s) => { s.mode = 'train'; });
       const held = [new Set(), new Set()]; const times = []; let maxVfx = 0;
       for (let f = 0; f < 60 * 23; f++) {
         const downs = [];

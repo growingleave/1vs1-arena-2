@@ -1,38 +1,126 @@
 // 게임 진행 (main.py를 옮김)
-// 화면 흐름: TITLE → LOADOUT(캐릭터 고르기·연습) → VERSUS(대결 연출) → MAP_SELECT → BATTLE → GAMEOVER
+// 화면 흐름: TITLE → LOADOUT(구역마다 선택창 ↔ 훈련장) → VERSUS(대결 연출) → MAP_SELECT → BATTLE → GAMEOVER
 //
 // step()은 게임을 1틱 진행시키고, render()는 현재 상태를 그리기만 한다.
 // 둘을 나눠두면 나중에 온라인 대전에서 step()만 서버로 옮기기 쉽다.
 
 const LOADOUT_DIVIDER_X = 637;
 
-function buildPedestals(zoneXOffset) {
-    // 캐릭터 팻말: 밟으면 그 캐릭터로 즉시 교체된다
-    const cols = 5;
-    const size = 46;
-    return CHARACTER_REGISTRY.map((_, i) => ({
-        index: i,
-        rect: new Rect(zoneXOffset + 40 + (i % cols) * 115, 500 + Math.floor(i / cols) * 60, size, size),
-    }));
+const LOADOUT_SIDE_X = [0, LOADOUT_DIVIDER_X + 6]; // 왼쪽(P1)·오른쪽(P2) 구역의 시작 x
+const LOADOUT_SIDE_W = LOADOUT_DIVIDER_X;
+
+// 훈련장 배치는 P1 기준으로 적고, P2는 좌우를 뒤집어 쓴다
+function trainX(n, x, w = 0) { return n === 1 ? x : WIDTH - x - w; }
+const TRAIN_SPAWN = [150, 400];
+const TRAIN_DUMMY = [330, 230];
+const TRAIN_ORB = [330, 320];
+
+function buildTrainingWalls() {
+    const walls = [new Wall(LOADOUT_DIVIDER_X, 0, 6, HEIGHT, '#3a3a46')]; // 중앙 분리벽 (P1/P2 구역)
+    for (const n of [1, 2]) {
+        for (const [x, y, w, h] of [[150, 450, 140, 36], [470, 420, 56, 56], [70, 170, 26, 110]]) {
+            walls.push(new Wall(trainX(n, x, w), y, w, h, '#5c5c6a'));
+        }
+    }
+    return walls;
 }
 
-function createLoadoutOrbs() {
-    const orbs = [new Pickup(320, 300, 'ult'), new Pickup(960, 300, 'ult')];
-    for (const orb of orbs) orb.respawnTime = 1200; // 궁극기를 바로바로 다시 시험해볼 수 있게
-    return orbs;
+// 발판: 밟으면 한 번 동작한다 (능력 바꾸기 → 선택창, 허수아비 복귀)
+function buildTrainingPads(n) {
+    return {
+        change: new Rect(trainX(n, 24, 160), 616, 160, 70),
+        reset: new Rect(trainX(n, 453, 160), 616, 160, 70),
+    };
+}
+
+function createLoadoutOrb(n) {
+    const orb = new Pickup(trainX(n, TRAIN_ORB[0]), TRAIN_ORB[1], 'ult');
+    orb.respawnTime = 1200; // 궁극기를 바로바로 다시 시험해볼 수 있게
+    return orb;
+}
+
+// 선택창 카드 배치 (구역 안 기준)
+const SELECT_COLS = 4, SELECT_CARD_W = 132, SELECT_CARD_H = 84, SELECT_GAP = 12;
+const SELECT_GRID_X = Math.round((LOADOUT_SIDE_W - (SELECT_COLS * SELECT_CARD_W + (SELECT_COLS - 1) * SELECT_GAP)) / 2);
+const SELECT_GRID_Y = 64;
+
+// 캐릭터 설명을 항목별로 나눈다 ("평타: ..., 스킬 1: ..." → 항목 목록)
+function characterSummaryItems(idx) {
+    return getCharacterData(idx).desc.split(/,\s*(?=평타|강화|스킬|궁극기|패시브)/).map((t) => t.trim()).filter(Boolean);
+}
+
+// 글자를 너비에 맞춰 여러 줄로 나눈다 (그리기 전용)
+function wrapText(ctx, text, maxW, size, bold) {
+    setFont(ctx, size, bold);
+    const out = [];
+    let line = '';
+    for (const ch of text) {
+        if (ctx.measureText(line + ch).width > maxW && line) { out.push(line); line = ch.trim() ? ch : ''; }
+        else line += ch;
+    }
+    if (line) out.push(line);
+    return out;
+}
+
+// 훈련장 바닥 (한 번만 그려 두고 재사용)
+let _trainingBg = null;
+function trainingBackground() {
+    if (_trainingBg) return _trainingBg;
+    const c = document.createElement('canvas'); c.width = WIDTH; c.height = HEIGHT;
+    const g = c.getContext('2d');
+    g.fillStyle = '#16161c'; g.fillRect(0, 0, WIDTH, HEIGHT);
+    for (const n of [1, 2]) {
+        const ox = LOADOUT_SIDE_X[n - 1];
+        // 바닥 타일
+        for (let y = 0; y < HEIGHT; y += 40) for (let x = 0; x < LOADOUT_SIDE_W; x += 40) {
+            g.fillStyle = ((x + y) / 40) % 2 ? '#1b1b23' : '#1e1e27';
+            g.fillRect(ox + x, y, Math.min(40, LOADOUT_SIDE_W - x), 40);
+        }
+        g.strokeStyle = 'rgba(255,255,255,0.035)'; g.lineWidth = 1; g.beginPath();
+        for (let x = 0; x <= LOADOUT_SIDE_W; x += 40) { g.moveTo(ox + x + 0.5, 0); g.lineTo(ox + x + 0.5, HEIGHT); }
+        for (let y = 0; y <= HEIGHT; y += 40) { g.moveTo(ox, y + 0.5); g.lineTo(ox + LOADOUT_SIDE_W, y + 0.5); }
+        g.stroke();
+        // 테두리
+        g.strokeStyle = n === 1 ? 'rgba(230,60,60,0.35)' : 'rgba(60,120,230,0.35)'; g.lineWidth = 4;
+        g.strokeRect(ox + 4, 4, LOADOUT_SIDE_W - 8, HEIGHT - 8);
+        // 허수아비 과녁
+        const dx = trainX(n, TRAIN_DUMMY[0]), dy = TRAIN_DUMMY[1];
+        for (const [r, a] of [[90, 0.06], [62, 0.09], [34, 0.13]]) {
+            g.strokeStyle = `rgba(255,90,90,${a * 2})`; g.lineWidth = 2; g.fillStyle = `rgba(255,90,90,${a * 0.5})`;
+            g.beginPath(); g.arc(dx, dy, r, 0, Math.PI * 2); g.fill(); g.stroke();
+        }
+        g.strokeStyle = 'rgba(255,120,120,0.25)'; g.lineWidth = 1; g.beginPath();
+        g.moveTo(dx - 100, dy); g.lineTo(dx + 100, dy); g.moveTo(dx, dy - 100); g.lineTo(dx, dy + 100); g.stroke();
+        // 거리 눈금 (허수아비에서 100px마다)
+        g.fillStyle = 'rgba(255,255,255,0.18)'; g.font = '11px sans-serif'; g.textAlign = 'center';
+        for (let k = 1; k <= 3; k++) {
+            const tx = n === 1 ? dx - k * 100 : dx + k * 100;
+            if (tx < ox + 12 || tx > ox + LOADOUT_SIDE_W - 12) continue;
+            g.fillRect(tx - 1, dy + 104, 2, 10); g.fillText(`${k * 100}`, tx, dy + 128);
+        }
+        // 출발점
+        const sx = trainX(n, TRAIN_SPAWN[0]), sy = TRAIN_SPAWN[1];
+        g.strokeStyle = 'rgba(255,255,255,0.15)'; g.lineWidth = 2; g.setLineDash([6, 6]);
+        g.beginPath(); g.arc(sx, sy, 30, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+        // 아래 발판 구역 띠
+        g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(ox + 8, 600, LOADOUT_SIDE_W - 16, 112);
+    }
+    _trainingBg = c;
+    return c;
+}
+
+function keyLabel(code) {
+    if (!code) return '';
+    if (code.startsWith('Key')) return code.slice(3);
+    return { Semicolon: ';', Quote: "'", Space: 'SPACE', Enter: 'ENTER', Numpad1: '1' }[code] || code.replace('Numpad', '');
 }
 
 class Game {
     constructor() {
         this.state = 'TITLE';
 
-        this.loadoutWalls = [
-            new Wall(LOADOUT_DIVIDER_X, 0, 6, HEIGHT), // 중앙 분리벽 (P1/P2 구역)
-            new Wall(150, 430, 140, 40),               // P1 연습용 벽
-            new Wall(990, 430, 140, 40),               // P2 연습용 벽
-        ];
-        this.pedestalsP1 = buildPedestals(0);
-        this.pedestalsP2 = buildPedestals(LOADOUT_DIVIDER_X + 6);
+        this.loadoutWalls = buildTrainingWalls();
+        this.trainPads = [buildTrainingPads(1), buildTrainingPads(2)];
 
         this.p1CharIdx = 0;
         this.p2CharIdx = 1;
@@ -54,17 +142,60 @@ class Game {
     enterLoadout() {
         Vfx.clear();
         this.walls = this.loadoutWalls;
-        this.dummy1 = createPracticeDummy(320, 220);
-        this.dummy2 = createPracticeDummy(960, 220);
-        this.loadoutOrbs = createLoadoutOrbs();
-        this.player1 = spawnCharacterPlayer(150, 380, COLOR_RED, this.p1CharIdx, 1);
-        this.player2 = spawnCharacterPlayer(1130, 380, COLOR_BLUE, this.p2CharIdx, 2);
-        // 로드아웃에서는 "상대"가 자기 쪽 허수아비
-        this.player1.opponent = this.dummy1;
-        this.player2.opponent = this.dummy2;
+        this.attacks = [];
+        this.loadoutOrbs = [null, null];
+        // 구역마다 화면이 둘: 'select'(캐릭터 선택창) / 'train'(훈련장)
+        this.sides = [1, 2].map((n) => ({ mode: 'select', cursor: n === 1 ? this.p1CharIdx : this.p2CharIdx, onPad: null }));
+        this.resetTraining(1);
+        this.resetTraining(2);
         this.p1Ready = false;
         this.p2Ready = false;
-        this.attacks = [];
+    }
+
+    // 그 구역을 완전히 새로: 그 플레이어가 만든 공격·소환물(DIO 스탠드, 폭파광 변신 등)을 지우고
+    // 캐릭터·허수아비·궁극기 구슬을 처음 상태로 다시 만든다
+    resetTraining(n) {
+        const old = n === 1 ? this.player1 : this.player2;
+        if (old) this.attacks = this.attacks.filter((a) => a.owner !== old);
+        Vfx.clear();
+        const charIdx = n === 1 ? this.p1CharIdx : this.p2CharIdx;
+        const player = spawnCharacterPlayer(trainX(n, TRAIN_SPAWN[0]), TRAIN_SPAWN[1], n === 1 ? COLOR_RED : COLOR_BLUE, charIdx, n);
+        player.rect.setCenter(trainX(n, TRAIN_SPAWN[0]), TRAIN_SPAWN[1]);
+        if (n === 1) this.player1 = player; else this.player2 = player;
+        this.resetDummy(n);
+        this.loadoutOrbs[n - 1] = createLoadoutOrb(n);
+        this.sides[n - 1].onPad = null;
+    }
+
+    // 허수아비를 제자리로 (상태이상도 모두 풀린 새 허수아비)
+    resetDummy(n) {
+        const dummy = createPracticeDummy(0, 0);
+        dummy.rect.setCenter(trainX(n, TRAIN_DUMMY[0]), TRAIN_DUMMY[1]);
+        if (n === 1) this.dummy1 = dummy; else this.dummy2 = dummy;
+        // 훈련장에서는 "상대"가 자기 쪽 허수아비
+        (n === 1 ? this.player1 : this.player2).opponent = dummy;
+    }
+
+    // 선택창에서 고른 캐릭터로 훈련장에 들어간다
+    confirmSelection(n) {
+        const side = this.sides[n - 1];
+        if (n === 1) this.p1CharIdx = side.cursor; else this.p2CharIdx = side.cursor;
+        this.resetTraining(n);
+        side.mode = 'train';
+    }
+
+    // 선택창 키 조작 (방향키: 고르기, 평타 키: 훈련장으로)
+    handleSelectKey(n, code) {
+        const side = this.sides[n - 1];
+        const ctl = n === 1 ? P1_CONTROLS : P2_CONTROLS;
+        const count = CHARACTER_REGISTRY.length;
+        let c = side.cursor;
+        if (code === ctl.left) c = (c - 1 + count) % count;
+        else if (code === ctl.right) c = (c + 1) % count;
+        else if (code === ctl.up) c = c - SELECT_COLS >= 0 ? c - SELECT_COLS : Math.min(count - 1, c + SELECT_COLS * Math.floor((count - 1 - c) / SELECT_COLS));
+        else if (code === ctl.down) c = c + SELECT_COLS < count ? c + SELECT_COLS : c % SELECT_COLS;
+        else if (code === ctl.skills[0]) { this.confirmSelection(n); return; }
+        side.cursor = c;
     }
 
     startBattle() {
@@ -94,8 +225,18 @@ class Game {
                 this.state = 'LOADOUT';
             }
         } else if (this.state === 'LOADOUT') {
-            if (code === 'Space') this.p1Ready = !this.p1Ready; // 1P 확정 (다시 누르면 취소)
-            if (code === 'Enter' || code === 'NumpadEnter') this.p2Ready = !this.p2Ready; // 2P 확정
+            // 확정 (다시 누르면 취소). 선택창에서 누르면 지금 고른 캐릭터로 확정
+            if (code === 'Space') {
+                if (!this.p1Ready && this.sides[0].mode === 'select') this.confirmSelection(1);
+                this.p1Ready = !this.p1Ready;
+            }
+            if (code === 'Enter' || code === 'NumpadEnter') {
+                if (!this.p2Ready && this.sides[1].mode === 'select') this.confirmSelection(2);
+                this.p2Ready = !this.p2Ready;
+            }
+            for (const n of [1, 2]) {
+                if (this.sides[n - 1].mode === 'select' && !(n === 1 ? this.p1Ready : this.p2Ready)) this.handleSelectKey(n, code);
+            }
         } else if (this.state === 'MAP_SELECT') {
             if (code === 'ArrowLeft' || code === 'KeyA') {
                 this.selectedMapIdx = (this.selectedMapIdx - 1 + MAPS.length) % MAPS.length;
@@ -152,8 +293,9 @@ class Game {
 
     stepLoadout(dtSec, p1Input, p2Input) {
         const walls = this.loadoutWalls;
-        if (!this.p1Ready) this.player1.update(dtSec, p1Input, this.attacks, walls);
-        if (!this.p2Ready) this.player2.update(dtSec, p2Input, this.attacks, walls);
+        const training = (n) => this.sides[n - 1].mode === 'train';
+        if (!this.p1Ready && training(1)) this.player1.update(dtSec, p1Input, this.attacks, walls);
+        if (!this.p2Ready && training(2)) this.player2.update(dtSec, p2Input, this.attacks, walls);
         this.dummy1.update(dtSec, EMPTY_INPUT, this.attacks, walls);
         this.dummy2.update(dtSec, EMPTY_INPUT, this.attacks, walls);
 
@@ -163,15 +305,30 @@ class Game {
             return null;
         });
 
-        for (const orb of this.loadoutOrbs) {
+        for (const n of [1, 2]) {
+            if (!training(n)) continue;
+            const player = n === 1 ? this.player1 : this.player2;
+            const orb = this.loadoutOrbs[n - 1];
             orb.update();
-            if (orb.collidesWithPlayer(this.player1)) orb.collect(this.player1);
-            else if (orb.collidesWithPlayer(this.player2)) orb.collect(this.player2);
-        }
+            if (orb.collidesWithPlayer(player)) orb.collect(player);
 
-        // 팻말을 밟으면 그 캐릭터로 즉시 교체 (확정 전까지만)
-        if (!this.p1Ready) this.player1 = this.swapOnPedestal(this.player1, this.pedestalsP1, 1);
-        if (!this.p2Ready) this.player2 = this.swapOnPedestal(this.player2, this.pedestalsP2, 2);
+            // 발판: 올라선 순간 한 번만 동작 (확정 전까지만)
+            if (n === 1 ? this.p1Ready : this.p2Ready) continue;
+            const side = this.sides[n - 1];
+            const pads = this.trainPads[n - 1];
+            const on = player.rect.colliderect(pads.change) ? 'change' : player.rect.colliderect(pads.reset) ? 'reset' : null;
+            if (on && on !== side.onPad) {
+                if (on === 'reset') this.resetDummy(n);
+                else {
+                    // 능력 바꾸기: 지금 캐릭터의 흔적을 지우고 선택창으로
+                    this.attacks = this.attacks.filter((a) => a.owner !== player);
+                    Vfx.clear();
+                    side.cursor = n === 1 ? this.p1CharIdx : this.p2CharIdx;
+                    side.mode = 'select';
+                }
+            }
+            side.onPad = on;
+        }
 
         if (this.p1Ready && this.p2Ready) {
             this.player1 = spawnCharacterPlayer(200, 360, COLOR_RED, this.p1CharIdx, 1);
@@ -182,24 +339,6 @@ class Game {
             this.versusStartTime = Time.now;
             this.state = 'VERSUS';
         }
-    }
-
-    swapOnPedestal(player, pedestals, playerNum) {
-        const currentIdx = playerNum === 1 ? this.p1CharIdx : this.p2CharIdx;
-        for (const pedestal of pedestals) {
-            if (pedestal.index !== currentIdx && player.rect.colliderect(pedestal.rect)) {
-                if (playerNum === 1) this.p1CharIdx = pedestal.index;
-                else this.p2CharIdx = pedestal.index;
-
-                const cx = player.rect.centerx;
-                const cy = player.rect.centery;
-                const swapped = spawnCharacterPlayer(cx, cy, player.color, pedestal.index, playerNum);
-                swapped.rect.setCenter(cx, cy);
-                swapped.opponent = playerNum === 1 ? this.dummy1 : this.dummy2;
-                return swapped;
-            }
-        }
-        return player;
     }
 
     stepVersus() {
@@ -284,81 +423,124 @@ class Game {
     }
 
     renderLoadout(ctx) {
-        clearScreen(ctx, COLOR_BG);
-
+        ctx.drawImage(trainingBackground(), 0, 0);
         for (const wall of this.loadoutWalls) wall.draw(ctx);
-        for (const orb of this.loadoutOrbs) orb.draw(ctx);
 
-        this.renderPedestals(ctx, this.pedestalsP1, this.p1CharIdx);
-        this.renderPedestals(ctx, this.pedestalsP2, this.p2CharIdx);
-
-        this.dummy1.draw(ctx);
-        this.dummy2.draw(ctx);
-        this.player1.draw(ctx);
-        this.player2.draw(ctx);
+        for (const n of [1, 2]) {
+            if (this.sides[n - 1].mode !== 'train') continue;
+            this.renderPads(ctx, n);
+            this.loadoutOrbs[n - 1].draw(ctx);
+            (n === 1 ? this.dummy1 : this.dummy2).draw(ctx);
+        }
+        for (const n of [1, 2]) if (this.sides[n - 1].mode === 'train') (n === 1 ? this.player1 : this.player2).draw(ctx);
         for (const attack of this.attacks) attack.draw(ctx);
         Vfx.draw(ctx);
 
-        if (this.p1Ready) {
-            drawText(ctx, 'READY', this.player1.rect.centerx, this.player1.rect.top - 28, 24, COLOR_GOLD, { bold: true, align: 'center' });
+        for (const n of [1, 2]) {
+            if (this.sides[n - 1].mode === 'select') this.renderSelect(ctx, n);
+            else this.renderTrainingHud(ctx, n);
         }
-        if (this.p2Ready) {
-            drawText(ctx, 'READY', this.player2.rect.centerx, this.player2.rect.top - 28, 24, COLOR_GOLD, { bold: true, align: 'center' });
-        }
-
-        drawText(ctx, '허수아비에게 시험해보고, 팻말을 밟아 능력을 교체하세요 (SPACE/ENTER: 확정, 다시 누르면 취소)',
-                 WIDTH / 2, 15, 22, COLOR_WHITE, { bold: true, align: 'center' });
-
-        const p1Name = getCharacterData(this.p1CharIdx).name;
-        const p2Name = getCharacterData(this.p2CharIdx).name;
-        drawText(ctx, `P1: ${p1Name}${this.p1Ready ? ' (확정!)' : ''}`, 20, 50, 16, COLOR_RED);
-        drawText(ctx, `P2: ${p2Name}${this.p2Ready ? ' (확정!)' : ''}`, WIDTH - 250, 50, 16, COLOR_BLUE);
-
-        drawSkillIcons(ctx, this.player1, 20, 75);
-        drawSkillIcons(ctx, this.player2, WIDTH - 160, 75);
-
-        // 캐릭터 설명: P1은 왼쪽, P2는 오른쪽에 한 줄씩
-        const lines = (idx) => getCharacterData(idx).desc.split(',').map(s => s.trim()).filter(Boolean);
-        lines(this.p1CharIdx).forEach((line, i) => drawText(ctx, line, 20, 120 + i * 20, 16, COLOR_GRAY));
-        lines(this.p2CharIdx).forEach((line, i) => drawText(ctx, line, WIDTH - 20, 120 + i * 20, 16, COLOR_GRAY, { align: 'right' }));
     }
 
-    renderPedestals(ctx, pedestals, charIdx) {
-        for (const pedestal of pedestals) {
-            const r = pedestal.rect;
-            const isCurrent = pedestal.index === charIdx;
-            const data = getCharacterData(pedestal.index);
+    // 지금 조작 키 이름 (온라인은 모두 같은 키)
+    keyNames(n) {
+        if (Net.isOnline()) return { move: '방향키', s0: 'Q', ready: 'SPACE' };
+        const ctl = n === 1 ? P1_CONTROLS : P2_CONTROLS;
+        return { move: n === 1 ? 'WASD' : '방향키', s0: keyLabel(ctl.skills[0]), ready: n === 1 ? 'SPACE' : 'ENTER' };
+    }
 
-            if (isCurrent) {
-                // 선택된 팻말: 금색 글로우
-                const g = r.inflate(10, 10);
-                ctx.fillStyle = 'rgba(255, 215, 0, 0.5)';
-                ctx.beginPath();
-                ctx.roundRect(g.x, g.y, g.w, g.h, 10);
-                ctx.fill();
-            }
-            ctx.fillStyle = isCurrent ? COLOR_GOLD : COLOR_CARD_BG;
-            ctx.beginPath();
-            ctx.roundRect(r.x, r.y, r.w, r.h, 6);
-            ctx.fill();
-
-            if (isImageReady(data.thumbnail)) {
-                ctx.drawImage(data.thumbnail, r.centerx - 20, r.centery - 20, 40, 40);
-                if (!isCurrent) {
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                    ctx.fillRect(r.x, r.y, r.w, r.h);
-                }
-            }
-
-            const border = isCurrent ? 3 : 2;
-            ctx.strokeStyle = isCurrent ? COLOR_WHITE : COLOR_GRAY;
-            ctx.lineWidth = border;
-            ctx.beginPath();
-            ctx.roundRect(r.x + border / 2, r.y + border / 2, r.w - border, r.h - border, 6);
-            ctx.stroke();
-
-            drawText(ctx, data.name, r.centerx, r.bottom + 3, 11, isCurrent ? COLOR_GOLD : COLOR_WHITE, { bold: true, align: 'center' });
+    renderPads(ctx, n) {
+        const pads = this.trainPads[n - 1];
+        const on = this.sides[n - 1].onPad;
+        for (const [key, label, sub, color] of [['change', '능력 바꾸기', '캐릭터 선택창으로', '#ffd700'], ['reset', '허수아비 복귀', '제자리 + 상태 초기화', '#7fd0ff']]) {
+            const r = pads[key];
+            const lit = on === key;
+            ctx.fillStyle = lit ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)';
+            ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, 10); ctx.fill();
+            ctx.strokeStyle = color; ctx.lineWidth = lit ? 3 : 2; ctx.setLineDash(lit ? [] : [8, 5]);
+            ctx.beginPath(); ctx.roundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 10); ctx.stroke(); ctx.setLineDash([]);
+            drawText(ctx, label, r.centerx, r.y + 14, 18, color, { bold: true, align: 'center' });
+            drawText(ctx, sub, r.centerx, r.y + 40, 12, '#b4b4be', { align: 'center' });
         }
+    }
+
+    renderTrainingHud(ctx, n) {
+        const ox = LOADOUT_SIDE_X[n - 1];
+        const player = n === 1 ? this.player1 : this.player2;
+        const ready = n === 1 ? this.p1Ready : this.p2Ready;
+        const color = n === 1 ? COLOR_RED : COLOR_BLUE;
+        const data = getCharacterData(n === 1 ? this.p1CharIdx : this.p2CharIdx);
+        const k = this.keyNames(n);
+        const x = n === 1 ? ox + 18 : ox + LOADOUT_SIDE_W - 18;
+        const align = n === 1 ? 'left' : 'right';
+        drawText(ctx, `P${n} 훈련장 · ${data.name}`, x, 14, 20, color, { bold: true, align });
+        drawSkillIcons(ctx, player, n === 1 ? x : x - 120, 44);
+        drawText(ctx, `발판을 밟아 능력 바꾸기 / 허수아비 복귀 · ${k.ready}: 준비`, x, 84, 13, '#9a9aa6', { align });
+        if (ready) {
+            drawText(ctx, 'READY', player.rect.centerx, player.rect.top - 28, 24, COLOR_GOLD, { bold: true, align: 'center' });
+            drawText(ctx, '상대를 기다리는 중... (다시 누르면 취소)', ox + LOADOUT_SIDE_W / 2, 110, 15, COLOR_GOLD, { bold: true, align: 'center' });
+        }
+    }
+
+    renderSelect(ctx, n) {
+        const ox = LOADOUT_SIDE_X[n - 1];
+        const side = this.sides[n - 1];
+        const ready = n === 1 ? this.p1Ready : this.p2Ready;
+        const current = n === 1 ? this.p1CharIdx : this.p2CharIdx;
+        const color = n === 1 ? COLOR_RED : COLOR_BLUE;
+        const k = this.keyNames(n);
+
+        ctx.fillStyle = '#15151b'; ctx.fillRect(ox, 0, LOADOUT_SIDE_W, HEIGHT);
+        ctx.strokeStyle = color; ctx.globalAlpha = 0.5; ctx.lineWidth = 4; ctx.strokeRect(ox + 4, 4, LOADOUT_SIDE_W - 8, HEIGHT - 8); ctx.globalAlpha = 1;
+        drawText(ctx, `P${n} 캐릭터 선택`, ox + LOADOUT_SIDE_W / 2, 18, 24, color, { bold: true, align: 'center' });
+
+        // 카드
+        CHARACTER_REGISTRY.forEach((data, i) => {
+            const x = ox + SELECT_GRID_X + (i % SELECT_COLS) * (SELECT_CARD_W + SELECT_GAP);
+            const y = SELECT_GRID_Y + Math.floor(i / SELECT_COLS) * (SELECT_CARD_H + SELECT_GAP);
+            const sel = i === side.cursor;
+            const fx = data.fxColor || COLOR_GRAY;
+            ctx.fillStyle = sel ? '#2c2c3a' : COLOR_CARD_BG;
+            ctx.beginPath(); ctx.roundRect(x, y, SELECT_CARD_W, SELECT_CARD_H, 8); ctx.fill();
+            ctx.fillStyle = fx; ctx.globalAlpha = sel ? 0.9 : 0.35; ctx.fillRect(x + 6, y + SELECT_CARD_H - 8, SELECT_CARD_W - 12, 3); ctx.globalAlpha = 1;
+            const tx = x + 40, ty = y + 36;
+            if (isImageReady(data.thumbnail)) ctx.drawImage(data.thumbnail, tx - 26, ty - 26, 52, 52);
+            else {
+                ctx.fillStyle = fx; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(tx, ty, 22, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+                drawText(ctx, data.name[0], tx, ty, 20, '#15151b', { bold: true, align: 'center', baseline: 'middle' });
+            }
+            drawText(ctx, data.name, x + 76 + 26, y + 28, 15, sel ? COLOR_WHITE : '#c8c8d0', { bold: true, align: 'center' });
+            if (i === current) drawText(ctx, '사용 중', x + 102, y + 50, 11, COLOR_GOLD, { bold: true, align: 'center' });
+            ctx.strokeStyle = sel ? COLOR_GOLD : '#3a3a48'; ctx.lineWidth = sel ? 3 : 1.5;
+            ctx.beginPath(); ctx.roundRect(x + 1, y + 1, SELECT_CARD_W - 2, SELECT_CARD_H - 2, 8); ctx.stroke();
+        });
+
+        // 요약
+        const data = getCharacterData(side.cursor);
+        const py = SELECT_GRID_Y + 3 * (SELECT_CARD_H + SELECT_GAP) + 8;
+        const px = ox + SELECT_GRID_X;
+        const pw = LOADOUT_SIDE_W - SELECT_GRID_X * 2;
+        const ph = HEIGHT - py - 64;
+        ctx.fillStyle = '#1d1d26'; ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 10); ctx.fill();
+        ctx.fillStyle = data.fxColor || COLOR_GRAY; ctx.fillRect(px, py + 10, 4, ph - 20);
+        drawText(ctx, data.name, px + 18, py + 12, 24, data.fxColor || COLOR_WHITE, { bold: true });
+        let ly = py + 48;
+        const maxY = py + ph - 18;
+        for (const item of characterSummaryItems(side.cursor)) {
+            const m = item.match(/^([^:：]{1,14})[:：]\s*(.*)$/);
+            const head = m ? m[1] : '', body = m ? m[2] : item;
+            const headW = head ? textWidth(ctx, head, 14, true) + 10 : 0;
+            const lines = wrapText(ctx, body, pw - 36 - headW, 14, false);
+            for (let i = 0; i < lines.length && ly < maxY; i++, ly += 19) {
+                if (i === 0 && head) drawText(ctx, head, px + 18, ly, 14, COLOR_GOLD, { bold: true });
+                drawText(ctx, lines[i], px + 18 + headW, ly, 14, '#d8d8e0');
+            }
+            ly += 5;
+            if (ly >= maxY) break;
+        }
+
+        const hint = ready ? `준비 완료! 상대를 기다리는 중... (${k.ready}: 취소)` : `${k.move}: 고르기 · ${k.s0}: 훈련장 들어가기 · ${k.ready}: 이 캐릭터로 준비`;
+        drawText(ctx, hint, ox + LOADOUT_SIDE_W / 2, HEIGHT - 42, 15, ready ? COLOR_GOLD : COLOR_WHITE, { bold: true, align: 'center' });
     }
 
     renderVersus(ctx) {
