@@ -16,12 +16,18 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 const { WebSocketServer } = require('ws');
 
 const PORT = Number(process.env.PORT) || 3000;
 const WEB_ROOT = path.join(__dirname, '..', 'web');
 const TICK_MS = 1000 / 60;
-const PEER_TIMEOUT_MS = 10000; // 방장이 연결 결과를 이 시간 안에 안 알려주면 서버 경유로 시작
+const PEER_TIMEOUT_MS = 10000;
+// RELAY_ONLY=1 로 실행하면 직접 연결을 시도하지 않고 처음부터 서버 경유로 한다.
+// 재현 테스트(tools/tests/net_test.js) 결과: 서버 경유는 1P·2P 지연이 같아 공평하지만, 둘 다 직접 연결 때의 2P만큼 늦어지고
+// 와이파이가 나쁘면 화면 멈춤이 더 많다 (순서대로 다 받아야 하는 연결이라 하나가 늦으면 뒤가 다 기다림).
+// 그래서 기본은 직접 연결을 먼저 시도한다.
+const RELAY_ONLY = process.env.RELAY_ONLY === '1'; // 방장이 연결 결과를 이 시간 안에 안 알려주면 서버 경유로 시작
 
 // 방 코드에 헷갈리는 글자(I, O, 0, 1 등)는 쓰지 않는다
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -130,6 +136,10 @@ function joinRoom(ws, rawCode) {
     ws.room = room;
     ws.slot = 1;
 
+    if (RELAY_ONLY) {
+        startRoom(room, 'relay');
+        return;
+    }
     // 먼저 기기끼리 직접 연결을 시도하게 한다. 방장(자리 0)이 결과를 알려주면 시작
     room.players.forEach((p, slot) => send(p, { t: 'peer', slot }));
     room.peerTimer = setTimeout(() => startRoom(room, 'relay'), PEER_TIMEOUT_MS);
@@ -217,7 +227,16 @@ function pumpRooms() {
         }
     }
 }
-setInterval(pumpRooms, 4);
+// 틱 보내기 반복. 윈도우는 타이머가 약 16ms 단위로 움직여서 틱이 2개씩 몰려 나가기 쉽다.
+// 그래서 윈도우에서 서버 경유 대전이 있는 동안은 쉬지 않고 확인해서 틱을 제때 하나씩 보낸다 (CPU 코어 하나를 더 씀)
+function pumpLoop() {
+    pumpRooms();
+    let relaying = false;
+    for (const room of rooms.values()) if (room.started && room.mode === 'relay') { relaying = true; break; }
+    if (relaying && process.platform === 'win32') setImmediate(pumpLoop);
+    else setTimeout(pumpLoop, 4);
+}
+pumpLoop();
 
 // ------------------------------------------
 // WebSocket
@@ -268,6 +287,26 @@ setInterval(() => {
     }
 }, 10000);
 
+// 같은 와이파이·핫스팟의 다른 기기(크롬북)가 접속할 주소들
+function lanAddresses() {
+    const out = [];
+    for (const list of Object.values(os.networkInterfaces())) {
+        for (const a of list || []) if (a.family === 'IPv4' && !a.internal) out.push(a.address);
+    }
+    return out;
+}
+
 server.listen(PORT, () => {
     console.log(`서버 실행 중: http://localhost:${PORT}`);
+    console.log(RELAY_ONLY ? '연결 방식: 항상 서버 경유 (RELAY_ONLY=1)' : '연결 방식: 기기끼리 직접 연결 먼저 시도 (안 되면 서버 경유)');
+    const addrs = lanAddresses();
+    if (addrs.length) {
+        console.log('');
+        console.log('==============================================');
+        console.log(' 크롬북 주소창에 아래 주소를 입력하세요');
+        for (const a of addrs) console.log(`   http://${a}:${PORT}`);
+        console.log('==============================================');
+        console.log(' (이 창을 닫으면 서버가 꺼집니다. 노트북 절전 모드는 꺼 두세요)');
+        console.log('');
+    }
 });
