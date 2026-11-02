@@ -49,7 +49,7 @@
 ## 코드 구조 메모
 - `web/index.html`의 스크립트 순서가 곧 로드 순서: core → vfx → … → characters/common → characters/* → characters/index → …
   - 새 캐릭터 파일은 `index.html`과 `characters/index.js`(CHARACTER_REGISTRY)에 둘 다 추가.
-- 캐릭터 순서: 0 검사, 1 마법사, 2 무투가, 3 가속자, 4 데몰리셔니스트, 5 해커, 6 어쌔신, 7 그라인더, 8 DIO, 9 샌즈, 10 궁수.
+- 캐릭터 순서: 0 검사, 1 마법사, 2 무투가, 3 가속자, 4 데몰리셔니스트, 5 해커, 6 어쌔신, 7 그라인더, 8 DIO, 9 샌즈, 10 궁수, 11 뱀파이어.
 - 로드아웃: 왼쪽(P1)·오른쪽(P2) 구역마다 선택창(`select`)/훈련장(`train`). 훈련장 발판 = 능력 바꾸기·허수아비 복귀. 캐릭터를 바꾸면 `resetTraining`으로 그 플레이어의 공격·소환물까지 완전 리셋. 테스트는 `g.sides[*].mode = 'train'`로 바로 훈련장.
 - 궁극기 게이지: 기본 초당 2 + 준 피해 1당 0.6 (player.js의 ULT_PASSIVE_RATE·ULT_DAMAGE_RATE). 통 크기는 캐릭터마다 `player.maxUltGauge` (검사 100 기준), 아이콘은 통 대비 %. 궁극기로 생긴 공격은 `isUlt` 표시(player.js·game.js가 자동으로 붙이고 퍼뜨림) → 궁극기 피해는 게이지를 채우지 않는다. 궁극기 코드에서 직접 `takeDamage` 할 때도 `addUltGauge` 하지 말 것.
 - 플레이어 훅: `preUpdateHooks`, `preDrawHooks`(몸 아래), `postDrawHooks`(몸 위), `bodyStyle`. 캐릭터를 바꾸면 플레이어가 새로 만들어진다.
