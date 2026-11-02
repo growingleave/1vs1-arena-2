@@ -528,7 +528,7 @@ class DioRoadRollerManager {
 class DioUltimateSkill extends Skill {
     constructor() {
         super('Road Roller', 500, ['ult'], -99999);
-        this.ultChargeRate = 3.0;
+        this.ultChargeRate = ULT_PASSIVE_RATE;
     }
 
     use(owner, direction, attacks, color) {

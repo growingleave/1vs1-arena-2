@@ -482,7 +482,7 @@ class MageGhostSkill extends Skill {
 class MageUltSkill extends Skill {
     constructor() {
         super('Sky Bombardment', 500, ['ult', 'projectile'], -99999);
-        this.ultChargeRate = 3.0;
+        this.ultChargeRate = ULT_PASSIVE_RATE;
     }
 
     use(owner, direction, attacks, color) {
