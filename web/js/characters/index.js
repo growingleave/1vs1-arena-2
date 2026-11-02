@@ -11,6 +11,7 @@ const CHARACTER_REGISTRY = [
     DIO_CHARACTER_DATA,
     SANS_CHARACTER_DATA,
     ARCHER_CHARACTER_DATA,
+    VAMPIRE_CHARACTER_DATA,
 ];
 
 function getCharacterData(index) {
