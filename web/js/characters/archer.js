@@ -490,6 +490,7 @@ class ArcherUltSkill extends Skill {
 // ==========================================
 function applyArcher(player) {
     player.maxHp = 245;
+    player.maxUltGauge = 90; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.baseAtk = 13;
     player.speed = 4.5;

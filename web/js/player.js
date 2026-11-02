@@ -77,6 +77,7 @@ class Player {
 
         // 궁극기 게이지
         this.ultGauge = 0.0;
+        this.maxUltGauge = 100.0; // 궁극기 게이지 통 크기 (캐릭터마다 다름, 검사 100 기준)
         this.ultChargeRate = ULT_PASSIVE_RATE;
         this.ultChargeMultiplier = ULT_DAMAGE_RATE;
 
@@ -91,7 +92,7 @@ class Player {
     }
 
     addUltGauge(amount) {
-        this.ultGauge = Math.min(100.0, this.ultGauge + amount);
+        this.ultGauge = Math.min(this.maxUltGauge, this.ultGauge + amount);
     }
 
     takeDamage(rawDamage) {
@@ -157,7 +158,7 @@ class Player {
         }
 
         // 궁극기 자동 충전
-        this.ultGauge = Math.min(100.0, this.ultGauge + this.ultChargeRate * dtSec);
+        this.ultGauge = Math.min(this.maxUltGauge, this.ultGauge + this.ultChargeRate * dtSec);
 
         updateStatusEffects(this, dtSec);
 
@@ -228,7 +229,7 @@ class Player {
             if (this.bound && (ability.keywords || []).includes('dash')) continue;
 
             if (idx === 3) { // 궁극기
-                if (this.ultGauge >= 100.0 && ability.canUse()) {
+                if (this.ultGauge >= this.maxUltGauge && ability.canUse()) {
                     // 궁극기로 생긴 공격에는 isUlt 표시 (궁극기 피해는 궁극기 게이지를 채우지 않는다).
                     // 시전 시간 뒤에 나가는 공격(pendingAction)도 같은 표시를 받는다
                     const before = attacks.length;

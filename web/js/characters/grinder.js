@@ -571,6 +571,7 @@ class GrinderBasicAttack extends Skill {
 function applyGrinder(player) {
     player.baseAtk = 20;
     player.maxHp = 300;
+    player.maxUltGauge = 110; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.speed = 4.1;
     player.grinderSpinActive = false;

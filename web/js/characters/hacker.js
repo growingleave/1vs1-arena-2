@@ -620,6 +620,7 @@ class HackerBasicAttack extends Skill {
 function applyHacker(player) {
     player.baseAtk = 18;
     player.maxHp = 260;
+    player.maxUltGauge = 110; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.speed = 4.3;
     player.spriteImage = HACKER_IMAGE;

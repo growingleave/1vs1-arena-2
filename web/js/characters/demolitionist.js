@@ -799,6 +799,7 @@ class DemolitionistUltSkill extends Skill {
 function applyDemolitionist(player) {
     player.baseAtk = 13;
     player.maxHp = 250;
+    player.maxUltGauge = 120; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.speed = 4.3;
     player.isTransformed = false;

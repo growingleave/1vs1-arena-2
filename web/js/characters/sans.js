@@ -425,6 +425,7 @@ class SansUltimate extends Skill {
 function applySans(player) {
     player.baseAtk = 15;
     player.maxHp = 225;
+    player.maxUltGauge = 160; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.speed = 4.4;
     player.dodgeTextTimer = -99999;

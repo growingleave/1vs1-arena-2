@@ -119,7 +119,7 @@ class Pickup {
 
     isNeededBy(player) {
         if (this.kind === 'heal') return player.hp < player.maxHp;
-        return player.ultGauge < 100.0;
+        return player.ultGauge < player.maxUltGauge;
     }
 
     collidesWithPlayer(player) {

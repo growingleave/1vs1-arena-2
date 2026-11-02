@@ -718,6 +718,7 @@ class AssassinUltSkill extends Skill {
 // ==========================================
 function applyAssassinToPlayer(player) {
     player.maxHp = 225;
+    player.maxUltGauge = 90; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.baseAtk = 14;
     player.speed = 5.1;
