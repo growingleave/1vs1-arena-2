@@ -4,6 +4,7 @@
 //   vampire_bat_0/1.png : 박쥐 (날개 위/아래 2장), 64x44, 오른쪽을 봄 — 보통
 //   vampire_spike_0~3.png : 바닥에서 솟는 피 가시 4종, 48x112, 아래 가운데(24,107)가 바닥 — 보통
 //   vampire_pool.png : 궁극기 범위 피 웅덩이 (45도 부채꼴, 꼭짓점 왼쪽 가운데, 반지름 380) — 보통
+//   vampire_fang_top.png / vampire_fang_bottom.png : 박쥐 물기 윗니(먼 쪽)·아랫니(가까운 쪽), 흰색 (사용자 그림)
 //   vampire_stab.png : 평타 찌르기 빛줄기 160x24, 오른쪽 끝이 창끝 — 'lighter'
 //   preview_vampire.png (확인용)
 // 실행: node tools/vampire_gen.js <저장할 폴더>  (Playwright 필요)
@@ -12,11 +13,14 @@ const fs = require('fs');
 const path = require('path');
 const OUT = process.argv[2] || __dirname;
 const SRC = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, 'src/vampire_spear_src.png')).toString('base64');
+// 박쥐 물기 이빨 (사용자 그림, 검은 배경에 흰 이빨): 윗니(송곳니가 아래로) / 아랫니(이가 위로)
+const FANG_TOP = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, 'src/vampire_fang_top_src.png')).toString('base64');
+const FANG_BOTTOM = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, 'src/vampire_fang_bottom_src.png')).toString('base64');
 
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage();
-  const res = await p.evaluate(async (SRC) => {
+  const res = await p.evaluate(async ([SRC, FANG_TOP, FANG_BOTTOM]) => {
     const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
     const half = (src) => { const s = mk(Math.round(src.width / 2), Math.round(src.height / 2)), x = s.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, s.width, s.height); return s; };
     const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = SRC; });
@@ -185,18 +189,36 @@ const SRC = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, 'src
       return half(c);
     };
 
-    const out = { spear, bat0: bat(true), bat1: bat(false), spike0: spike(7), spike1: spike(31), spike2: spike(77), spike3: spike(123), pool: pool(), stab: stab() };
+    // ---------- 이빨: 검은 배경 → 투명, 밝기 = 투명도, 흰색으로 + 그림이 있는 부분만 잘라냄 ----------
+    const fang = async (src) => {
+      const im = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+      const c = mk(im.width, im.height), x = c.getContext('2d'); x.drawImage(im, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height), q = d.data;
+      let x0 = c.width, x1 = 0, y0 = c.height, y1 = 0;
+      for (let i = 0; i < q.length; i += 4) {
+        const l = (q[i] + q[i + 1] + q[i + 2]) / 3, a = Math.max(0, Math.min(255, (l - 40) * 1.4));
+        q[i] = q[i + 1] = q[i + 2] = 255; q[i + 3] = a;
+        if (a > 40) { const k = i / 4, X = k % c.width, Y = Math.floor(k / c.width); x0 = Math.min(x0, X); x1 = Math.max(x1, X); y0 = Math.min(y0, Y); y1 = Math.max(y1, Y); }
+      }
+      x.putImageData(d, 0, 0);
+      const o = mk(x1 - x0 + 3, y1 - y0 + 3); o.getContext('2d').drawImage(c, x0 - 1, y0 - 1, o.width, o.height, 0, 0, o.width, o.height);
+      return o;
+    };
+    const fangTop = await fang(FANG_TOP), fangBottom = await fang(FANG_BOTTOM);
+
+    const out = { fangTop, fangBottom, spear, bat0: bat(true), bat1: bat(false), spike0: spike(7), spike1: spike(31), spike2: spike(77), spike3: spike(123), pool: pool(), stab: stab() };
     const pv = mk(820, 200), pc = pv.getContext('2d'); pc.fillStyle = '#2a2a33'; pc.fillRect(0, 0, 820, 200);
     pc.drawImage(spear, 10, 10); pc.drawImage(out.bat0, 10, 90); pc.drawImage(out.bat1, 90, 90);
     [out.spike0, out.spike1, out.spike2, out.spike3].forEach((s, i) => pc.drawImage(s, 170 + i * 52, 80)); pc.drawImage(out.pool, 400, 10); pc.drawImage(out.stab, 10, 60);
-    const r = {}; for (const [k, v] of Object.entries(out)) r[k] = v.toDataURL(); r.pv = pv.toDataURL(); r.size = [spear.width, spear.height];
+    const r = {}; for (const [k, v] of Object.entries(out)) r[k] = v.toDataURL(); r.fangSize = [fangTop.width, fangTop.height, fangBottom.width, fangBottom.height]; r.pv = pv.toDataURL(); r.size = [spear.width, spear.height];
     return r;
-  }, SRC);
+  }, [SRC, FANG_TOP, FANG_BOTTOM]);
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
   save('vampire_spear.png', res.spear); save('vampire_bat_0.png', res.bat0); save('vampire_bat_1.png', res.bat1);
   for (let i = 0; i < 4; i++) save(`vampire_spike_${i}.png`, res['spike' + i]);
   save('vampire_pool.png', res.pool); save('vampire_stab.png', res.stab);
+  save('vampire_fang_top.png', res.fangTop); save('vampire_fang_bottom.png', res.fangBottom);
   save('preview_vampire.png', res.pv);
-  console.log('spear size', res.size);
+  console.log('spear size', res.size, 'fangs', res.fangSize);
   await b.close();
 })();

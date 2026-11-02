@@ -39,6 +39,11 @@ const Vfx = {
         return [(Math.random() * 2 - 1) * p, (Math.random() * 2 - 1) * p];
     },
 
+    // 바닥 층: 벽·캐릭터보다 아래에 깔리는 부분 (장판 등). drawGround가 있는 이펙트만
+    drawGround(ctx) {
+        for (const v of this.active) if (v.drawGround) v.drawGround(ctx);
+    },
+
     draw(ctx) {
         for (const v of this.active) v.draw(ctx);
     },
