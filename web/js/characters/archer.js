@@ -469,7 +469,7 @@ class ArcherUltCastEffect {
 class ArcherUltSkill extends Skill {
     constructor() {
         super('Arrow Storm', 500, ['ult', 'projectile'], -99999);
-        this.ultChargeRate = 3.0;
+        this.ultChargeRate = ULT_PASSIVE_RATE;
     }
 
     use(owner, direction, attacks) {

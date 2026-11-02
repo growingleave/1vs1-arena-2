@@ -628,7 +628,7 @@ class DemolitionistTransformManager {
             this.owner.isTransformed = false;
             if (this.owner.originalColor !== undefined) this.owner.color = this.owner.originalColor;
             if (this.owner.originalUltChargeRate !== undefined) this.owner.ultChargeRate = this.owner.originalUltChargeRate;
-            this.owner.ultChargeMultiplier = 1.0;
+            this.owner.ultChargeMultiplier = ULT_DAMAGE_RATE;
             return true;
         }
         return false;
@@ -802,7 +802,7 @@ function applyDemolitionist(player) {
     player.hp = player.maxHp;
     player.speed = 4.3;
     player.isTransformed = false;
-    player.ultChargeMultiplier = 1.0; // 다른 캐릭터와 같게 (예전 패시브 2.5배 제거)
+    player.ultChargeMultiplier = ULT_DAMAGE_RATE; // 다른 캐릭터와 같게
 
     const skill2 = new DemolitionistSkill2();
     skill2.owner = player;

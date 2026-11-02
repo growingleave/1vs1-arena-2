@@ -703,7 +703,7 @@ class AssassinStealthManager {
 class AssassinUltSkill extends Skill {
     constructor() {
         super('Vanish Strike', 500, ['ult'], -99999);
-        this.ultChargeRate = 3.0;
+        this.ultChargeRate = ULT_PASSIVE_RATE;
     }
 
     use(owner, direction, attacks, color) {

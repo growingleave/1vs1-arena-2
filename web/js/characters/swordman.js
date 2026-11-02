@@ -612,7 +612,7 @@ class SwordmanEnhanceSkill extends Skill {
 class SwordmanUltSkill extends Skill {
     constructor() {
         super('Massive Ult Dash', 500, ['dash', 'ult'], -99999);
-        this.ultChargeRate = 3.0;
+        this.ultChargeRate = ULT_PASSIVE_RATE;
     }
 
     use(owner, direction, attacks, color) {

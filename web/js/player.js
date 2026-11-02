@@ -9,6 +9,10 @@ const EMPTY_INPUT = Object.freeze({
     skills: Object.freeze([false, false, false, false]),
 });
 
+// 궁극기 게이지 충전 (모든 캐릭터 공통)
+const ULT_PASSIVE_RATE = 2.0; // 초당 자동 충전 % (원래 3.0 → 다 차는 데 50초)
+const ULT_DAMAGE_RATE = 0.6;  // 준 피해 1당 충전 % (원래 1.0)
+
 // attacks[from..]에 새로 생긴 공격을 궁극기 공격으로 표시
 function markUltAttacks(attacks, from) {
     for (let i = from; i < attacks.length; i++) attacks[i].isUlt = true;
@@ -73,8 +77,8 @@ class Player {
 
         // 궁극기 게이지
         this.ultGauge = 0.0;
-        this.ultChargeRate = 3.0;
-        this.ultChargeMultiplier = 1.0;
+        this.ultChargeRate = ULT_PASSIVE_RATE;
+        this.ultChargeMultiplier = ULT_DAMAGE_RATE;
 
         // 캐스팅 (선딜레이)
         this.castTimer = 0.0;
