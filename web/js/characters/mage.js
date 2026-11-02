@@ -461,7 +461,7 @@ class MageLaserSkillRunner extends Skill {
     constructor() { super('Penetrating Pulse', 2200, ['projectile']); }
 
     use(owner, direction, attacks) {
-        owner.castTimer = 0.4;
+        owner.castTimer = 0.3; // 선딜레이 (원래 0.4)
         owner.pendingAction = () => {
             this.lastUsed = Time.now;
             attacks.push(new MagePiercingLaser(owner, direction));
@@ -693,7 +693,7 @@ const MAGE_CHARACTER_DATA = {
     id: 'MAGE',
     fxColor: '#64dcff',
     name: '마법사',
-    desc: '평타(0.5초): 마법 빔을 멀리 쏩니다(15, 사거리 800), 스킬 1(2.2초): 0.4초 조준한 뒤 벽을 뚫는 레이저를 쏩니다(30, 슬로우 25% 1.5초), 스킬 2(5초): 2초 동안 벽을 통과하고 이동속도가 30% 빨라집니다, 궁극기: 하늘로 날아올라 조준원을 움직이며 그 안에 작은 폭발을 계속 떨어뜨립니다(6씩). 다시 누르거나 3초가 지나면 조준원 전체를 내리찍으며 내려옵니다(30)',
+    desc: '평타(0.5초): 마법 빔을 멀리 쏩니다(15, 사거리 800), 스킬 1(2.2초): 0.3초 조준한 뒤 벽을 뚫는 레이저를 쏩니다(30, 슬로우 25% 1.5초), 스킬 2(5초): 2초 동안 벽을 통과하고 이동속도가 30% 빨라집니다, 궁극기: 하늘로 날아올라 조준원을 움직이며 그 안에 작은 폭발을 계속 떨어뜨립니다(6씩). 다시 누르거나 3초가 지나면 조준원 전체를 내리찍으며 내려옵니다(30)',
     apply: applyMageToPlayer,
     thumbnail: MAGE_IMAGE,
 };
