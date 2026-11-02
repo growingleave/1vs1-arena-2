@@ -671,6 +671,7 @@ function drawMageFloatUnder(ctx) {
 // ==========================================
 function applyMageToPlayer(player) {
     player.maxHp = 245;
+    player.maxUltGauge = 140; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.baseAtk = 15;
     player.speed = 3.6;

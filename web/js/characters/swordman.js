@@ -630,6 +630,7 @@ class SwordmanUltSkill extends Skill {
 // ==========================================
 function applySwordmanToPlayer(player) {
     player.maxHp = 260;
+    player.maxUltGauge = 100; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.baseAtk = 10;
     player.speed = 4.3;

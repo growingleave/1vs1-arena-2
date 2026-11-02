@@ -25,7 +25,7 @@ const times = TIMES.split(',').map(Number);
     game.confirmSelection(1); Time.now += 5000; game.attacks = []; Vfx.clear();
     CHARACTER_REGISTRY[ch].apply(game.player1);
     const pl = game.player1; pl.rect.setCenter(320, 330); pl.facing = [1, 0];
-    pl.statusEffects = {}; pl.castTimer = 0; pl.ultGauge = 100;
+    pl.statusEffects = {}; pl.castTimer = 0; pl.ultGauge = pl.maxUltGauge;
     pl.abilities.forEach((a) => a && (a.lastUsed = -99999));
     game.dummy1.hp = 99999; game.dummy1.rect.setCenter(440, 300);
   }, [Number(CH)]);

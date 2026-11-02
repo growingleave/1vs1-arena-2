@@ -786,6 +786,7 @@ class FighterUltSkill extends Skill {
 function applyFighter(player) {
     player.baseAtk = 15;
     player.maxHp = 280;
+    player.maxUltGauge = 120; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.speed = 4.3;
     player.spriteImage = FIGHTER_IMAGE;

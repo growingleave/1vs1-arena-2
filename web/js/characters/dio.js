@@ -543,6 +543,7 @@ class DioUltimateSkill extends Skill {
 function applyDio(player) {
     player.baseAtk = 15;
     player.maxHp = 240;
+    player.maxUltGauge = 80; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
     player.speed = 4.7;
     player.dioKnifeStopped = false;

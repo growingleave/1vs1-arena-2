@@ -150,7 +150,7 @@ class Game {
         // 선택창 요약에 쓰는 기본 능력치 (캐릭터를 한 번씩 만들어 읽어 둔다)
         this.charStats = CHARACTER_REGISTRY.map((_, i) => {
             const p = spawnCharacterPlayer(0, 0, COLOR_RED, i, 1);
-            return { hp: p.maxHp, atk: p.baseAtk, speed: p.speed };
+            return { hp: p.maxHp, atk: p.baseAtk, speed: p.speed, ult: p.maxUltGauge };
         });
         this.loadoutWalls = buildTrainingWalls();
         this.trainPads = [buildTrainingPads(1), buildTrainingPads(2)];
@@ -577,7 +577,7 @@ class Game {
         ctx.fillStyle = data.fxColor || COLOR_GRAY; ctx.fillRect(px, py + 10, 4, ph - 20);
         drawText(ctx, data.name, px + 18, py + 12, 24, data.fxColor || COLOR_WHITE, { bold: true });
         const st = this.charStats[side.cursor];
-        if (st) drawText(ctx, `체력 ${st.hp} · 공격력 ${st.atk} · 이동속도 ${st.speed}`, px + pw - 16, py + 20, 14, '#b4b4be', { align: 'right' });
+        if (st) drawText(ctx, `체력 ${st.hp} · 공격력 ${st.atk} · 이동속도 ${st.speed} · 궁극기 ${st.ult}`, px + pw - 16, py + 20, 14, '#b4b4be', { align: 'right' });
         let ly = py + 46;
         const maxY = py + ph - 18;
         for (const item of characterSummaryItems(side.cursor)) {
@@ -740,7 +740,7 @@ function drawSkillIcons(ctx, player, x, y) {
         const skill = player.abilities[idx];
         if (!skill) continue;
         const ix = x + (idx - 1) * 40;
-        if (idx === 3) drawUltIcon(ctx, ix, y, 32, player.ultGauge);
+        if (idx === 3) drawUltIcon(ctx, ix, y, 32, player.ultGauge / player.maxUltGauge * 100); // 자기 통 대비 %
         else drawSkillIconWithClock(ctx, ix, y, 32, skill, `S${idx}`, player.color);
     }
 }

@@ -45,7 +45,7 @@ const THROTTLE = Number(process.env.THROTTLE || 6);
         tappedKeys.clear();
         if (g.state === 'BATTLE') {
           g.player1.hp = Math.max(g.player1.hp, 30); g.player2.hp = Math.max(g.player2.hp, 30);
-          g.player1.ultGauge = 100; g.player2.ultGauge = 100;
+          g.player1.ultGauge = g.player1.maxUltGauge; g.player2.ultGauge = g.player2.maxUltGauge;
           if (f > 240) { times.push(dt); maxVfx = Math.max(maxVfx, Vfx.active.length); }
         }
       }
