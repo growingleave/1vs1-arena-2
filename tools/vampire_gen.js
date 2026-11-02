@@ -2,7 +2,9 @@
 //   vampire_spear.png : 사용자가 준 창 그림(tools/src/vampire_spear_src.png)의 흰 배경을 지우고 가로로 눕혀
 //                       (창끝이 오른쪽) 뒤쪽에 손잡이를 붙인 것. 창끝 = 오른쪽 끝, 가운데 y = 높이/2 — 보통으로 그림
 //   vampire_bat_0/1.png : 박쥐 (날개 위/아래 2장), 64x44, 오른쪽을 봄 — 보통
-//   vampire_spike_0~2.png : 바닥에서 솟는 피 가시 3종, 36x84, 아래 가운데가 바닥 — 보통
+//   vampire_spike_0~3.png : 바닥에서 솟는 피 가시 4종, 48x112, 아래 가운데(24,107)가 바닥 — 보통
+//   vampire_pool.png : 궁극기 범위 피 웅덩이 (45도 부채꼴, 꼭짓점 왼쪽 가운데, 반지름 380) — 보통
+//   vampire_stab.png : 평타 찌르기 빛줄기 160x24, 오른쪽 끝이 창끝 — 'lighter'
 //   preview_vampire.png (확인용)
 // 실행: node tools/vampire_gen.js <저장할 폴더>  (Playwright 필요)
 const { chromium } = require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright');
@@ -85,35 +87,115 @@ const SRC = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, 'src
       return half(c);
     };
 
-    // ---------- 피 가시 3종 ----------
+    // ---------- 피 가시 4종 (자세히): 굵은 본 가시 + 옆 잔가시, 결 따라 어두운 줄·밝은 반사, 흘러내리는 피, 바닥 왕관 모양 튐 ----------
+    // 96x224로 그려 1/2 → 48x112. 아래 가운데(24, 108)가 바닥
     const spike = (seed) => {
       let s = seed; const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-      const c = mk(72, 168), x = c.getContext('2d'), base = 164, cx = 36;
-      const h = 120 + rnd() * 40, lean = (rnd() - 0.5) * 16;
-      const pts = [[cx - 22, base]];
-      const n = 5;
-      for (let i = 1; i <= n; i++) { const t = i / n; pts.push([cx - 22 * (1 - t) + lean * t + (i % 2 ? -7 : 3) * (1 - t), base - h * t * (i === n ? 1 : 0.92)]); }
-      for (let i = n - 1; i >= 1; i--) { const t = i / n; pts.push([cx + 22 * (1 - t) + lean * t + (i % 2 ? 8 : -3) * (1 - t), base - h * t * 0.9]); }
-      pts.push([cx + 22, base]);
-      const gr = x.createLinearGradient(cx - 22, 0, cx + 22, 0); gr.addColorStop(0, '#5a0410'); gr.addColorStop(0.45, '#d01a2c'); gr.addColorStop(1, '#3a020a');
-      x.fillStyle = gr; x.strokeStyle = '#1a0004'; x.lineWidth = 3; x.lineJoin = 'round';
-      x.beginPath(); pts.forEach(([X, Y], i) => (i ? x.lineTo(X, Y) : x.moveTo(X, Y))); x.closePath(); x.fill(); x.stroke();
-      x.strokeStyle = 'rgba(255, 150, 160, 0.75)'; x.lineWidth = 2;                       // 빛 받는 줄
-      x.beginPath(); x.moveTo(cx - 4, base - 8); x.lineTo(cx + lean * 0.8 - 1, base - h * 0.8); x.stroke();
-      x.fillStyle = '#8a0414'; x.beginPath(); x.ellipse(cx, base - 2, 22, 5, 0, 0, Math.PI * 2); x.fill(); // 바닥 피 웅덩이
+      const c = mk(96, 224), x = c.getContext('2d'), base = 214, cx = 48;
+      x.lineJoin = 'round'; x.lineCap = 'round';
+      const shard = (bx, by, w, h, lean, dark) => {   // 들쭉날쭉한 가시 하나
+        const L = [], R = [], n = 7;
+        for (let i = 0; i <= n; i++) {
+          const t = i / n, ww = w * Math.pow(1 - t, 0.85);
+          const jag = (i % 2 ? 1 : -0.4) * w * 0.18 * (1 - t) * (0.5 + rnd());
+          L.push([bx - ww + lean * t + jag, by - h * t]);
+          R.push([bx + ww + lean * t - jag * 0.6, by - h * t * (i === n ? 1 : 0.97)]);
+        }
+        const tipX = bx + lean, tipY = by - h - 6;
+        const pts = [...L.slice(0, n), [tipX, tipY], ...R.slice(0, n).reverse()];
+        const gr = x.createLinearGradient(bx - w, 0, bx + w + lean, 0);
+        gr.addColorStop(0, dark ? '#2a0006' : '#4a020c'); gr.addColorStop(0.35, dark ? '#7a0614' : '#b0101f');
+        gr.addColorStop(0.55, dark ? '#a00d1c' : '#e8283a'); gr.addColorStop(1, '#300006');
+        x.fillStyle = gr; x.strokeStyle = '#140003'; x.lineWidth = 3.5;
+        x.beginPath(); pts.forEach(([X, Y], i) => (i ? x.lineTo(X, Y) : x.moveTo(X, Y))); x.closePath(); x.fill(); x.stroke();
+        // 결 (어두운 줄 2개)
+        x.strokeStyle = 'rgba(40, 0, 6, 0.55)'; x.lineWidth = 2;
+        for (const k of [-0.45, 0.35]) { x.beginPath(); x.moveTo(bx + w * k, by - 4); x.quadraticCurveTo(bx + w * k * 0.6 + lean * 0.5, by - h * 0.5, tipX - lean * 0.1, tipY + h * 0.18); x.stroke(); }
+        // 밝은 반사 (가운데 왼쪽, 끝으로 갈수록 가늘게)
+        x.strokeStyle = 'rgba(255, 170, 180, 0.85)'; x.lineWidth = 2.5;
+        x.beginPath(); x.moveTo(bx - w * 0.15, by - 10); x.lineTo(bx - w * 0.05 + lean * 0.7, by - h * 0.72); x.stroke();
+        x.strokeStyle = 'rgba(255, 235, 240, 0.9)'; x.lineWidth = 1.2;
+        x.beginPath(); x.moveTo(bx - w * 0.12, by - h * 0.3); x.lineTo(bx - w * 0.02 + lean * 0.75, by - h * 0.62); x.stroke();
+      };
+      const H = 150 + rnd() * 50, lean = (rnd() - 0.5) * 18;
+      // 옆 잔가시 (뒤쪽, 어둡게)
+      shard(cx - 18, base - 6, 9, H * (0.38 + rnd() * 0.15), -10 - rnd() * 8, true);
+      shard(cx + 19, base - 4, 8, H * (0.3 + rnd() * 0.15), 9 + rnd() * 8, true);
+      // 본 가시
+      shard(cx, base, 20, H, lean, false);
+      // 흘러내리는 피 줄기
+      x.fillStyle = '#c4121f'; x.strokeStyle = '#300006'; x.lineWidth = 1.5;
+      for (let i = 0; i < 2; i++) {
+        const dx = cx + (i ? 8 : -9) + lean * 0.3, top = base - H * (0.35 + rnd() * 0.25), len = 18 + rnd() * 26;
+        x.beginPath(); x.moveTo(dx - 2.5, top); x.lineTo(dx - 2, top + len); x.arc(dx, top + len, 3.2, Math.PI, 0, true); x.lineTo(dx + 2.5, top); x.closePath(); x.fill(); x.stroke();
+      }
+      // 바닥: 피 웅덩이 + 왕관 모양으로 튄 피
+      x.fillStyle = '#6a0410'; x.beginPath(); x.ellipse(cx, base - 1, 40, 8, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#a80d1c'; x.beginPath(); x.ellipse(cx, base - 2, 30, 5.5, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#c4121f'; x.strokeStyle = '#300006'; x.lineWidth = 1.5;
+      for (const [ox, hh] of [[-34, 10], [-26, 16], [27, 14], [35, 9]]) {
+        x.beginPath(); x.moveTo(cx + ox - 3, base - 2); x.lineTo(cx + ox + (ox < 0 ? -2 : 2), base - 2 - hh); x.lineTo(cx + ox + 3, base - 2); x.closePath(); x.fill(); x.stroke();
+        x.beginPath(); x.arc(cx + ox + (ox < 0 ? -3 : 3), base - 6 - hh, 2.2, 0, Math.PI * 2); x.fill();
+      }
       return half(c);
     };
 
-    const out = { spear, bat0: bat(true), bat1: bat(false), spike0: spike(7), spike1: spike(31), spike2: spike(77) };
-    const pv = mk(520, 160), pc = pv.getContext('2d'); pc.fillStyle = '#2a2a33'; pc.fillRect(0, 0, 520, 160);
+    // ---------- 피 웅덩이 (궁극기 범위): 45도 부채꼴, 반지름 380 → 그림 760x(2*380*sin22.5)≈ 760x300 을 1/2 ----------
+    // 꼭짓점 = 왼쪽 가운데 (0, 높이/2), 오른쪽을 향함. 가장자리는 울퉁불퉁, 안쪽에 진한 얼룩과 빛 반사
+    const pool = () => {
+      const R = 760, half45 = 22.5 * Math.PI / 180, Hh = Math.ceil(R * Math.sin(half45)) + 20;
+      const c = mk(R + 20, Hh * 2), x = c.getContext('2d'), oy = Hh;
+      let s = 13; const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+      const edge = (r0, jit) => {
+        x.beginPath(); x.moveTo(0, oy);
+        const n = 48;
+        for (let i = 0; i <= n; i++) {
+          const a = -half45 + 2 * half45 * i / n, rr = r0 + (rnd() - 0.5) * jit;
+          x.lineTo(Math.cos(a) * rr, oy + Math.sin(a) * rr * 1.04);
+        }
+        x.closePath();
+      };
+      x.fillStyle = '#3a0208'; edge(R - 14, 30); x.fill();                 // 바깥 테두리 (어둡게)
+      const g = x.createRadialGradient(0, oy, 0, 0, oy, R);
+      g.addColorStop(0, '#9a0a18'); g.addColorStop(0.6, '#7a0612'); g.addColorStop(1, '#52030c');
+      x.fillStyle = g; edge(R - 34, 24); x.fill();
+      // 진한 얼룩
+      for (let i = 0; i < 40; i++) {
+        const d = 40 + rnd() * (R - 90), a = (rnd() * 2 - 1) * half45 * 0.85;
+        x.fillStyle = `rgba(${rnd() < 0.5 ? '40, 0, 6' : '170, 16, 32'}, ${0.25 + rnd() * 0.3})`;
+        x.beginPath(); x.ellipse(Math.cos(a) * d, oy + Math.sin(a) * d, 8 + rnd() * 26 * d / R, 4 + rnd() * 10 * d / R, a, 0, Math.PI * 2); x.fill();
+      }
+      // 빛 반사 (흰 점·줄)
+      for (let i = 0; i < 26; i++) {
+        const d = 60 + rnd() * (R - 120), a = (rnd() * 2 - 1) * half45 * 0.8;
+        x.fillStyle = `rgba(255, 190, 200, ${0.25 + rnd() * 0.35})`;
+        x.beginPath(); x.ellipse(Math.cos(a) * d, oy + Math.sin(a) * d, 2 + rnd() * 8, 1 + rnd() * 2, a + 0.3, 0, Math.PI * 2); x.fill();
+      }
+      return half(c);
+    };
+
+    // ---------- 찌르기 궤적 (평타): 가로로 긴 빛줄기, 오른쪽 끝이 창끝. 흰 심 + 붉은 테 ----------
+    const stab = () => {
+      const c = mk(320, 48), x = c.getContext('2d'), y = 24;
+      const red = x.createLinearGradient(0, 0, 320, 0); red.addColorStop(0, 'rgba(208,24,44,0)'); red.addColorStop(0.7, 'rgba(230,40,60,0.8)'); red.addColorStop(1, 'rgba(255,90,100,1)');
+      x.fillStyle = red; x.beginPath(); x.moveTo(0, y); x.lineTo(290, y - 14); x.lineTo(320, y); x.lineTo(290, y + 14); x.closePath(); x.fill();
+      const wh = x.createLinearGradient(60, 0, 320, 0); wh.addColorStop(0, 'rgba(255,255,255,0)'); wh.addColorStop(1, 'rgba(255,255,255,1)');
+      x.fillStyle = wh; x.beginPath(); x.moveTo(60, y); x.lineTo(296, y - 5); x.lineTo(318, y); x.lineTo(296, y + 5); x.closePath(); x.fill();
+      for (const [dy, x0] of [[-11, 140], [11, 160], [-18, 220], [18, 230]]) { x.strokeStyle = 'rgba(255, 150, 160, 0.6)'; x.lineWidth = 2; x.beginPath(); x.moveTo(x0, y + dy); x.lineTo(300, y + dy * 0.4); x.stroke(); }
+      return half(c);
+    };
+
+    const out = { spear, bat0: bat(true), bat1: bat(false), spike0: spike(7), spike1: spike(31), spike2: spike(77), spike3: spike(123), pool: pool(), stab: stab() };
+    const pv = mk(820, 200), pc = pv.getContext('2d'); pc.fillStyle = '#2a2a33'; pc.fillRect(0, 0, 820, 200);
     pc.drawImage(spear, 10, 10); pc.drawImage(out.bat0, 10, 90); pc.drawImage(out.bat1, 90, 90);
-    [out.spike0, out.spike1, out.spike2].forEach((s, i) => pc.drawImage(s, 330 + i * 40, 70));
+    [out.spike0, out.spike1, out.spike2, out.spike3].forEach((s, i) => pc.drawImage(s, 170 + i * 52, 80)); pc.drawImage(out.pool, 400, 10); pc.drawImage(out.stab, 10, 60);
     const r = {}; for (const [k, v] of Object.entries(out)) r[k] = v.toDataURL(); r.pv = pv.toDataURL(); r.size = [spear.width, spear.height];
     return r;
   }, SRC);
   const save = (n, u) => fs.writeFileSync(`${OUT}/${n}`, Buffer.from(u.split(',')[1], 'base64'));
   save('vampire_spear.png', res.spear); save('vampire_bat_0.png', res.bat0); save('vampire_bat_1.png', res.bat1);
-  for (let i = 0; i < 3; i++) save(`vampire_spike_${i}.png`, res['spike' + i]);
+  for (let i = 0; i < 4; i++) save(`vampire_spike_${i}.png`, res['spike' + i]);
+  save('vampire_pool.png', res.pool); save('vampire_stab.png', res.stab);
   save('preview_vampire.png', res.pv);
   console.log('spear size', res.size);
   await b.close();
