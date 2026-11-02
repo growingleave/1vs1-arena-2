@@ -288,7 +288,8 @@ class DemolitionistBasicGrenade {
         const transformed = owner.isTransformed;
         this.maxRange = transformed ? 180 : 320;
         this.explosionRadius = transformed ? 90 : 60;
-        this.explosionDamage = owner.baseAtk * 0.8;
+        // 공격 간격은 길게, 한 방은 세게. 변신 중엔 더 세게 (공속은 그대로)
+        this.explosionDamage = owner.baseAtk * (owner.isTransformed ? 1.5 : 1.1);
 
         this.exploded = false;
         this.rect = this.getRect();
@@ -347,7 +348,7 @@ class DemolitionistBasicGrenade {
 }
 
 class DemolitionistBasicSkill extends Skill {
-    constructor() { super('Grenade Basic Attack', 400); }
+    constructor() { super('Grenade Basic Attack', 550); }
 
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
@@ -815,7 +816,7 @@ const DEMOLITIONIST_CHARACTER_DATA = {
     id: 'DEMOLITIONIST',
     fxColor: '#ff8a3c',
     name: '폭파광',
-    desc: '평타(0.4초): 수류탄을 던져 폭발시킵니다(10.4, 반경 60, 사거리 320), 스킬 1(1.5초): 앞쪽 사다리꼴로 화염 충격파를 뿜어 적을 밀쳐냅니다(18). 반동으로 나는 뒤로 밀려납니다, 궁극기: 3초 동안 무적으로 기를 모으며(이동 불가) 경고 범위가 깜빡이다가 크게 폭발합니다(45, 반경 180). 그 뒤 15초 동안 변신해 스킬이 강해집니다(변신 중엔 궁극기 게이지가 안 참), 변신 평타: 사거리가 짧아지는 대신(180) 폭발이 커집니다(반경 90), 변신 스킬 1: 더 넓고 강한 충격파(28.6). 밀치기와 반동 대신 0.4초 후딜레이, 변신 스킬 2(3.5초): 앞으로 돌진하며 지나간 자리에 폭탄 3개가 떨어져 터집니다(19.5/19.5/26)',
+    desc: '평타(0.55초): 수류탄을 던져 폭발시킵니다(14.3, 반경 60, 사거리 320), 스킬 1(1.5초): 앞쪽 사다리꼴로 화염 충격파를 뿜어 적을 밀쳐냅니다(18). 반동으로 나는 뒤로 밀려납니다, 궁극기: 3초 동안 무적으로 기를 모으며(이동 불가) 경고 범위가 깜빡이다가 크게 폭발합니다(45, 반경 180). 그 뒤 15초 동안 변신해 스킬이 강해집니다(변신 중엔 궁극기 게이지가 안 참), 변신 평타: 사거리가 짧아지는 대신(180) 폭발이 커지고 강해집니다(19.5, 반경 90), 변신 스킬 1: 더 넓고 강한 충격파(28.6). 밀치기와 반동 대신 0.4초 후딜레이, 변신 스킬 2(3.5초): 앞으로 돌진하며 지나간 자리에 폭탄 3개가 떨어져 터집니다(19.5/19.5/26)',
     apply: applyDemolitionist,
     thumbnail: null,
 };
