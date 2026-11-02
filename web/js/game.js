@@ -462,6 +462,7 @@ class Game {
 
     renderLoadout(ctx) {
         ctx.drawImage(trainingBackground(), 0, 0);
+        Vfx.drawGround(ctx);
         for (const wall of this.loadoutWalls) wall.draw(ctx);
 
         for (const n of [1, 2]) {
@@ -677,6 +678,7 @@ class Game {
 
         for (const hazard of this.hazards) hazard.draw(ctx);
         for (const ev of this.mapEvents) ev.draw(ctx);
+        Vfx.drawGround(ctx);
         for (const wall of this.walls) wall.draw(ctx);
         for (const pickup of this.pickups) pickup.draw(ctx);
         this.player1.draw(ctx);

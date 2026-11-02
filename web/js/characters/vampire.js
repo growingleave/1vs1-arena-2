@@ -13,30 +13,96 @@ const VAMP_BAT_IMAGES = [0, 1].map((i) => loadImage(`assets/vampire_bat_${i}.png
 const VAMP_SPIKE_IMAGES = [0, 1, 2, 3].map((i) => loadImage(`assets/vampire_spike_${i}.png`)); // 48x112, 바닥 = (24, 107)
 const VAMP_POOL_IMAGE = loadImage('assets/vampire_pool.png');   // 390x311, 45도 부채꼴 피 웅덩이, 꼭짓점 (0, 155.5), 반지름 380
 const VAMP_STAB_IMAGE = loadImage('assets/vampire_stab.png');   // 160x24, 찌르기 빛줄기, 오른쪽 끝이 창끝 ('lighter')
+const VAMP_FANG_TOP_IMAGE = loadImage('assets/vampire_fang_top.png');       // 123x58 윗니 (송곳니가 아래로) — 먼 쪽 턱
+const VAMP_FANG_BOTTOM_IMAGE = loadImage('assets/vampire_fang_bottom.png'); // 109x41 아랫니 (이가 위로) — 박쥐 가까운 쪽 턱
 // 박쥐일 때 몸 그림 대신 쓰는 투명 그림 (몸 사각형은 안 그리고 방향 점·체력바는 그대로)
 const VAMP_EMPTY_IMAGE = (() => { const c = document.createElement('canvas'); c.width = c.height = 1; return loadImage(c.toDataURL()); })();
 
 const VAMP = {
-    // 평타: 느리지만 세게. 팍 찌르고(0.06초) 판정은 0.11초까지, 창은 천천히 뒤로 뺌(0.45초)
-    spear: { cooldown: 1000, damage: 1.2, length: 160, width: 34, hitTime: 110, life: 450, selfDamage: 3, bleedTime: 4, bleedPower: 5 },
-    bite: { radius: 90, arc: 90, damage: 0.5, heal: 10, bleedTime: 3, bleedPower: 4 },
+    // 평타: 느리지만 세게. 0.18초 동안 창을 뒤로 당겨 모았다가(선딜레이) 팍 찌르고(0.06초) 판정은 0.11초 동안, 천천히 뒤로 뺌
+    spear: { cooldown: 1000, damage: 1.2, length: 160, width: 34, windup: 180, hitTime: 110, life: 450, selfDamage: 3, bleedTime: 4, bleedPower: 5 },
+    // 박쥐 물기: 두 턱이 0.09초에 걸쳐 다가와 닫히는 순간 판정
+    bite: { cooldown: 1400, radius: 90, arc: 90, damage: 0.5, heal: 10, bleedTime: 3, bleedPower: 4, closeTime: 90, life: 260 },
     drainCooldown: 5000,
-    bat: { cooldown: 4000, size: 26, speedUp: 40, damageTaken: 1.3 },
+    bat: { cooldown: 4000, maxTime: 5000, size: 26, speedUp: 40, damageTaken: 1.3 },
     // 궁극기: 0.35초 동안 피 웅덩이가 범위에 퍼진 뒤(이동 불가) 가시가 파바박 솟음. 솟는 0.2초 동안 판정
     ult: { radius: 380, arc: 45, damage: 2.0, delay: 350, bleedTime: 6, bleedPower: 7, selfDamage: 25 },
 };
 
-// 출혈 걸기: 이미 걸려 있으면 더 센 쪽(세기·남은 시간)을 남긴다
-function vampBleed(target, duration, power) {
-    const e = target.statusEffects.bleed;
-    bleed(target, Math.max(duration, e ? e.duration : 0), Math.max(power, e ? e.power : 0));
+// ==========================================
+// 출혈 (중첩): 걸 때마다 따로 쌓이고, 각각 1초마다 피해를 준다 (최대 6중첩, 넘치면 가장 오래된 것부터 없어짐)
+// 상대 몸에 붙는 훅으로 관리한다 (해커 게이지와 같은 방식)
+// ==========================================
+const VAMP_BLEED_MAX_STACKS = 6;
+
+function vampAttachBleed(target) {
+    if (target.vampBleedHooked) return;
+    target.vampBleedHooked = true;
+    target.vampBleeds = [];
+    target.preUpdateHooks.push((dtSec) => {
+        const list = target.vampBleeds;
+        if (!list.length) return;
+        let dmg = 0;
+        for (const b of list) {
+            b.timer += dtSec;
+            if (b.timer >= 1) { b.timer -= 1; b.ticks -= 1; dmg += b.power; }
+        }
+        target.vampBleeds = list.filter((b) => b.ticks > 0);
+        if (dmg > 0) {
+            target.takeDamage(dmg);
+            Vfx.spawn(new VampBloodVFX(target.rect.centerx, target.rect.centery, -Math.PI / 2, 3 + Math.min(6, list.length), [50, 140]));
+        }
+    });
+    target.postDrawHooks.push((ctx) => vampDrawBleeding(ctx, target));
 }
 
-// 지금 걸린 출혈이 앞으로 줄 피해 (남은 틱 수 x 틱당 피해)
+function vampBleed(target, ticks, power) {
+    vampAttachBleed(target);
+    target.vampBleeds.push({ power, ticks, timer: 0 });
+    if (target.vampBleeds.length > VAMP_BLEED_MAX_STACKS) target.vampBleeds.shift();
+}
+
+// 지금 걸린 출혈이 앞으로 줄 피해 (뱀파이어 출혈 중첩 + 다른 출혈 상태이상)
 function vampBleedRemaining(target) {
-    const e = target && target.statusEffects.bleed;
-    if (!e) return 0;
-    return Math.floor(e.tickTimer + e.duration) * e.power;
+    if (!target) return 0;
+    let total = 0;
+    for (const b of target.vampBleeds || []) total += b.power * b.ticks;
+    const e = target.statusEffects.bleed;
+    if (e) total += Math.floor(e.tickTimer + e.duration) * e.power;
+    return total;
+}
+
+function vampClearBleed(target) {
+    target.vampBleeds = [];
+    delete target.statusEffects.bleed;
+}
+
+// 출혈 중인 몸: 붉게 맥박치는 테두리 + 몸에서 흘러내리는 피 방울 + 왼쪽 위에 피 방울 아이콘과 중첩 수 (화면 전용)
+function vampDrawBleeding(ctx, target) {
+    const n = (target.vampBleeds || []).length;
+    if (!n || target.hidden || target.isInvisible) return;
+    const r = target.rect, now = Time.now;
+    const pulse = 0.35 + 0.25 * Math.sin(now / 120);
+    ctx.strokeStyle = `rgba(220, 20, 40, ${pulse})`; ctx.lineWidth = 3;
+    ctx.strokeRect(r.x - 1.5, r.y - 1.5, r.w + 3, r.h + 3);
+    ctx.fillStyle = `rgba(160, 0, 20, ${0.12 + 0.06 * n})`;
+    ctx.fillRect(r.x, r.y + r.h * 0.55, r.w, r.h * 0.45);
+    // 흘러내리는 방울 (중첩이 많을수록 많이)
+    ctx.fillStyle = '#c4121f';
+    const drops = Math.min(2 + n, 7);
+    for (let i = 0; i < drops; i++) {
+        const ph = (now / 650 + i * 0.37) % 1;
+        const x = r.x + 4 + ((i * 17 + 5) % Math.max(1, r.w - 8));
+        const y = r.top + r.h * 0.3 + ph * (r.h * 0.7 + 16);
+        ctx.globalAlpha = 1 - ph * 0.6;
+        ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.quadraticCurveTo(x + 3, y, x, y + 3); ctx.quadraticCurveTo(x - 3, y, x, y - 5); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // 피 방울 아이콘 + 중첩 수
+    const ix = r.left - 11, iy = r.top - 10;
+    ctx.fillStyle = '#d0182c'; ctx.strokeStyle = '#2a0006'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(ix, iy - 7); ctx.quadraticCurveTo(ix + 6, iy + 1, ix, iy + 5); ctx.quadraticCurveTo(ix - 6, iy + 1, ix, iy - 7); ctx.fill(); ctx.stroke();
+    drawText(ctx, String(n), ix, iy + 1, 10, '#ffffff', { bold: true, align: 'center', baseline: 'middle' });
 }
 
 // 자해: 체력 1 아래로는 내려가지 않는다 (방어력·박쥐 피해 증가와 상관없이 정해진 만큼)
@@ -171,7 +237,8 @@ class VampSpikesVFX {
             const a = angle + vfxRand(-half, half) * 0.9;
             const big = Math.random() < 0.25;
             this.spikes.push({ x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, at: burst + u * 0.16 + Math.random() * 0.03,
-                h: vfxRand(56, 84) * (0.8 + 0.4 * u) * (big ? 1.35 : 1), img: VAMP_SPIKE_IMAGES[i % 4], flip: Math.random() < 0.5, splashed: false });
+                h: vfxRand(56, 84) * (0.8 + 0.4 * u) * (big ? 1.35 : 1), img: VAMP_SPIKE_IMAGES[i % 4], flip: Math.random() < 0.5, splashed: false,
+                tilt: vfxRand(-0.5, 0.5) }); // 삐뚤빼뚤한 방향
         }
         this.spikes.sort((p, q) => p.y - q.y); // 위(먼 쪽)부터 그려서 겹침이 자연스럽게
         // 선딜레이 동안 웅덩이에서 터지는 거품
@@ -192,8 +259,8 @@ class VampSpikesVFX {
         }
         for (const p of this.splashes) p.update(dt);
     }
-    // 피 웅덩이: 꼭짓점에서 바깥으로 퍼지며 드러나고(0.3초), 가시가 솟을 때 진해졌다가 천천히 사라짐
-    drawPool(ctx) {
+    // 피 웅덩이 (바닥 층: 벽·캐릭터 아래): 꼭짓점에서 바깥으로 퍼지며 드러나고(0.3초), 가시가 솟을 때 진해졌다가 천천히 사라짐
+    drawGround(ctx) {
         if (!isImageReady(VAMP_POOL_IMAGE)) return;
         const t = this.elapsed, R = VAMP.ult.radius, half = VAMP.ult.arc * Math.PI / 360;
         const reveal = Math.min(1, t / 0.3), r = R * (1 - Math.pow(1 - reveal, 3)) + 12;
@@ -224,7 +291,6 @@ class VampSpikesVFX {
         ctx.globalAlpha = 1;
     }
     draw(ctx) {
-        this.drawPool(ctx);
         for (const s of this.spikes) {
             const t = this.elapsed - s.at;
             if (t < 0 || !isImageReady(s.img)) continue;
@@ -238,6 +304,7 @@ class VampSpikesVFX {
             const h = s.h * k, w = s.h * 48 / 112;
             ctx.save();
             ctx.translate(s.x, s.y);
+            ctx.rotate(s.tilt);
             if (s.flip) ctx.scale(-1, 1);
             ctx.globalAlpha = Math.min(1, k * 1.5);
             ctx.drawImage(s.img, -w / 2, -h * 107 / 112, w, h);
@@ -250,7 +317,7 @@ class VampSpikesVFX {
 }
 
 // ==========================================
-// [평타] 창 찌르기: 팍 찌르고(판정은 짧게) 천천히 뒤로 뺀다
+// [평타] 창 찌르기: 창을 뒤로 당겨 피를 모았다가(선딜레이) 팍 찌르고(판정은 짧게) 천천히 뒤로 뺀다
 // ==========================================
 class VampireSpearAttack {
     constructor(owner, direction) {
@@ -258,15 +325,20 @@ class VampireSpearAttack {
         this.dir = normalizeOr(direction);
         this.damage = owner.baseAtk * VAMP.spear.damage;
         this.createdTime = Time.now;
-        this.lifespan = VAMP.spear.life;
+        this.lifespan = VAMP.spear.windup + VAMP.spear.life;
         this.hitPlayers = [];
         this.fxColor = VAMP_COLOR;
         this.noFizzle = true;
-        // 화면 전용: 창끝에서 앞으로 튀는 붉은 불꽃 + 피 안개
-        const r = owner.rect, ang = Math.atan2(this.dir[1], this.dir[0]), reach = 20 + VAMP.spear.length;
-        Vfx.spawn(new HitSparkVFX(r.centerx + this.dir[0] * reach, r.centery + this.dir[1] * reach, { color: VAMP_COLOR, angle: ang, count: 7, size: 18 }));
+        this.thrusted = false;
     }
-    update() {}
+    // 찌르는 순간: 창끝에서 앞으로 튀는 붉은 불꽃 + 피 안개 (화면 전용)
+    update() {
+        if (this.thrusted || Time.now - this.createdTime < VAMP.spear.windup) return;
+        this.thrusted = true;
+        const r = this.owner.rect, ang = Math.atan2(this.dir[1], this.dir[0]), reach = 20 + VAMP.spear.length;
+        Vfx.spawn(new HitSparkVFX(r.centerx + this.dir[0] * reach, r.centery + this.dir[1] * reach, { color: VAMP_COLOR, angle: ang, count: 9, size: 20 }));
+        Vfx.spawn(new VampBloodVFX(r.centerx + this.dir[0] * reach * 0.7, r.centery + this.dir[1] * reach * 0.7, ang, 6, [140, 260]));
+    }
     isExpired() { return Time.now - this.createdTime >= this.lifespan; }
     // 몸 앞 20 ~ 20+length, 폭 width 인 길쭉한 사각형
     getPoints() {
@@ -276,7 +348,8 @@ class VampireSpearAttack {
         return [[x0 + px * hw, y0 + py * hw], [x1 + px * hw, y1 + py * hw], [x1 - px * hw, y1 - py * hw], [x0 - px * hw, y0 - py * hw]];
     }
     collidesWith(target) {
-        if (Time.now - this.createdTime > VAMP.spear.hitTime) return false; // 찌르는 순간만
+        const ms = Time.now - this.createdTime - VAMP.spear.windup;
+        if (ms < 0 || ms > VAMP.spear.hitTime) return false; // 찌르는 순간만
         return canBeHit(this, target) && checkPolygonCollision(this.getPoints(), target.rect);
     }
     applyEffect(target) {
@@ -287,104 +360,138 @@ class VampireSpearAttack {
         Vfx.shake(3, 0.08);
     }
     draw(ctx) {
-        const ms = Time.now - this.createdTime, L = VAMP.spear.length;
-        // 뻗은 정도: 0.06초에 확 뻗고, 0.11초까지 버티고, 남은 시간 동안 천천히 뒤로
+        const all = Time.now - this.createdTime, W = VAMP.spear.windup, L = VAMP.spear.length;
+        const ms = all - W; // 찌르기 시작부터
+        // 뻗은 정도: 선딜레이 동안 뒤로 당김(0.25→0) → 0.06초에 확 뻗고 → 0.11초까지 버티고 → 천천히 뒤로
         let ext;
-        if (ms < 60) ext = 1 - Math.pow(1 - ms / 60, 3);
+        if (ms < 0) { const u = all / W; ext = 0.25 * (1 - u * u); }
+        else if (ms < 60) ext = 1 - Math.pow(1 - ms / 60, 3);
         else if (ms < 110) ext = 1;
-        else { const u = (ms - 110) / (this.lifespan - 110); ext = 1 - u * u * (3 - 2 * u); }
+        else { const u = (ms - 110) / (VAMP.spear.life - 110); ext = 1 - u * u * (3 - 2 * u); }
         const r = this.owner.rect, [dx, dy] = this.dir, ang = Math.atan2(dy, dx);
         const tip = 20 + L * (0.25 + 0.75 * ext);
+        const tremble = ms < 0 ? Math.sin(all * 0.9) * 1.5 * (all / W) : 0; // 모으는 동안 떨림
         ctx.save();
         ctx.translate(r.centerx, r.centery);
         ctx.rotate(ang);
-        // 찌르기 빛줄기 (찌르는 순간만)
-        if (ms < 170 && isImageReady(VAMP_STAB_IMAGE)) {
-            const a = ms < 60 ? 1 : 1 - (ms - 60) / 110;
+        // 모으는 동안: 창끝으로 빨려 드는 붉은 피 입자 + 점점 커지는 붉은 빛
+        if (ms < 0) {
+            const u = all / W;
             ctx.globalCompositeOperation = 'lighter';
-            ctx.globalAlpha = a;
-            ctx.drawImage(VAMP_STAB_IMAGE, 10, -VAMP.spear.width * 0.6, 20 + L + 14 - 10, VAMP.spear.width * 1.2);
+            ctx.fillStyle = `rgba(255, 40, 60, ${0.25 + 0.5 * u})`;
+            ctx.beginPath(); ctx.arc(tip, tremble, 4 + 7 * u, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255, 70, 90, 0.9)';
+            for (let i = 0; i < 7; i++) {
+                const a = i * 0.9 + 0.4, ph = (u * 2 + i * 0.29) % 1, d = 34 * (1 - ph);
+                ctx.globalAlpha = ph;
+                ctx.beginPath(); ctx.arc(tip + Math.cos(a) * d, tremble + Math.sin(a) * d * 0.8, 2.2, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.globalCompositeOperation = 'source-over';
+        }
+        // 찌르기 빛줄기 (찌르는 순간만)
+        if (ms >= 0 && ms < 170 && isImageReady(VAMP_STAB_IMAGE)) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = ms < 60 ? 1 : 1 - (ms - 60) / 110;
+            ctx.drawImage(VAMP_STAB_IMAGE, 10, -VAMP.spear.width * 0.6, L + 24, VAMP.spear.width * 1.2);
             ctx.globalCompositeOperation = 'source-over';
         }
         // 창
         const len = 190, h = len * 63 / 324;
-        ctx.globalAlpha = ms > this.lifespan - 90 ? (this.lifespan - ms) / 90 : 1;
-        if (isImageReady(VAMP_SPEAR_IMAGE)) ctx.drawImage(VAMP_SPEAR_IMAGE, tip - len, -h / 2, len, h);
+        ctx.globalAlpha = all > this.lifespan - 90 ? (this.lifespan - all) / 90 : 1;
+        if (isImageReady(VAMP_SPEAR_IMAGE)) ctx.drawImage(VAMP_SPEAR_IMAGE, tip - len, -h / 2 + tremble, len, h);
         else { ctx.fillStyle = VAMP_COLOR; ctx.fillRect(tip - len, -4, len, 8); }
         ctx.restore();
     }
 }
 
 // ==========================================
-// [박쥐 평타] 물기: 앞쪽 부채꼴, 맞히면 회복 + 출혈
+// [박쥐 평타] 물기: 박쥐 가까운 쪽 아랫니와 먼 쪽 윗니가 서로 다가와 '앙' 닫힘. 닫히는 순간 판정 (회복 + 출혈)
 // ==========================================
+const VAMP_BITE_DIST = 58;   // 입 가운데까지 거리
 class VampireBiteAttack {
     constructor(owner, direction) {
         this.owner = owner;
-        this.angle = Math.atan2(normalizeOr(direction)[1], normalizeOr(direction)[0]);
+        const d = normalizeOr(direction);
+        this.angle = Math.atan2(d[1], d[0]);
         this.damage = owner.baseAtk * VAMP.bite.damage;
         this.createdTime = Time.now;
-        this.lifespan = 220;
+        this.lifespan = VAMP.bite.life;
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
         this.noFizzle = true;
+        this.snapped = false;
     }
-    update() {}
+    mouth() {
+        const r = this.owner.rect;
+        return [r.centerx + Math.cos(this.angle) * VAMP_BITE_DIST, r.centery + Math.sin(this.angle) * VAMP_BITE_DIST];
+    }
+    // 닫히는 순간: 흰 불꽃 + 피 (화면 전용)
+    update() {
+        if (this.snapped || Time.now - this.createdTime < VAMP.bite.closeTime) return;
+        this.snapped = true;
+        const [x, y] = this.mouth();
+        Vfx.spawn(new HitSparkVFX(x, y, { color: '#ffffff', angle: this.angle, count: 8, size: 22 }));
+        Vfx.spawn(new VampBloodVFX(x, y, this.angle, 6, [80, 200]));
+    }
     isExpired() { return Time.now - this.createdTime >= this.lifespan; }
     getPoints() {
         const r = this.owner.rect;
         return vampFanPoints(r.centerx, r.centery, this.angle, VAMP.bite.radius, VAMP.bite.arc);
     }
     collidesWith(target) {
+        const ms = Time.now - this.createdTime;
+        if (ms < VAMP.bite.closeTime - 20 || ms > VAMP.bite.closeTime + 80) return false; // 닫히는 순간만
         return canBeHit(this, target) && checkPolygonCollision(this.getPoints(), target.rect);
     }
     applyEffect(target) {
         vampHeal(this.owner, VAMP.bite.heal);
         vampBleed(target, VAMP.bite.bleedTime, VAMP.bite.bleedPower);
-        Vfx.spawn(new VampBloodVFX(target.rect.centerx, target.rect.centery, this.angle, 8));
+        Vfx.spawn(new VampBloodVFX(target.rect.centerx, target.rect.centery, this.angle, 10));
     }
-    // 흰 이빨이 위아래로 '앙' 하고 물기: 앞쪽에 입이 크게 벌어졌다 확 닫힘 + 옅은 부채꼴
     draw(ctx) {
-        const ms = Time.now - this.createdTime;
+        const ms = Time.now - this.createdTime, C = VAMP.bite.closeTime;
         const t = Math.min(1, ms / this.lifespan);
-        fillPolygon(ctx, this.getPoints(), `rgba(208, 24, 44, ${0.16 * (1 - t)})`);
-        const r = this.owner.rect, d = VAMP.bite.radius * 0.58;
-        const x = r.centerx + Math.cos(this.angle) * d, y = r.centery + Math.sin(this.angle) * d;
-        const close = Math.min(1, ms / 70);                                // 0.07초 만에 닫힘
-        const gap = 26 * (1 - close * close);
-        const shake = close >= 1 && ms < 110 ? (Math.floor(ms / 20) % 2 ? 2 : -2) : 0;
-        const fade = ms > 100 ? Math.max(0, 1 - (ms - 100) / (this.lifespan + 60 - 100)) : 1;
+        fillPolygon(ctx, this.getPoints(), `rgba(208, 24, 44, ${0.14 * (1 - t)})`);
+        if (!isImageReady(VAMP_FANG_TOP_IMAGE) || !isImageReady(VAMP_FANG_BOTTOM_IMAGE)) return;
+        // 두 턱 사이 거리: 처음엔 크게 벌어져 있다가 점점 빨라지며 닫힘
+        const u = Math.min(1, ms / C), gap = 46 * (1 - u * u);
+        const shake = u >= 1 && ms < C + 60 ? (Math.floor(ms / 18) % 2 ? 2.5 : -2.5) : 0;
+        const fade = ms > C + 60 ? Math.max(0, 1 - (ms - C - 60) / (this.lifespan - C - 60)) : 1;
+        const [x, y] = this.mouth();
         ctx.save();
-        ctx.translate(x + shake, y);
-        ctx.globalAlpha = fade;
-        const W = 34;
-        for (const s of [-1, 1]) {                                         // s=-1 윗턱, s=1 아랫턱
-            const gy = s * (gap / 2 + 9);
-            // 잇몸 (짙은 붉은 반달)
-            ctx.fillStyle = '#7a0a18'; ctx.strokeStyle = '#2a0006'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.ellipse(0, gy, W, 9, 0, s < 0 ? Math.PI : 0, s < 0 ? Math.PI * 2 : Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
-            // 이빨 (흰색, 가운데 양옆 두 개는 길쭉한 송곳니)
-            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#3a0a10'; ctx.lineWidth = 1.2;
-            const teeth = [-26, -17, -8, 0, 8, 17, 26];
-            for (const tx of teeth) {
-                const fang = Math.abs(tx) === 17;
-                const len = fang ? 15 : 8, w = fang ? 4.5 : 3.6;
-                const ty = s * (gap / 2 + 1);
-                ctx.beginPath(); ctx.moveTo(tx - w, ty - s * 1); ctx.lineTo(tx, ty - s * len); ctx.lineTo(tx + w, ty - s * 1); ctx.closePath(); ctx.fill(); ctx.stroke();
-            }
+        ctx.translate(x, y);
+        ctx.rotate(this.angle + Math.PI / 2); // 로컬 위쪽(-y) = 앞쪽
+        ctx.translate(shake, 0);
+        ctx.globalAlpha = Math.min(1, ms / 30) * fade;
+        const tw = 70, th = tw * 58 / 123, bw = 62, bh = bw * 41 / 109;
+        // 먼 쪽(앞) 윗니: 송곳니가 박쥐 쪽(아래)을 향함 / 가까운 쪽 아랫니: 이가 앞(위)을 향함. 닫히면 살짝 겹침
+        ctx.drawImage(VAMP_FANG_TOP_IMAGE, -tw / 2, -gap / 2 - th + 6, tw, th);
+        ctx.drawImage(VAMP_FANG_BOTTOM_IMAGE, -bw / 2, gap / 2 - 5, bw, bh);
+        // 다가오는 동안 턱 뒤로 붉은 속도선
+        if (u < 1) {
+            ctx.strokeStyle = `rgba(255, 60, 80, ${0.6 * u})`; ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (const sx of [-22, 0, 22]) { ctx.moveTo(sx, -gap / 2 - th - 2); ctx.lineTo(sx, -gap / 2 - th - 14); ctx.moveTo(sx, gap / 2 + bh); ctx.lineTo(sx, gap / 2 + bh + 12); }
+            ctx.stroke();
         }
-        // 닫히는 순간 가운데 붉은 번쩍
-        if (close >= 1 && ms < 140) {
+        // 닫히는 순간 붉은 번쩍
+        if (u >= 1 && ms < C + 70) {
             ctx.globalCompositeOperation = 'lighter';
-            ctx.fillStyle = `rgba(255, 60, 80, ${0.7 * (1 - (ms - 70) / 70)})`;
-            ctx.beginPath(); ctx.ellipse(0, 0, W * 0.9, 6, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = `rgba(255, 60, 80, ${0.75 * (1 - (ms - C) / 70)})`;
+            ctx.beginPath(); ctx.ellipse(0, 0, tw * 0.5, 7, 0, 0, Math.PI * 2); ctx.fill();
         }
         ctx.restore();
     }
 }
 
 class VampireBasicSkill extends Skill {
-    constructor() { super('Blood Spear', VAMP.spear.cooldown, ['melee']); }
+    constructor() { super('Blood Spear', VAMP.spear.cooldown, ['melee']); this.owner = null; }
+    // 박쥐일 때는 물기 쿨타임 (더 김)
+    canUse() {
+        const cd = this.owner && this.owner.vampBat ? VAMP.bite.cooldown : VAMP.spear.cooldown;
+        return Time.now - this.lastUsed >= cd;
+    }
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
         if (owner.vampBat) {
@@ -411,7 +518,7 @@ class VampireDrainSkill extends Skill {
         const amount = vampBleedRemaining(target);
         if (amount <= 0) return;
         this.lastUsed = Time.now;
-        delete target.statusEffects.bleed;
+        vampClearBleed(target);
         vampHeal(owner, amount);
         Vfx.spawn(new VampDrainVFX(owner, target));
         Vfx.spawn(new VampBloodVFX(target.rect.centerx, target.rect.centery, Math.atan2(owner.rect.centery - target.rect.centery, owner.rect.centerx - target.rect.centerx), 10));
@@ -535,7 +642,8 @@ function applyVampire(player) {
     const drain = new VampireDrainSkill(); drain.owner = player;
     const bat = new VampireBatSkill(); bat.owner = player;
     const ult = new VampireUltSkill(); ult.owner = player;
-    player.abilities = [new VampireBasicSkill(), drain, bat, ult];
+    const basic = new VampireBasicSkill(); basic.owner = player;
+    player.abilities = [basic, drain, bat, ult];
 
     // 박쥐: 받는 피해 증가
     const baseTakeDamage = player.takeDamage.bind(player);
@@ -544,6 +652,7 @@ function applyVampire(player) {
     // 박쥐인 동안 매 틱: 벽 통과 + 빨라짐
     player.preUpdateHooks.push(() => {
         if (!player.vampBat) return;
+        if (Time.now - bat.enterTime >= VAMP.bat.maxTime) { vampExitBat(player, bat); return; } // 최대 5초
         ghost(player, 0.1);
         speedUp(player, 0.1, VAMP.bat.speedUp);
     });
@@ -564,6 +673,12 @@ function applyVampire(player) {
         if (player.facing[0] < 0) ctx.scale(-1, 1);
         ctx.drawImage(img, -32, -22, 64, 44);
         ctx.restore();
+        // 남은 변신 시간: 박쥐 위 작은 고리가 줄어듦
+        const left = Math.max(0, 1 - (Time.now - bat.enterTime) / VAMP.bat.maxTime);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(r.centerx, r.top - 26, 7, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = left < 0.3 ? '#ff5060' : '#e8c0c8'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(r.centerx, r.top - 26, 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); ctx.stroke();
     });
 }
 
@@ -571,7 +686,7 @@ const VAMPIRE_CHARACTER_DATA = {
     id: 'VAMPIRE',
     fxColor: VAMP_COLOR,
     name: '뱀파이어',
-    desc: '평타(1초): 피의 창으로 앞을 길게 팍 찌릅니다(14.4, 길이 160) + 강한 출혈(초당 5, 4초). 쓸 때마다 내 체력 3 감소(이걸로는 죽지 않음), 스킬 1(5초): 상대의 출혈을 모두 없애고 남은 출혈 피해만큼 내 체력을 회복합니다(상대가 출혈 중일 때만), 스킬 2(4초): 박쥐로 변신하거나 해제합니다. 판정이 작아지고 이동속도 +40%·벽 통과, 대신 받는 피해 +30%이고 평타와 스킬 2만 쓸 수 있습니다. 쿨타임은 해제할 때부터, 박쥐 평타: 앞쪽 90도 부채꼴을 물어 피해(6)를 주고 체력 10 회복 + 출혈(초당 4, 3초), 궁극기: 앞쪽 45도 긴 부채꼴에 피 웅덩이가 퍼지고(0.35초, 이동 불가) 피의 가시가 솟아 피해(24) + 강한 출혈(초당 7, 6초). 내 체력 25 감소(이걸로는 죽지 않음)',
+    desc: '평타(1초): 0.18초 동안 창에 피를 모았다가 앞을 길게 팍 찌릅니다(14.4, 길이 160) + 강한 출혈(초당 5, 4초). 출혈은 걸 때마다 따로 쌓입니다(최대 6중첩). 쓸 때마다 내 체력 3 감소(이걸로는 죽지 않음), 스킬 1(5초): 상대의 출혈을 모두 없애고 남은 출혈 피해만큼 내 체력을 회복합니다(상대가 출혈 중일 때만), 스킬 2(4초): 박쥐로 변신하거나 해제합니다(최대 5초). 판정이 작아지고 이동속도 +40%·벽 통과, 대신 받는 피해 +30%이고 평타와 스킬 2만 쓸 수 있습니다. 쿨타임은 해제할 때부터, 박쥐 평타(1.4초): 앞쪽 90도 부채꼴을 물어 피해(6)를 주고 체력 10 회복 + 출혈(초당 4, 3초), 궁극기: 앞쪽 45도 긴 부채꼴에 피 웅덩이가 퍼지고(0.35초, 이동 불가) 피의 가시가 솟아 피해(24) + 강한 출혈(초당 7, 6초). 내 체력 25 감소(이걸로는 죽지 않음)',
     apply: applyVampire,
     thumbnail: null,
 };
