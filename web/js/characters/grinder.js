@@ -90,6 +90,20 @@ function grinderSparkPool(owner) {
 }
 
 // ==========================================
+// [스킬 1 연계] 그랩 기절이 끝난 뒤 0.5초 동안 50% 슬로우.
+// 슬로우는 한 번에 하나만 걸리므로 기절이 끝나는 시각에 걸리도록 상대 몸에 훅을 달아 둔다
+function grinderScheduleAfterSlow(target, at) {
+    target.grinderAfterSlowAt = at;
+    if (target.grinderAfterSlowHooked) return;
+    target.grinderAfterSlowHooked = true;
+    target.preUpdateHooks.push(() => {
+        if (target.grinderAfterSlowAt && Time.now >= target.grinderAfterSlowAt) {
+            target.grinderAfterSlowAt = 0;
+            slow(target, 0.5, 50);
+        }
+    });
+}
+
 // [스킬 1 연계] 그랩에 맞은 상대를 내 쪽으로 끌어온다 (벽에 끼지 않게)
 // ==========================================
 class GrinderReverseKnockbackEffect {
@@ -119,8 +133,10 @@ class GrinderReverseKnockbackEffect {
         if (dist > 40) {
             const ts = this.owner.timeScale;
             moveEntityWithWalls(this.target, (dx / dist) * this.pullSpeed * ts, (dy / dist) * this.pullSpeed * ts, CURRENT_WALLS);
-            slow(this.target, 0.1, 100);
-            silence(this.target, 0.1);
+            // 끌려오는 동안 이동 불가·침묵 유지 (이미 걸린 더 긴 기절은 줄이지 않는다)
+            const sl = this.target.statusEffects.slow, si = this.target.statusEffects.silence;
+            if (!sl || sl.power < 100 || sl.duration < 0.1) slow(this.target, 0.1, 100);
+            if (!si || si.duration < 0.1) silence(this.target, 0.1);
         }
     }
 
@@ -186,6 +202,7 @@ class GrinderGrabBullet {
         this.attacks.push(new GrinderReverseKnockbackEffect(this.owner, target));
         slow(target, 1.0, 100);
         silence(target, 0.5);
+        grinderScheduleAfterSlow(target, Time.now + 1000); // 기절(1초)이 끝나면 0.5초 동안 50% 슬로우
         this.lifespan = 0;
         // 집게가 닫히며 물 때 불꽃
         const ang = Math.atan2(this.direction[1], this.direction[0]);
@@ -587,7 +604,7 @@ const GRINDER_CHARACTER_DATA = {
     id: 'GRINDER',
     fxColor: '#e0b060',
     name: '분쇄자',
-    desc: '평타(누르고 있기·최대 3초): 앞 좌우에 분쇄기 2개를 돌려 닿은 적에게 0.3초마다 피해를 줍니다(9). 쓰는 동안 내가 40% 느려집니다, 스킬 1(3.5초): 집게 그랩을 날려 맞은 적을 내 앞으로 끌어옵니다(24, 1초 이동 불가·0.5초 침묵), 스킬 2(6초): 0.3초 뒤 앞쪽을 유압 프레스로 내려찍습니다(32, 1초 기절), 궁극기: 앞쪽 30도 부채꼴로 고철 조각 15발을 난사합니다(5씩, 맞을 때마다 0.2초 경직)',
+    desc: '평타(누르고 있기·최대 3초): 앞 좌우에 분쇄기 2개를 돌려 닿은 적에게 0.3초마다 피해를 줍니다(9). 쓰는 동안 내가 40% 느려집니다, 스킬 1(3.5초): 집게 그랩을 날려 맞은 적을 내 앞으로 끌어옵니다(24, 1초 이동 불가·0.5초 침묵, 그 뒤 0.5초 슬로우 50%), 스킬 2(6초): 0.3초 뒤 앞쪽을 유압 프레스로 내려찍습니다(32, 1초 기절), 궁극기: 앞쪽 30도 부채꼴로 고철 조각 15발을 난사합니다(5씩, 맞을 때마다 0.2초 경직)',
     apply: applyGrinder,
     thumbnail: null,
 };
