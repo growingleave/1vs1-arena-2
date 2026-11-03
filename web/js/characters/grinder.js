@@ -166,9 +166,9 @@ class GrinderGrabBullet {
         this.direction = direction;
         this.attacks = attacks;
         this.damage = owner.baseAtk * 1.2;
-        this.speed = 24.0;
+        this.speed = 16.0;   // 날아가는 속도 (원래 24, 사거리 350은 그대로)
         this.createdTime = Time.now;
-        this.lifespan = 400;
+        this.lifespan = 550; // 느려진 만큼 사거리 끝까지 갈 시간
         this.hitPlayers = [];
         this.width = 15;
         this.height = 45;
