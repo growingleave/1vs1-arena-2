@@ -216,19 +216,62 @@ function isImageReady(img) {
     return img && img.complete && img.naturalWidth > 0;
 }
 
-const _hitSound = new Audio('assets/hit.ogg');
-_hitSound.preload = 'auto';
+// ------------------------------------------
+// 피격 소리 (화면 효과처럼 결과와 무관)
+// 소리를 한 번만 풀어 두고(Web Audio) 바로 재생한다. 예전 방식(매번 오디오 태그 복제 → 0.18초 뒤 정지)은
+// 복제한 태그가 늦게 준비되면 소리가 나기도 전에 멈춰서 가끔 안 들렸고, 뚝 끊겨 연타 때 지직거렸다.
+// - 앞 0.18초만, 끝 0.05초는 부드럽게 줄임 (뚝 끊김 없음)
+// - 연타: 45ms 안에 다시 맞으면 새로 틀지 않고, 동시에 최대 4개. 음 높이를 조금씩 달리해 기계적으로 안 들리게
+// - 겹쳐도 찢어지지 않게 리미터 → 전체 크기 순서
+// ------------------------------------------
+const HitSound = {
+    ctx: null, input: null, buf: null, last: 0, playing: 0,
+    init() {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC || typeof HIT_SOUND_DATA === 'undefined') return;
+        try {
+            this.ctx = new AC();
+            const lim = this.ctx.createDynamicsCompressor();
+            lim.threshold.value = -6; lim.knee.value = 4; lim.ratio.value = 12; lim.attack.value = 0.002; lim.release.value = 0.1;
+            const master = this.ctx.createGain(); master.gain.value = 0.9;
+            lim.connect(master); master.connect(this.ctx.destination);
+            this.input = lim;
+            const bin = atob(HIT_SOUND_DATA), bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            this.ctx.decodeAudioData(bytes.buffer).then((b) => { this.buf = b; }).catch(() => {});
+        } catch (e) { this.ctx = null; return; }
+        // 브라우저는 키를 누르기 전엔 소리를 막는다 → 첫 입력 때 깨움
+        const wake = () => { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); };
+        window.addEventListener('keydown', wake, true);
+        window.addEventListener('pointerdown', wake, true);
+    },
+    play(volume) {
+        if (!this.buf || !this.ctx || this.ctx.state !== 'running') return false;
+        const now = performance.now();
+        if (now - this.last < 45 || this.playing >= 4) return true; // 연타: 너무 촘촘하면 건너뜀
+        this.last = now;
+        try {
+            const t = this.ctx.currentTime, len = 0.18;
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.buf;
+            src.playbackRate.value = 0.95 + Math.random() * 0.1;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(volume, t);
+            g.gain.setValueAtTime(volume, t + len - 0.05);
+            g.gain.linearRampToValueAtTime(0, t + len);
+            src.connect(g); g.connect(this.input);
+            this.playing++;
+            src.onended = () => { this.playing--; };
+            src.start(t);
+            src.stop(t + len + 0.01);
+        } catch (e) { /* 무시 */ }
+        return true;
+    },
+};
+HitSound.init();
 
-// 피격 소리의 앞 0.18초만 재생. 피해가 작을수록 작게 (sound_manager.py와 동일)
+// 피해가 작을수록 작게 (sound_manager.py와 같은 기준)
 function playHitSound(intensity = 1.0) {
     const volume = Math.max(0.25, Math.min(1.0, intensity));
-    try {
-        const s = _hitSound.cloneNode();
-        s.volume = volume;
-        const p = s.play();
-        if (p && p.catch) p.catch(() => {});
-        setTimeout(() => s.pause(), 180);
-    } catch (e) {
-        // 소리가 안 나도 게임은 계속 돌아가야 한다
-    }
+    HitSound.play(volume);
 }
