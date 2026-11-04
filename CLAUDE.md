@@ -57,5 +57,5 @@
 - 조작: 온라인은 방향키 + Q W E R (평타, 스킬1, 스킬2, 궁) — `net.js`. 한 기기 2인용은 `input.js`의 노트북/크롬북 키 배치.
 
 ## 남은 일 (메모)
-- 소리: 피격 소리만 (core.js `HitSound`, `web/assets/hit.ogg` → `sh tools/hit_sound_build.sh` → `web/js/hit_sound_data.js`). 스킬 효과음은 없앰. 배경음악은 나중에 (사용자가 파일을 구해 옴).
+- 소리: 피격 소리만 (core.js `HitSound`, `web/assets/hit.ogg` → `sh tools/hit_sound_build.sh` → `web/js/hit_sound_data.js`). 스킬 효과음은 없앰. 배경음악: `web/js/bgm.js` + `web/assets/bgm.ogg` (반복, 첫 키 입력 때 시작, M 키로 끄기/켜기).
 - 모든 캐릭터 이펙트 교체 완료 (2026-11-01). 이후는 실제 크롬북 테스트·세부 조정.

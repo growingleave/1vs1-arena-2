@@ -12,6 +12,7 @@ const MAX_TICKS_PER_FRAME = 5;   // 탭을 오래 비웠다가 돌아와도 한�
 const ONLINE_CATCH_UP_MARGIN = 2; // 받아둔 틱이 (여유분 + 이 값)보다 많으면 따라잡는다
 const ONLINE_MAX_CATCH_UP = 300; // 한 번 그릴 때 따라잡는 최대 틱 수 (화면이 멈춘 것처럼 보이지 않게)
 
+Bgm.init();
 let game = new Game();
 let lastTime = performance.now();
 let accumulator = 0;
