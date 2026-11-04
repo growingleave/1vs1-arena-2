@@ -57,7 +57,28 @@ function sfxWind(ctx, out, { len = 0.34, peak = 2200, vol = 0.8, start = 0 } = {
 }
 
 const SFX_RECIPES = {
-    // 검사: 평타·돌진·검기는 사용자 소리 파일(sfx_data.js). 납도 '챙!'만 합성
+    // 검사
+    sw_slash: [0.25, (ctx, out) => sfxSlash(ctx, out)],
+    sw_slash_fast: [0.15, (ctx, out) => sfxSlash(ctx, out, { len: 0.11, hi: 7200, lo: 2400, ring: 0.08 })],
+    sw_dash: [0.4, (ctx, out) => sfxWind(ctx, out)],
+    // 검기 발사: 바람 + 아래로 떨어지는 '부웅' 음 + 반짝이는 높은 소음
+    sw_wave: [0.45, (ctx, out) => {
+        sfxWind(ctx, out, { len: 0.3, peak: 2600, vol: 0.6 });
+        const o = ctx.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(1400, 0); o.frequency.exponentialRampToValueAtTime(330, 0.32);
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, 0); g.gain.exponentialRampToValueAtTime(0.22, 0.02); g.gain.exponentialRampToValueAtTime(0.0001, 0.36);
+        o.connect(lp); lp.connect(g); g.connect(out); o.start(0); o.stop(0.4);
+        sfxNoiseLayer(ctx, out, { sec: 0.3, type: 'highpass', q: 0.7, freqs: [[0, 6000], [0.25, 8000]], gains: [[0.02, 0.25], [0.25, 0.001]] });
+    }],
+    // 궁극기 돌진: 더 굵은 바람 + 낮은 울림
+    sw_ult_dash: [0.6, (ctx, out) => {
+        sfxWind(ctx, out, { len: 0.5, peak: 1800, vol: 0.9 });
+        sfxWind(ctx, out, { len: 0.42, peak: 3200, vol: 0.45, start: 0.04 });
+        const o = ctx.createOscillator(); o.frequency.setValueAtTime(110, 0); o.frequency.exponentialRampToValueAtTime(55, 0.45);
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, 0); g.gain.exponentialRampToValueAtTime(0.35, 0.05); g.gain.exponentialRampToValueAtTime(0.0001, 0.5);
+        o.connect(g); g.connect(out); o.start(0); o.stop(0.55);
+    }],
     // 납도 '챙!': 짧은 딸깍 + 길게 울리는 금속음
     sw_clang: [1.0, (ctx, out) => {
         sfxNoiseLayer(ctx, out, { sec: 0.05, type: 'highpass', q: 0.7, freqs: [[0, 3000], [0.03, 5000]], gains: [[0.002, 0.8], [0.03, 0.001]] });

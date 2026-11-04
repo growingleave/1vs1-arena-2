@@ -398,6 +398,7 @@ class MageBasicSkillRunner extends Skill {
     use(owner, direction, attacks) {
         owner.castTimer = 0.1;
         owner.pendingAction = () => {
+            Sfx.play('mg_basic', { rate: 0.96 + Math.random() * 0.08 }); // 효과음 (결과와 무관)
             this.lastUsed = Time.now;
             attacks.push(new MageEnergyPulse(owner, direction, {
                 canPenetrateWalls: false, damageMult: 1.0, speed: 45,
@@ -462,6 +463,7 @@ class MageLaserSkillRunner extends Skill {
 
     use(owner, direction, attacks) {
         owner.castTimer = 0.3; // 선딜레이 (원래 0.4)
+        Sfx.play('mg_skill1'); // 조준하는 동안 모이다가 레이저와 함께 터지는 소리
         owner.pendingAction = () => {
             this.lastUsed = Time.now;
             attacks.push(new MagePiercingLaser(owner, direction));
@@ -475,6 +477,7 @@ class MageGhostSkill extends Skill {
     use(owner) {
         this.lastUsed = Time.now;
         ghost(owner, 2.0);
+        Sfx.play('mg_skill2');
         speedUp(owner, 2.0, 30);
     }
 }
