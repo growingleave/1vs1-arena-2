@@ -510,6 +510,7 @@ class SwordmanUltDashAttack {
     // 납도 끝: 맞힌 적이 있을 때만 지나온 길이 베이는 그림 (빗나가면 아무것도 안 나온다)
     startCut() {
         this.phase = 'cut';
+        Sfx.play('sw_clang'); // 납도 '챙!'
         this.cutStart = Time.now;
         this.hitsDone = 0;
         if (this.marked.length === 0) {
@@ -534,6 +535,7 @@ class SwordmanUltDashAttack {
     // 참격 한 번: 맞힌 적마다 직선 참격 이펙트 + 피해 (전체 피해를 참격 수로 나눔)
     slashHit() {
         this.hitsDone++;
+        Sfx.play('sw_slash_fast', { volume: 0.8, rate: 0.9 + Math.random() * 0.25 });
         const color = SWORDMAN_COLOR;
         for (const target of this.marked) {
             if (!canBeHit(this, target)) continue;
@@ -583,10 +585,12 @@ class SwordmanBasicSlash extends Skill {
         this.lastUsed = Time.now;
         attacks.push(new SwordmanSlashAttack(owner, direction, color));
         spawnSwordmanSlashVfx(owner, direction);
+        Sfx.play('sw_slash', { rate: 0.94 + Math.random() * 0.12 }); // 효과음 (화면 효과처럼 결과와 무관)
 
         if (owner.slashEnhanceCount > 0) {
             attacks.push(new SwordmanProjectileAttack(owner, direction, color));
             owner.slashEnhanceCount -= 1;
+            Sfx.play('sw_wave');
         }
     }
 }
@@ -597,6 +601,7 @@ class SwordmanDashSkill extends Skill {
     use(owner, direction, attacks, color) {
         this.lastUsed = Time.now;
         attacks.push(new SwordmanDashAttack(owner, direction, color));
+        Sfx.play('sw_dash');
     }
 }
 
@@ -621,6 +626,7 @@ class SwordmanUltSkill extends Skill {
         owner.pendingAction = () => {
             this.lastUsed = Time.now;
             attacks.push(new SwordmanUltDashAttack(owner, direction, color));
+            Sfx.play('sw_ult_dash');
         };
     }
 }
