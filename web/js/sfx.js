@@ -8,7 +8,7 @@
 // 재생: Sfx.play('이름', { volume, rate })
 
 const SFX_RATE = 22050;     // 합성 샘플레이트 (효과음엔 충분, 가볍게)
-const SFX_MASTER = 0.55;
+const SFX_MASTER = 0.15; // 효과음 전체 크기 (피격 소리 hit.ogg는 따로라 영향 없음)
 
 // 백색 소음 버퍼
 function sfxNoise(ctx, sec) {
