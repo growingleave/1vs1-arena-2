@@ -10,7 +10,8 @@ class SwordmanSlashAttack {
     constructor(owner, direction, color) {
         this.owner = owner;
         this.color = color;
-        this.damage = owner.baseAtk * 1.5;
+        // 스킬 2 강화(검기) 남아 있는 동안은 베기 피해 60% (검기가 따로 나가므로)
+        this.damage = owner.baseAtk * 1.5 * ((owner.slashEnhanceCount || 0) > 0 ? 0.6 : 1);
 
         this.radius = 60;
         this.arcAngle = 120;
@@ -592,7 +593,7 @@ class SwordmanBasicSlash extends Skill {
 }
 
 class SwordmanDashSkill extends Skill {
-    constructor() { super('Swordman Dash', 1500, ['dash']); } // 속박 시 사용 불가
+    constructor() { super('Swordman Dash', 3000, ['dash']); } // 이동기 너프: 1.5 → 3초 // 속박 시 사용 불가
 
     use(owner, direction, attacks, color) {
         this.lastUsed = Time.now;
@@ -655,7 +656,7 @@ const SWORDMAN_CHARACTER_DATA = {
     id: 'SWORDMAN',
     fxColor: SWORDMAN_COLOR,
     name: '검사',
-    desc: '평타(0.4초): 앞쪽 부채꼴을 벱니다(15), 스킬 1(1.5초): 앞으로 빠르게 돌진하며 닿은 적을 벱니다(20), 스킬 2(6초): 다음 평타 3번이 강화되어 검기가 함께 날아갑니다(검기 12, 슬로우 30% 2초), 궁극기: 0.6초 동안 무적으로 기를 모은 뒤 앞으로 길게 돌진합니다. 닿은 적은 바로 베이고(15) 기절하며, 검을 넣는 순간 지나온 길에 9연속 참격이 들어갑니다(3.5x9, 최대 46.5)',
+    desc: '평타(0.4초): 앞쪽 부채꼴을 벱니다(15), 스킬 1(3초): 앞으로 빠르게 돌진하며 닿은 적을 벱니다(20), 스킬 2(6초): 다음 평타 3번이 강화되어 검기가 함께 날아갑니다. 강화된 동안 베기 피해는 9로 줄어듭니다(검기 12, 슬로우 30% 2초), 궁극기: 0.6초 동안 무적으로 기를 모은 뒤 앞으로 길게 돌진합니다. 닿은 적은 바로 베이고(15) 기절하며, 검을 넣는 순간 지나온 길에 9연속 참격이 들어갑니다(3.5x9, 최대 46.5)',
     apply: applySwordmanToPlayer,
     thumbnail: null,
 };

@@ -341,7 +341,7 @@ class AssassinMoveManager {
 }
 
 class AssassinDashSkill extends Skill {
-    constructor() { super('Quick Step', 600, ['dash']); }
+    constructor() { super('Quick Step', 1500, ['dash']); } // 이동기 너프: 0.6 → 1.5초
 
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
@@ -488,7 +488,7 @@ class AssassinHookProjectile {
 }
 
 class AssassinHookSkill extends Skill {
-    constructor() { super('Grapple Hook', 4500); }
+    constructor() { super('Grapple Hook', 8000); } // 이동기 너프: 4.5 → 8초
 
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
@@ -763,7 +763,7 @@ const ASSASSIN_CHARACTER_DATA = {
     id: 'ASSASSIN',
     fxColor: '#c080ff',
     name: '어쌔신',
-    desc: '평타(0.35초): 단검으로 앞을 찌릅니다(14), 강화 평타: 차지가 있으면 찌르기 대신 주위를 한 바퀴 벱니다(16.8, 반경 60), 스킬 1(0.6초): 아주 짧게 대쉬하고 차지를 1개 얻습니다(최대 3개), 스킬 2(4.5초): 갈고리를 던집니다. 벽에 박히면 그쪽으로 날아가고, 상대에 박히면 1초 기절시키고 상대에게 날아갑니다, 궁극기: 0.5초 은신(무적) 후 앞쪽에 거대한 X자 참격을 긋습니다(42). 차지도 1개 얻습니다',
+    desc: '평타(0.35초): 단검으로 앞을 찌릅니다(14), 강화 평타: 차지가 있으면 찌르기 대신 주위를 한 바퀴 벱니다(16.8, 반경 60), 스킬 1(1.5초): 아주 짧게 대쉬하고 차지를 1개 얻습니다(최대 3개), 스킬 2(8초): 갈고리를 던집니다. 벽에 박히면 그쪽으로 날아가고, 상대에 박히면 1초 기절시키고 상대에게 날아갑니다, 궁극기: 0.5초 은신(무적) 후 앞쪽에 거대한 X자 참격을 긋습니다(42). 차지도 1개 얻습니다',
     apply: applyAssassinToPlayer,
     thumbnail: null,
 };
