@@ -484,7 +484,7 @@ class FighterDashManager {
 }
 
 class FighterDashSkill extends Skill {
-    constructor() { super('Dash Slam', 4000, ['dash']); }
+    constructor() { super('Dash Slam', 7000, ['dash']); } // 이동기 너프: 4 → 7초
 
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
@@ -802,7 +802,7 @@ const FIGHTER_CHARACTER_DATA = {
     id: 'FIGHTER',
     fxColor: FIGHTER_COLOR,
     name: '무투가',
-    desc: '평타(0.4초): 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1(1.5초마다 충전·최대 10개): 기 주먹을 날립니다(7.5). 모아 둔 만큼 연달아 쏠 수 있습니다, 스킬 2(4초): 앞으로 돌진해 부딪힌 적에게 피해를 주고(7.5) 돌려차기로 주변 적을 바깥으로 밀칩니다(22.5, 1초 기절), 궁극기: 무적 상태로 거대한 기 주먹을 3번 날립니다(20씩). 한 번마다 1초 동안 좌우 키로 범위를 돌리고 0.55초 뒤 고정되어 들어갑니다. 맞으면 약 300px 밀려나고 벽에 부딪히면 추가 피해(25)',
+    desc: '평타(0.4초): 기 주먹으로 앞 바닥을 내려찍습니다(15), 스킬 1(1.5초마다 충전·최대 10개): 기 주먹을 날립니다(7.5). 모아 둔 만큼 연달아 쏠 수 있습니다, 스킬 2(7초): 앞으로 돌진해 부딪힌 적에게 피해를 주고(7.5) 돌려차기로 주변 적을 바깥으로 밀칩니다(22.5, 1초 기절), 궁극기: 무적 상태로 거대한 기 주먹을 3번 날립니다(20씩). 한 번마다 1초 동안 좌우 키로 범위를 돌리고 0.55초 뒤 고정되어 들어갑니다. 맞으면 약 300px 밀려나고 벽에 부딪히면 추가 피해(25)',
     apply: applyFighter,
     thumbnail: FIGHTER_IMAGE,
 };
