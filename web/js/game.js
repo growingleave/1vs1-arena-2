@@ -458,6 +458,7 @@ class Game {
         if (Math.floor(Time.now / 500) % 2 === 0) {
             drawText(ctx, '사용 중인 기기에 맞는 번호를 눌러 시작하세요', WIDTH / 2, HEIGHT / 2 + 100, 16, COLOR_GRAY, { align: 'center' });
         }
+        drawText(ctx, `M: 배경음악 ${Bgm.muted ? '켜기' : '끄기'}`, WIDTH / 2, HEIGHT - 40, 14, COLOR_GRAY, { align: 'center' });
     }
 
     renderLoadout(ctx) {
