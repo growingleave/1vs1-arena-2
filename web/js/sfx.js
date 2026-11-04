@@ -3,7 +3,9 @@
 // - 같은 소리가 너무 촘촘히(25ms 안) 겹치면 건너뛴다 (온라인에서 밀린 틱을 한꺼번에 따라잡을 때 소리가 몰리지 않게).
 // - 동시에 나는 소리는 최대 12개.
 //
-// 새 소리 추가: SFX_RECIPES에 이름: [길이(초), (ctx, out) => { 노드 연결 }] 를 넣고 Sfx.play('이름')
+// 소리 파일: tools/sfx_src/에 원본을 넣고 tools/sfx_build.sh → web/js/sfx_data.js (SFX_FILES, base64 ogg)
+// 합성 소리: SFX_RECIPES에 이름: [길이(초), (ctx, out) => { 노드 연결 }]. 같은 이름이면 파일이 우선
+// 재생: Sfx.play('이름', { volume, rate })
 
 const SFX_RATE = 22050;     // 합성 샘플레이트 (효과음엔 충분, 가볍게)
 const SFX_MASTER = 0.55;
@@ -55,28 +57,7 @@ function sfxWind(ctx, out, { len = 0.34, peak = 2200, vol = 0.8, start = 0 } = {
 }
 
 const SFX_RECIPES = {
-    // 검사
-    sw_slash: [0.25, (ctx, out) => sfxSlash(ctx, out)],
-    sw_slash_fast: [0.15, (ctx, out) => sfxSlash(ctx, out, { len: 0.11, hi: 7200, lo: 2400, ring: 0.08 })],
-    sw_dash: [0.4, (ctx, out) => sfxWind(ctx, out)],
-    // 검기 발사: 바람 + 아래로 떨어지는 '부웅' 음 + 반짝이는 높은 소음
-    sw_wave: [0.45, (ctx, out) => {
-        sfxWind(ctx, out, { len: 0.3, peak: 2600, vol: 0.6 });
-        const o = ctx.createOscillator(); o.type = 'sawtooth';
-        o.frequency.setValueAtTime(1400, 0); o.frequency.exponentialRampToValueAtTime(330, 0.32);
-        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
-        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, 0); g.gain.exponentialRampToValueAtTime(0.22, 0.02); g.gain.exponentialRampToValueAtTime(0.0001, 0.36);
-        o.connect(lp); lp.connect(g); g.connect(out); o.start(0); o.stop(0.4);
-        sfxNoiseLayer(ctx, out, { sec: 0.3, type: 'highpass', q: 0.7, freqs: [[0, 6000], [0.25, 8000]], gains: [[0.02, 0.25], [0.25, 0.001]] });
-    }],
-    // 궁극기 돌진: 더 굵은 바람 + 낮은 울림
-    sw_ult_dash: [0.6, (ctx, out) => {
-        sfxWind(ctx, out, { len: 0.5, peak: 1800, vol: 0.9 });
-        sfxWind(ctx, out, { len: 0.42, peak: 3200, vol: 0.45, start: 0.04 });
-        const o = ctx.createOscillator(); o.frequency.setValueAtTime(110, 0); o.frequency.exponentialRampToValueAtTime(55, 0.45);
-        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, 0); g.gain.exponentialRampToValueAtTime(0.35, 0.05); g.gain.exponentialRampToValueAtTime(0.0001, 0.5);
-        o.connect(g); g.connect(out); o.start(0); o.stop(0.55);
-    }],
+    // 검사: 평타·돌진·검기는 사용자 소리 파일(sfx_data.js). 납도 '챙!'만 합성
     // 납도 '챙!': 짧은 딸깍 + 길게 울리는 금속음
     sw_clang: [1.0, (ctx, out) => {
         sfxNoiseLayer(ctx, out, { sec: 0.05, type: 'highpass', q: 0.7, freqs: [[0, 3000], [0.03, 5000]], gains: [[0.002, 0.8], [0.03, 0.001]] });
@@ -100,14 +81,29 @@ const Sfx = {
             this.ctx = new AC();
             this.master = this.ctx.createGain();
             this.master.gain.value = SFX_MASTER;
-            this.master.connect(this.ctx.destination);
+            // 여러 소리가 겹쳐도(궁극기 연타 등) 찢어지지 않게 끝에 리미터
+            const limiter = this.ctx.createDynamicsCompressor();
+            limiter.threshold.value = -8; limiter.knee.value = 6; limiter.ratio.value = 12;
+            limiter.attack.value = 0.003; limiter.release.value = 0.15;
+            this.master.connect(limiter);
+            limiter.connect(this.ctx.destination);
         } catch (e) { this.ctx = null; return; }
         // 브라우저가 막아 둔 오디오를 첫 입력 때 깨운다
         const wake = () => { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); };
         window.addEventListener('keydown', wake, true);
         window.addEventListener('pointerdown', wake, true);
-        // 소리들을 미리 합성 (비동기, 끝난 것부터 쓸 수 있음)
+        // 소리 파일 풀기 (비동기, 끝난 것부터 쓸 수 있음)
+        const files = typeof SFX_FILES !== 'undefined' ? SFX_FILES : {};
+        for (const [name, b64] of Object.entries(files)) {
+            try {
+                const bin = atob(b64), bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                this.ctx.decodeAudioData(bytes.buffer).then((buf) => { this.buffers[name] = buf; }).catch(() => {});
+            } catch (e) { /* 무시 */ }
+        }
+        // 합성 소리 미리 만들기 (파일이 있는 이름은 건너뜀)
         for (const [name, [sec, build]] of Object.entries(SFX_RECIPES)) {
+            if (files[name]) continue;
             try {
                 const off = new OAC(1, Math.ceil(sec * SFX_RATE), SFX_RATE);
                 build(off, off.destination);

@@ -535,7 +535,7 @@ class SwordmanUltDashAttack {
     // 참격 한 번: 맞힌 적마다 직선 참격 이펙트 + 피해 (전체 피해를 참격 수로 나눔)
     slashHit() {
         this.hitsDone++;
-        Sfx.play('sw_slash_fast', { volume: 0.8, rate: 0.9 + Math.random() * 0.25 });
+        Sfx.play('sw_slash', { volume: 0.7, rate: 1.2 + Math.random() * 0.2 }); // 9연타: 평타 소리를 빠르고 짧게
         const color = SWORDMAN_COLOR;
         for (const target of this.marked) {
             if (!canBeHit(this, target)) continue;
@@ -626,7 +626,7 @@ class SwordmanUltSkill extends Skill {
         owner.pendingAction = () => {
             this.lastUsed = Time.now;
             attacks.push(new SwordmanUltDashAttack(owner, direction, color));
-            Sfx.play('sw_ult_dash');
+            Sfx.play('sw_dash', { rate: 0.9, volume: 1 }); // 궁극기 돌진: 스킬1 소리를 조금 낮고 굵게
         };
     }
 }
