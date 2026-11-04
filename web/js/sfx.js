@@ -100,14 +100,16 @@ const Sfx = {
         if (!AC || !OAC) return;
         try {
             this.ctx = new AC();
-            this.master = this.ctx.createGain();
-            this.master.gain.value = SFX_MASTER;
-            // 여러 소리가 겹쳐도(궁극기 연타 등) 찢어지지 않게 끝에 리미터
+            // 소리 → 리미터(겹쳐도 찢어지지 않게) → 전체 크기 → 스피커
+            // 전체 크기는 반드시 리미터 뒤에 둔다. 앞에 두면 리미터가 줄여 놓은 만큼 다시 키워서 크기가 안 줄어든다
             const limiter = this.ctx.createDynamicsCompressor();
             limiter.threshold.value = -8; limiter.knee.value = 6; limiter.ratio.value = 12;
             limiter.attack.value = 0.003; limiter.release.value = 0.15;
-            this.master.connect(limiter);
-            limiter.connect(this.ctx.destination);
+            this.input = limiter;
+            this.master = this.ctx.createGain();
+            this.master.gain.value = SFX_MASTER;
+            limiter.connect(this.master);
+            this.master.connect(this.ctx.destination);
         } catch (e) { this.ctx = null; return; }
         // 브라우저가 막아 둔 오디오를 첫 입력 때 깨운다
         const wake = () => { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); };
@@ -146,7 +148,7 @@ const Sfx = {
             src.playbackRate.value = rate;
             const g = this.ctx.createGain();
             g.gain.value = volume;
-            src.connect(g); g.connect(this.master);
+            src.connect(g); g.connect(this.input);
             this.playing++;
             src.onended = () => { this.playing--; };
             src.start();
