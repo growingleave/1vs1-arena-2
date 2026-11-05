@@ -53,12 +53,12 @@ function drawLavaCircle(ctx, x, y, radius, animT, bubbles) {
     const cx = Math.trunc(x);
     const cy = Math.trunc(y);
     drawCircle(ctx, cx, cy, radius + 6, 'rgb(50, 18, 10)');            // 그을린 테두리
-    drawCircle(ctx, cx, cy, radius, 'rgb(235, 95, 20)');               // 주황색 용암
-    drawCircle(ctx, cx, cy, Math.trunc(radius * 0.88), 'rgb(255, 130, 35)');
+    drawCircle(ctx, cx, cy, radius, 'rgb(160, 50, 12)');               // 주황색 용암 (눈부시지 않게 어둡게)
+    drawCircle(ctx, cx, cy, Math.trunc(radius * 0.88), 'rgb(180, 66, 18)');
     for (const b of bubbles) {
         const pulse = (Math.sin(animT * b.speed + b.phase) + 1) / 2;
         const r = Math.max(2, Math.trunc(b.baseRadius * (0.5 + 0.9 * pulse)));
-        drawCircle(ctx, cx + Math.trunc(b.ox), cy + Math.trunc(b.oy), r, 'rgb(255, 225, 70)');
+        drawCircle(ctx, cx + Math.trunc(b.ox), cy + Math.trunc(b.oy), r, 'rgb(210, 118, 45)');
     }
 }
 
@@ -207,8 +207,9 @@ class LavaFallEvent {
 // 빙판 (고정, 피해 없음): 위에 있으면 미끄러진다 (player.js가 iceFriction 값을 읽어 처리)
 // ==========================================
 class IcePatch {
-    constructor(rect, friction = 0.08) {
+    constructor(rect, friction = 0.08, baked = false) {
         this.rect = rect;
+        this.baked = baked; // 바닥 그림에 이미 그려져 있으면 전투 중엔 안 그림 (미리보기는 그림)
         this.friction = friction; // 1.0에 가까울수록 안 미끄러움
     }
 
@@ -225,6 +226,7 @@ class IcePatch {
     }
 
     draw(ctx) {
+        if (this.baked) return;
         const r = this.rect;
         ctx.fillStyle = `rgba(190, 225, 245, ${90 / 255})`;
         ctx.fillRect(r.x, r.y, r.w, r.h);
@@ -395,8 +397,9 @@ const SUPPLY = {
 };
 
 class SupplyDropEvent {
-    constructor(area = new Rect(90, 90, 1280 - 180, 720 - 180)) {
+    constructor(area = new Rect(90, 90, 1280 - 180, 720 - 180), { avoidZones = [] } = {}) {
         this.area = area;
+        this.avoidZones = avoidZones; // [[x, y, 최소 거리], ...] 이 근처엔 안 떨어짐
         this.state = 'idle';
         this.timer = null; // 첫 update에서 정함
         this.animT = 0;
@@ -410,6 +413,7 @@ class SupplyDropEvent {
             const x = a.left + gameRandom() * a.w, y = a.top + gameRandom() * a.h;
             const r = new Rect(Math.round(x - half - 16), Math.round(y - half - 16), SUPPLY.size + 32, SUPPLY.size + 32);
             if (CURRENT_WALLS.some((w) => w.rect.colliderect(r))) continue;
+            if (!this.avoidZones.every(([ax, ay, d]) => Math.hypot(x - ax, y - ay) >= d)) continue;
             return [Math.round(x), Math.round(y)];
         }
         return [640, 180];
