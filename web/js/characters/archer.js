@@ -1,3 +1,4 @@
+const ARCHER_IMAGE = loadImage('assets/archer.png'); // 몸 그림
 // 궁수 (abilities/archer.py를 옮김)
 
 // 평타 화살 종류: 충격(맞으면 밀쳐냄) → 폭파 → 감속 (원래 '철 화살' 자리를 충격 화살이 대신함)
@@ -489,6 +490,10 @@ class ArcherUltSkill extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applyArcher(player) {
+    player.spriteImage = ARCHER_IMAGE;
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
+    player.spriteSize = 51;
+    player.spriteAnchor = [0.563, 0.608];
     player.maxHp = 245;
     player.maxUltGauge = 90; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
@@ -552,5 +557,5 @@ const ARCHER_CHARACTER_DATA = {
     name: '궁수',
     desc: '평타(0.4초): 누르고 있으면 활을 당기고(최대 0.9초) 떼면 쏩니다. 많이 당길수록 강하고 멀리 갑니다(6.5~26, 사거리 250~750). 당기는 동안 최대 60% 느려집니다, 스킬 1(0.35초): 화살 종류를 바꿉니다(충격 → 폭발 → 감속), 충격 화살: 맞은 적을 밀쳐냅니다(40~100px), 폭발 화살: 닿은 곳에서 터집니다(8.5~34, 반경 40~90), 감속 화살: 1.6초 동안 슬로우(20~65%), 스킬 2(6초): 다음 평타가 3발로 나가고 벽에 3번까지 튕깁니다, 궁극기: 앞쪽 120도로 보라색 유도 화살 5발을 쏩니다(7.8씩)',
     apply: applyArcher,
-    thumbnail: null,
+    thumbnail: ARCHER_IMAGE,
 };

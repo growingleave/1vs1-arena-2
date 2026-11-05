@@ -1,3 +1,4 @@
+const VAMPIRE_IMAGE = loadImage('assets/vampire.png'); // 몸 그림
 // 뱀파이어: 피의 창으로 찔러 출혈을 쌓고, 출혈을 빨아들여 회복한다. 박쥐로 변해 벽을 넘나든다
 //
 // 평타: 창 찌르기 (약한 피해 + 강한 출혈, 내 체력 조금 감소)
@@ -577,7 +578,7 @@ function vampExitBat(owner, skill) {
     owner.ignoreWalls = false;
     vampSetSize(owner, 40);
     vampPushOutOfWalls(owner);
-    owner.spriteImage = null;
+    owner.spriteImage = VAMPIRE_IMAGE;
     Vfx.spawn(new VampBatPuffVFX(owner.rect.centerx, owner.rect.centery));
 }
 
@@ -633,6 +634,10 @@ class VampireUltSkill extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applyVampire(player) {
+    player.spriteImage = VAMPIRE_IMAGE;
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
+    player.spriteSize = 48;
+    player.spriteAnchor = [0.508, 0.583];
     player.maxHp = 230;
     player.maxUltGauge = 110; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
@@ -689,5 +694,5 @@ const VAMPIRE_CHARACTER_DATA = {
     name: '뱀파이어',
     desc: '평타(1초): 0.18초 동안 창에 피를 모았다가 앞을 길게 팍 찌릅니다(14.4, 길이 107) + 강한 출혈(초당 5, 4초). 출혈은 걸 때마다 따로 쌓입니다(최대 6중첩). 쓸 때마다 내 체력 10 감소(이걸로는 죽지 않음), 스킬 1(3초): 상대의 출혈을 모두 없애고 남은 출혈 피해만큼 내 체력을 회복합니다(상대가 출혈 중일 때만), 스킬 2(8초): 박쥐로 변신하거나 해제합니다(최대 5초). 판정이 작아지고 이동속도 +40%·벽 통과, 대신 받는 피해 +30%이고 평타와 스킬 2만 쓸 수 있습니다. 쿨타임은 해제할 때부터, 박쥐 평타(1.4초): 앞쪽 90도 부채꼴을 물어 피해(6)를 주고 체력 10 회복 + 출혈(초당 4, 3초), 궁극기: 앞쪽 45도 긴 부채꼴에 피 웅덩이가 퍼지고(0.35초, 이동 불가) 피의 가시가 솟아 피해(24) + 평타 출혈 3중첩(초당 5 x3, 4초). 내 체력 45 감소(이걸로는 죽지 않음)',
     apply: applyVampire,
-    thumbnail: null,
+    thumbnail: VAMPIRE_IMAGE,
 };

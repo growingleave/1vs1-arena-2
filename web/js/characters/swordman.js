@@ -1,3 +1,4 @@
+const SWORDMAN_IMAGE = loadImage('assets/swordman.png'); // 몸 그림
 // 검사 (abilities/swordman.py를 옮김)
 
 // 검사 이펙트 색: 은빛 칼날 (팀과 상관없이 같은 색, 캐릭터마다 고유 색을 쓴다)
@@ -631,6 +632,10 @@ class SwordmanUltSkill extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applySwordmanToPlayer(player) {
+    player.spriteImage = SWORDMAN_IMAGE;
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
+    player.spriteSize = 57;
+    player.spriteAnchor = [0.574, 0.649];
     player.maxHp = 260;
     player.maxUltGauge = 100; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
@@ -659,5 +664,5 @@ const SWORDMAN_CHARACTER_DATA = {
     name: '검사',
     desc: '평타(0.4초): 앞쪽 부채꼴을 벱니다(15, 후딜 0.08초), 스킬 1(3초): 앞으로 빠르게 돌진하며 닿은 적을 벱니다(20), 스킬 2(6초): 다음 평타 3번이 강화되어 검기가 함께 날아갑니다. 강화된 동안 베기 피해는 9로 줄어듭니다(검기 12, 슬로우 30% 2초), 궁극기: 0.6초 동안 무적으로 기를 모은 뒤 앞으로 길게 돌진합니다. 닿은 적은 바로 베이고(15) 기절하며, 검을 넣는 순간 지나온 길에 9연속 참격이 들어갑니다(3.5x9, 최대 46.5)',
     apply: applySwordmanToPlayer,
-    thumbnail: null,
+    thumbnail: SWORDMAN_IMAGE,
 };

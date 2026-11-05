@@ -676,9 +676,9 @@ function applyMageToPlayer(player) {
     player.baseAtk = 15;
     player.speed = 3.6;
     player.spriteImage = MAGE_IMAGE;
-    // 그림 바닥 폭이 히트박스 폭(40)과 같고, 바닥이 히트박스 바닥에 닿게 그림
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
     player.spriteSize = 56;
-    player.spriteAnchor = [0.527, 0.643];
+    player.spriteAnchor = [0.531, 0.643];
     player.drawDotTemplate = drawMageStaff;
     player.bodyStyle = mageBodyStyle;
     player.preDrawHooks.push((ctx) => drawMageFloatUnder.call(player, ctx));
