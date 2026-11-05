@@ -44,7 +44,7 @@ function createLoadoutOrb(n) {
 // 히든 캐릭터: 선택창에서 커맨드(이동키 위 위 아래 아래 왼 오 왼 오)를 치면 그 사람 선택창에 나타난다
 const HIDDEN_CHARACTERS = [8]; // DIO
 const HIDDEN_COMMAND = 'UUDDLRLR';
-const SELECT_COLS = 4, SELECT_CARD_W = 132, SELECT_CARD_H = 62, SELECT_GAP = 8;
+const SELECT_COLS = 5, SELECT_CARD_W = 112, SELECT_CARD_H = 62, SELECT_GAP = 7; // 13명(히든 포함)까지 3줄
 const SELECT_GRID_X = Math.round((LOADOUT_SIDE_W - (SELECT_COLS * SELECT_CARD_W + (SELECT_COLS - 1) * SELECT_GAP)) / 2);
 const SELECT_GRID_Y = 58;
 
@@ -330,7 +330,10 @@ class Game {
                 // 방어력 계산은 takeDamage 안에서 하고, 실제 들어간 피해만큼 궁극기 충전
                 // 보급 상자 공격력 증가 (power_up) 중이면 피해 증가
                 const pu = attack.owner && attack.owner.statusEffects && attack.owner.statusEffects.power_up;
+                // 피해가 어디서 왔는지 (수호자 방패처럼 방향을 보는 캐릭터용): 공격 판정 위치, 없으면 공격한 사람 위치
+                target.incomingFrom = attackSourcePoint(attack);
                 const finalDamage = target.takeDamage(attack.damage * (pu ? 1 + pu.power / 100 : 1));
+                target.incomingFrom = null;
                 attack.hitPlayers.push(target);
                 // 궁극기 공격의 피해는 궁극기 게이지를 채우지 않는다
                 if (!attack.isUlt) attack.owner.addUltGauge(finalDamage * attack.owner.ultChargeMultiplier);
@@ -582,14 +585,14 @@ class Game {
             ctx.fillStyle = sel ? '#2c2c3a' : COLOR_CARD_BG;
             ctx.beginPath(); ctx.roundRect(x, y, SELECT_CARD_W, SELECT_CARD_H, 8); ctx.fill();
             ctx.fillStyle = fx; ctx.globalAlpha = sel ? 0.9 : 0.35; ctx.fillRect(x + 6, y + SELECT_CARD_H - 8, SELECT_CARD_W - 12, 3); ctx.globalAlpha = 1;
-            const tx = x + 34, ty = y + SELECT_CARD_H / 2 - 2;
+            const tx = x + 28, ty = y + SELECT_CARD_H / 2 - 2;
             if (isImageReady(data.thumbnail)) ctx.drawImage(data.thumbnail, tx - 22, ty - 22, 44, 44);
             else {
                 ctx.fillStyle = fx; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(tx, ty, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
                 drawText(ctx, data.name[0], tx, ty, 20, '#15151b', { bold: true, align: 'center', baseline: 'middle' });
             }
-            drawText(ctx, data.name, x + 94, y + 16, 15, sel ? COLOR_WHITE : '#c8c8d0', { bold: true, align: 'center' });
-            if (i === current) drawText(ctx, '사용 중', x + 94, y + 38, 11, COLOR_GOLD, { bold: true, align: 'center' });
+            drawText(ctx, data.name, x + 80, y + 16, 14, sel ? COLOR_WHITE : '#c8c8d0', { bold: true, align: 'center' });
+            if (i === current) drawText(ctx, '사용 중', x + 80, y + 38, 11, COLOR_GOLD, { bold: true, align: 'center' });
             ctx.strokeStyle = sel ? COLOR_GOLD : '#3a3a48'; ctx.lineWidth = sel ? 3 : 1.5;
             ctx.beginPath(); ctx.roundRect(x + 1, y + 1, SELECT_CARD_W - 2, SELECT_CARD_H - 2, 8); ctx.stroke();
         });
@@ -750,6 +753,14 @@ class Game {
 
 const VERSUS_SLIDE_MS = 700; // 화면 밖에서 미끄러져 들어오는 시간
 const VERSUS_HOLD_MS = 900;  // 마주선 채로 기다리는 시간
+
+function attackSourcePoint(attack) {
+    if (typeof attack.x === 'number' && typeof attack.y === 'number') return [attack.x, attack.y];
+    if (typeof attack.posX === 'number' && typeof attack.posY === 'number') return [attack.posX, attack.posY];
+    if (attack.rect) return [attack.rect.centerx, attack.rect.centery];
+    if (attack.owner && attack.owner.rect) return [attack.owner.rect.centerx, attack.owner.rect.centery];
+    return null;
+}
 
 function clearScreen(ctx, color) {
     ctx.fillStyle = color;

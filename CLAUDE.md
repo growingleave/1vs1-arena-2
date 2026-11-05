@@ -49,7 +49,7 @@
 ## 코드 구조 메모
 - `web/index.html`의 스크립트 순서가 곧 로드 순서: core → vfx → … → characters/common → characters/* → characters/index → …
   - 새 캐릭터 파일은 `index.html`과 `characters/index.js`(CHARACTER_REGISTRY)에 둘 다 추가.
-- 캐릭터 순서: 0 검사, 1 마법사, 2 무투가, 3 가속자, 4 데몰리셔니스트, 5 해커, 6 어쌔신, 7 그라인더, 8 DIO, 9 샌즈, 10 궁수, 11 뱀파이어.
+- 캐릭터 순서: 0 검사, 1 마법사, 2 무투가, 3 가속자, 4 데몰리셔니스트, 5 해커, 6 어쌔신, 7 그라인더, 8 DIO, 9 샌즈, 10 궁수, 11 뱀파이어, 12 수호자.
 - 로드아웃: 왼쪽(P1)·오른쪽(P2) 구역마다 선택창(`select`)/훈련장(`train`). 훈련장 발판 = 능력 바꾸기·허수아비 복귀. 캐릭터를 바꾸면 `resetTraining`으로 그 플레이어의 공격·소환물까지 완전 리셋. 테스트는 `g.sides[*].mode = 'train'`로 바로 훈련장.
 - 궁극기 게이지: 기본 초당 2 + 준 피해 1당 0.6 (player.js의 ULT_PASSIVE_RATE·ULT_DAMAGE_RATE). 통 크기는 캐릭터마다 `player.maxUltGauge` (검사 100 기준), 아이콘은 통 대비 %. 궁극기로 생긴 공격은 `isUlt` 표시(player.js·game.js가 자동으로 붙이고 퍼뜨림) → 궁극기 피해는 게이지를 채우지 않는다. 궁극기 코드에서 직접 `takeDamage` 할 때도 `addUltGauge` 하지 말 것.
 - 플레이어 훅: `preUpdateHooks`, `preDrawHooks`(몸 아래), `postDrawHooks`(몸 위), `bodyStyle`. 캐릭터를 바꾸면 플레이어가 새로 만들어진다.
@@ -71,3 +71,5 @@
 - 1P/2P 구분: 발밑 빨강/파랑 고리 + 체력바 테두리 색 (player.js, playerNum 1·2만).
 - 분쇄자 평타: 멈춘 때부터 쿨 0.5초(연타 불가). 해커 평타 사거리 347, 게이지 초당 30%. 가속자 평타 한 발 9(baseAtk*0.75), 스킬2 회복 20 고정·쿨 5초.
 - 히든 캐릭터: DIO(HIDDEN_CHARACTERS, game.js). 선택창에서 이동키 위위아래아래왼오왼오 → 그 사람 선택창에 DIO 등장(hiddenUnlocked, 새로고침하면 다시 숨김).
+- 수호자(12, guardian.js, 수치 GUARD): 방패 상태 손/던짐(gShield)/세움(gRaised). 스킬1·2는 새로 누를 때만(gPressed). 피해 방향은 game.updateAttacks가 target.incomingFrom에 넣음(attackSourcePoint). 임시 체력 gTempHp. 그림 tools/guardian_gen.js.
+- 선택창 5열(카드 112폭) — 13명까지 3줄.
