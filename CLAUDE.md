@@ -68,3 +68,4 @@
 - 상태이상·버프 공통 이펙트: web/js/status_vfx.js (drawStatusUnder/Over, player.draw에서 호출). 맞을 때 0.12초 슬로우는 안 그림(slow.total).
 - 해킹 피해(status hack_damage, hackDamage()): 화상과 같은 틱 피해, 화상과 따로 걸림, 공통 이펙트 없음. 뱀파이어 출혈은 중첩 수 아이콘만 자체로, 피 효과는 공통 출혈 이펙트.
 - 스스로 건 CC는 slow/silence/bind의 self=true(4번째/3번째 인자) → 이펙트 안 그림. 예외로 가속자 과열 기절(별 보임),  분쇄자 평타 40% 자가 슬로우·궁수 당길 때 자가 슬로우는 보임. 기절이면 별만(이동불가·침묵·속박 숨김). 분쇄자 그랩 0.5초 기절 + 0.5초 50% 슬로우.
+- 게임패드: web/js/gamepad.js (Gamepads.poll을 main.js가 매 프레임 호출 → inputKeyDown/Up으로 키처럼 넣음). 첫 패드 P1, 둘째 P2, 온라인은 내 캐릭터. B/R 평타, Y/L 스킬1, X/ZL 스킬2, A/ZR 궁, +/- 준비. 키보드와 같이 동작. 시작·선택 화면 왼쪽 아래에 패드 이름·눌린 버튼 번호.
