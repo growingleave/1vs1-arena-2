@@ -526,6 +526,9 @@ class GrinderSpinAttack {
     isExpired() {
         const keyPressed = this.owner.input.skills[0];
         if (!keyPressed || Time.now - this.createdTime >= 3000) {
+            // 연타 방지: 분쇄기를 멈춘 때부터 평타 쿨타임(0.5초)이 돈다
+            if (!this.ended && this.owner.abilities[0]) this.owner.abilities[0].lastUsed = Time.now;
+            this.ended = true;
             this.owner.grinderSpinActive = false;
             this.sparks.done = true;
             return true;
@@ -567,7 +570,7 @@ class GrinderSpinAttack {
 
 class GrinderBasicAttack extends Skill {
     constructor(owner) {
-        super('Grinder Spin Smash', 100);
+        super('Grinder Spin Smash', 500); // 멈춘 뒤 0.5초 동안 다시 못 씀 (연타 방지, 원래 0.1초)
         this.owner = owner;
     }
 
@@ -609,7 +612,7 @@ const GRINDER_CHARACTER_DATA = {
     id: 'GRINDER',
     fxColor: '#e0b060',
     name: '분쇄자',
-    desc: '평타(누르고 있기·최대 3초): 앞 좌우에 분쇄기 2개를 돌려 닿은 적에게 0.3초마다 피해를 줍니다(9). 쓰는 동안 내가 40% 느려집니다, 스킬 1(3.5초): 집게 그랩을 날려 맞은 적을 내 앞으로 끌어옵니다(24, 0.5초 기절, 그 뒤 0.5초 슬로우 50%), 스킬 2(6초): 0.3초 뒤 앞쪽을 유압 프레스로 내려찍습니다(32, 1초 기절), 궁극기: 앞쪽 30도 부채꼴로 고철 조각 15발을 난사합니다(5씩, 맞을 때마다 0.2초 경직)',
+    desc: '평타(누르고 있기·최대 3초): 앞 좌우에 분쇄기 2개를 돌려 닿은 적에게 0.3초마다 피해를 줍니다(9). 쓰는 동안 내가 40% 느려집니다. 멈춘 뒤 0.5초 동안 다시 못 씁니다(연타 불가), 스킬 1(3.5초): 집게 그랩을 날려 맞은 적을 내 앞으로 끌어옵니다(24, 0.5초 기절, 그 뒤 0.5초 슬로우 50%), 스킬 2(6초): 0.3초 뒤 앞쪽을 유압 프레스로 내려찍습니다(32, 1초 기절), 궁극기: 앞쪽 30도 부채꼴로 고철 조각 15발을 난사합니다(5씩, 맞을 때마다 0.2초 경직)',
     apply: applyGrinder,
     thumbnail: GRINDER_IMAGE,
 };
