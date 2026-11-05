@@ -255,6 +255,13 @@ class Player {
 
     draw(ctx) {
         if (!this.hidden) {
+            // 1P·2P 구분: 발밑에 내 색(빨강/파랑) 고리
+            if (this.playerNum === 1 || this.playerNum === 2) {
+                const r = this.rect;
+                ctx.fillStyle = this.playerNum === 1 ? 'rgba(255, 70, 70, 0.22)' : 'rgba(70, 140, 255, 0.22)';
+                ctx.strokeStyle = this.color; ctx.lineWidth = 2.5;
+                ctx.beginPath(); ctx.ellipse(r.centerx, r.bottom - 2, 24, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            }
             drawStatusUnder(ctx, this); // 상태이상·버프 이펙트 (status_vfx.js)
             for (const hook of this.preDrawHooks) hook(ctx);
             this.drawBody(ctx);
@@ -334,6 +341,11 @@ class Player {
         const hpRatio = Math.max(0, this.hp / this.maxHp);
         ctx.fillStyle = '#323232';
         ctx.fillRect(barX, barY, barW, barH);
+        // 1P·2P 구분: 체력바 테두리를 내 색(빨강/파랑)으로
+        if (this.playerNum === 1 || this.playerNum === 2) {
+            ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+            ctx.strokeRect(barX - 1, barY - 1, barW + 2, barH + 2);
+        }
         ctx.fillStyle = hpRatio > 0.3 ? COLOR_GREEN : COLOR_RED;
         ctx.fillRect(barX, barY, barW * hpRatio, barH);
 

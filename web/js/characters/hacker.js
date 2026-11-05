@@ -526,7 +526,7 @@ class HackerUltimate extends Skill {
 }
 
 // ==========================================
-// [평타] 좁은 부채꼴 스캔 (피해 없음). 안에 있는 동안 해킹 게이지가 초당 40% 찬다
+// [평타] 좁은 부채꼴 스캔 (피해 없음). 안에 있는 동안 해킹 게이지가 초당 30% 찬다
 // ==========================================
 class HackerScanEffect {
     constructor(owner, direction) {
@@ -536,7 +536,7 @@ class HackerScanEffect {
         this.createdTime = Time.now;
         this.duration = 2000;
         this.lifespan = 2000;
-        this.range = 520;
+        this.range = 347; // 2/3로 줄임 (원래 520)
         this.halfAngle = 7.5;
         this.hitPlayers = [];
         this.lastTickTime = Time.now;
@@ -565,7 +565,7 @@ class HackerScanEffect {
 
         this.lockedOn = Time.now; // 화면 전용: 조준 표시
         attachHackerGauge(target);
-        target.hackerGauge = Math.min(100.0, target.hackerGauge + 40.0 * (dt / 1000));
+        target.hackerGauge = Math.min(100.0, target.hackerGauge + 30.0 * (dt / 1000)); // 초당 30% (원래 40%)
         target.lastGaugeIncreaseTime = Time.now;
         if (target.hackerGauge >= 100.0) triggerFullHack(this.owner, target);
     }
@@ -638,7 +638,7 @@ const HACKER_CHARACTER_DATA = {
     id: 'HACKER',
     fxColor: '#5cff8a',
     name: '해커',
-    desc: '평타(1.5초): 2초 동안 앞쪽 좁은 부채꼴을 스캔합니다(피해 없음, 사거리 520). 스캔에 몸이 조금이라도 닿아 있는 동안 상대 해킹 게이지가 초당 40% 찹니다, 스킬 1(4초): 회전하는 데이터 큐브를 던집니다(16.2). 맞으면 해킹 게이지 +50%, 2초 동안 공격력 30% 감소, 슬로우 50% 1.5초. 이미 해킹된 상대에겐 바이러스 도트 피해(초당 10.8, 4초), 스킬 2(9초): 포털을 날려 닿거나 막힌 곳(또는 사거리 끝)으로 순간이동합니다, 궁극기: 주변 큰 원(반경 280) 안의 상대를 즉시 해킹하고 3.5초 동안 혼란(이동 방향 반대)에 빠뜨립니다, 해킹: 게이지가 100%가 되면 2.5초 침묵 + 슬로우 50%, 6초 동안 해킹 피해(초당 4.5). 상대 궁극기 게이지를 15% 훔칩니다(상대 -15%, 나 +15%). 4초 동안 안 맞으면 게이지가 초당 15%씩 줄어듭니다',
+    desc: '평타(1.5초): 2초 동안 앞쪽 좁은 부채꼴을 스캔합니다(피해 없음, 사거리 347). 스캔에 몸이 조금이라도 닿아 있는 동안 상대 해킹 게이지가 초당 30% 찹니다, 스킬 1(4초): 회전하는 데이터 큐브를 던집니다(16.2). 맞으면 해킹 게이지 +50%, 2초 동안 공격력 30% 감소, 슬로우 50% 1.5초. 이미 해킹된 상대에겐 바이러스 도트 피해(초당 10.8, 4초), 스킬 2(9초): 포털을 날려 닿거나 막힌 곳(또는 사거리 끝)으로 순간이동합니다, 궁극기: 주변 큰 원(반경 280) 안의 상대를 즉시 해킹하고 3.5초 동안 혼란(이동 방향 반대)에 빠뜨립니다, 해킹: 게이지가 100%가 되면 2.5초 침묵 + 슬로우 50%, 6초 동안 해킹 피해(초당 4.5). 상대 궁극기 게이지를 15% 훔칩니다(상대 -15%, 나 +15%). 4초 동안 안 맞으면 게이지가 초당 15%씩 줄어듭니다',
     apply: applyHacker,
     thumbnail: HACKER_IMAGE,
 };
