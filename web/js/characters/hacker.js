@@ -624,6 +624,9 @@ function applyHacker(player) {
     player.hp = player.maxHp;
     player.speed = 4.3;
     player.spriteImage = HACKER_IMAGE;
+    // 흰 몸(얼굴~옷)이 히트박스(40)에 맞게 크게 그림. 모자·머리·헤드폰은 밖으로 나가도 됨
+    player.spriteSize = 74;
+    player.spriteAnchor = [0.613, 0.707];
     player.abilities = [
         new HackerBasicAttack(), // 평타 (스캔)
         new HackerSkill1(),      // 스킬 1 (데이터 큐브)
