@@ -325,8 +325,8 @@ class AcceleratorTimeSkill extends Skill {
                 this.charge = 0.0;
                 this.isActive = false;
                 player.takeDamage(35.0);
-                slow(player, 1.5, 100, true);
-                silence(player, 1.5, true);
+                slow(player, 1.5, 100); // 과열 기절은 이펙트(별)를 보여줌
+                silence(player, 1.5);
                 Vfx.spawn(new AccClockBreakVFX(player));
             }
         } else {
