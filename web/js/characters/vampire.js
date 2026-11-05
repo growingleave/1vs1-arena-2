@@ -80,26 +80,11 @@ function vampClearBleed(target) {
 }
 
 // 출혈 중인 몸: 붉게 맥박치는 테두리 + 몸에서 흘러내리는 피 방울 + 왼쪽 위에 피 방울 아이콘과 중첩 수 (화면 전용)
-function vampDrawBleeding(ctx, target) {
+function vampDrawBleeding(ctx, target) { // 중첩 수 아이콘
     const n = (target.vampBleeds || []).length;
     if (!n || target.hidden || target.isInvisible) return;
-    const r = target.rect, now = Time.now;
-    const pulse = 0.35 + 0.25 * Math.sin(now / 120);
-    ctx.strokeStyle = `rgba(220, 20, 40, ${pulse})`; ctx.lineWidth = 3;
-    ctx.strokeRect(r.x - 1.5, r.y - 1.5, r.w + 3, r.h + 3);
-    ctx.fillStyle = `rgba(160, 0, 20, ${0.12 + 0.06 * n})`;
-    ctx.fillRect(r.x, r.y + r.h * 0.55, r.w, r.h * 0.45);
-    // 흘러내리는 방울 (중첩이 많을수록 많이)
-    ctx.fillStyle = '#c4121f';
-    const drops = Math.min(2 + n, 7);
-    for (let i = 0; i < drops; i++) {
-        const ph = (now / 650 + i * 0.37) % 1;
-        const x = r.x + 4 + ((i * 17 + 5) % Math.max(1, r.w - 8));
-        const y = r.top + r.h * 0.3 + ph * (r.h * 0.7 + 16);
-        ctx.globalAlpha = 1 - ph * 0.6;
-        ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.quadraticCurveTo(x + 3, y, x, y + 3); ctx.quadraticCurveTo(x - 3, y, x, y - 5); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+    // 몸 위 피 효과는 공통 출혈 이펙트(status_vfx.js)가 그림. 여기선 중첩 수만
+    const r = target.rect;
     // 피 방울 아이콘 + 중첩 수
     const ix = r.left - 11, iy = r.top - 10;
     ctx.fillStyle = '#d0182c'; ctx.strokeStyle = '#2a0006'; ctx.lineWidth = 1.5;
