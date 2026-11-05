@@ -36,6 +36,13 @@ function burn(target, duration, power, immediateTick = false) {
     target.statusEffects.burn = { duration, power, tickTimer };
 }
 
+// 해킹 피해: 화상과 똑같이 초당 power 고정 피해 (해커 전용, 이펙트는 해커 쪽에 이미 있어 공통 이펙트 없음)
+function hackDamage(target, duration, power) {
+    const existing = target.statusEffects.hack_damage;
+    const tickTimer = existing ? existing.tickTimer : 0.0;
+    target.statusEffects.hack_damage = { duration, power, tickTimer };
+}
+
 // 출혈: 초당 power 고정 피해 (burn과 동일하게 틱 타이머 보존)
 function bleed(target, duration, power) {
     const existing = target.statusEffects.bleed;
@@ -106,7 +113,7 @@ function updateStatusEffects(target, dtSec) {
         } else if (key === 'time_slow') {
             target.cooldownRate -= eff.power / 100.0;
             target.timeScale -= eff.power / 100.0;
-        } else if (key === 'burn' || key === 'bleed') {
+        } else if (key === 'burn' || key === 'bleed' || key === 'hack_damage') {
             eff.tickTimer += dtSec;
             if (eff.tickTimer >= 1.0) {
                 target.takeDamage(eff.power);

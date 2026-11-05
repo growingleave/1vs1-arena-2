@@ -103,8 +103,8 @@ function drawStatusOver(ctx, p) {
         }
         ctx.globalCompositeOperation = 'source-over';
     }
-    // 출혈(일반): 몸에서 떨어지는 피 방울
-    if (e.bleed) {
+    // 출혈(일반 + 뱀파이어 중첩 출혈): 몸에서 떨어지는 피 방울
+    if (e.bleed || (p.vampBleeds && p.vampBleeds.length)) {
         ctx.fillStyle = 'rgba(220, 20, 40, 0.95)';
         for (let i = 0; i < 4; i++) {
             const ph = (t * 1.3 + i / 4) % 1, x = r.x + 6 + i * 9, y = r.top + 8 + ph * 40, s = 3.5;

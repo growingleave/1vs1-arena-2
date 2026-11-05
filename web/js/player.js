@@ -141,6 +141,7 @@ class Player {
         if (this.statusEffects.time_slow) texts.push('시간 지연');
         if (this.statusEffects.burn) texts.push('화상');
         if (this.statusEffects.bleed) texts.push('출혈');
+        if (this.statusEffects.hack_damage) texts.push('해킹 피해');
         if (this.statusEffects.confuse) texts.push('혼란');
         if (this.statusEffects.ghost) texts.push('망령화');
         if (this.statusEffects.power_up) texts.push('공격력 증가');

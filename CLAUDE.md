@@ -66,3 +66,4 @@
 - 기본맵 그림: tools/arena_classic_gen.js → arena_classic_floor.webp(바닥, 맨 먼저) + arena_classic_walls.png(벽, drawGround 다음에 벽 부분만 잘라 그림). 맵 정의 floorImage/wallImage. 벽 옮기면 다시 구움.
 - 해커 평타 판정: 몸 네모(+8px)가 스캔 삼각형에 닿으면 게이지. 뱀파이어 창 길이 135, 찌른 뒤 조금만 물림.
 - 상태이상·버프 공통 이펙트: web/js/status_vfx.js (drawStatusUnder/Over, player.draw에서 호출). 맞을 때 0.12초 슬로우는 안 그림(slow.total).
+- 해킹 피해(status hack_damage, hackDamage()): 화상과 같은 틱 피해, 화상과 따로 걸림, 공통 이펙트 없음. 뱀파이어 출혈은 중첩 수 아이콘만 자체로, 피 효과는 공통 출혈 이펙트.
