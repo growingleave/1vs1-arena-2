@@ -136,7 +136,7 @@ class AcceleratorBullet {
     constructor(owner, direction, side) {
         this.owner = owner;
         this.direction = direction;
-        this.damage = owner.baseAtk * 11 / 12; // 한 발 11 (원래 6, 궁극기 중엔 +30%)
+        this.damage = owner.baseAtk * 0.75; // 한 발 9 (원래 6, 궁극기 중엔 +30%)
         this.speed = 10.0;
         this.createdTime = Time.now;
         this.lifespan = 600;
@@ -643,7 +643,7 @@ const ACCELERATOR_CHARACTER_DATA = {
     id: 'ACCELERATOR',
     fxColor: '#64dcff',
     name: '가속자',
-    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(11씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 35 피해를 입고 1.5초 기절합니다, 스킬 2(5초): 체력을 20 회복하고 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 10씩 점점 빠르게 깎입니다',
+    desc: '평타(0.25초): 시간 탄환 2발을 연달아 쏩니다(9씩), 스킬 1(켜기/끄기): 시간 지연 필드를 켭니다. 내 이동속도 +20%, 상대는 이동속도와 쿨타임 회복이 40% 느려집니다. 켜 둔 동안 과열 게이지가 초당 35% 차고, 꽉 차면 35 피해를 입고 1.5초 기절합니다, 스킬 2(5초): 체력을 20 회복하고 과열 게이지를 45% 줄입니다. 궁극기 중에 쓰면 궁극기를 끝냅니다, 궁극기: 16초 동안 폭주합니다. 공격력 +30%, 이동속도 +30%, 상대는 이동속도와 쿨타임 회복이 50% 느려집니다. 2.5초 뒤부터 내 체력이 10씩 점점 빠르게 깎입니다',
     apply: applyAccelerator,
     thumbnail: ACCELERATOR_IMAGE,
 };
