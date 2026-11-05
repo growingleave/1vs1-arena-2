@@ -104,7 +104,6 @@ function frame(now) {
     accumulator += now - lastTime;
     lastTime = now;
 
-    Gamepads.poll(); // 게임패드 → 키 입력
     const t0 = performance.now();
     if (Net.isOnline()) stepOnline();
     else stepLocal();
@@ -113,7 +112,6 @@ function frame(now) {
     const t2 = performance.now();
     Perf.add(t1 - t0, t2 - t1);
     Perf.draw(ctx);
-    if (game.state === 'TITLE' || game.state === 'LOADOUT') Gamepads.drawStatus(ctx);
     Lobby.update(game);
     requestAnimationFrame(frame);
 }
