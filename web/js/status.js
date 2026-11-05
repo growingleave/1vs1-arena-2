@@ -6,7 +6,7 @@
 
 // 슬로우: power 만큼 이동속도 비율 감소 (power가 100 이상이면 이동 불가)
 function slow(target, duration, power) {
-    target.statusEffects.slow = { duration, power };
+    target.statusEffects.slow = { duration, power, total: duration }; // total: 화면용 (맞을 때 걸리는 아주 짧은 슬로우는 이펙트 안 그림)
 }
 
 // 속도 증가: power 만큼 이동속도 비율 증가

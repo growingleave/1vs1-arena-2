@@ -251,8 +251,12 @@ class Player {
     }
 
     draw(ctx) {
-        if (!this.hidden) for (const hook of this.preDrawHooks) hook(ctx);
-        if (!this.hidden) this.drawBody(ctx);
+        if (!this.hidden) {
+            drawStatusUnder(ctx, this); // 상태이상·버프 이펙트 (status_vfx.js)
+            for (const hook of this.preDrawHooks) hook(ctx);
+            this.drawBody(ctx);
+            drawStatusOver(ctx, this);
+        }
         for (const hook of this.postDrawHooks) hook(ctx);
     }
 

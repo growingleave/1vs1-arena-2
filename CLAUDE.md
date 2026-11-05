@@ -65,3 +65,4 @@
 - 기본맵(클래식 아레나): 좌우 한 칸 벽·상하 얇은 벽 제거, 구슬 대신 보급 상자(terrain.js SupplyDropEvent, 수치는 SUPPLY). 첫 상자 8초, 먹은 뒤 15초마다. 확률 보통 체력40/궁40/공20, 궁 풀이면 체력60/공40, 풀피면 궁60/공40. 체력 +40, 궁 +통의 30%, 공격력 +20% 8초(status power_up, game.updateAttacks에서 곱함). 그림 tools/supply_gen.js.
 - 기본맵 그림: tools/arena_classic_gen.js → arena_classic_floor.webp(바닥, 맨 먼저) + arena_classic_walls.png(벽, drawGround 다음에 벽 부분만 잘라 그림). 맵 정의 floorImage/wallImage. 벽 옮기면 다시 구움.
 - 해커 평타 판정: 몸 네모(+8px)가 스캔 삼각형에 닿으면 게이지. 뱀파이어 창 길이 135, 찌른 뒤 조금만 물림.
+- 상태이상·버프 공통 이펙트: web/js/status_vfx.js (drawStatusUnder/Over, player.draw에서 호출). 맞을 때 0.12초 슬로우는 안 그림(slow.total).
