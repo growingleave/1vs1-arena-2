@@ -589,6 +589,7 @@ class SwordmanBasicSlash extends Skill {
             attacks.push(new SwordmanProjectileAttack(owner, direction, color));
             owner.slashEnhanceCount -= 1;
         }
+        applyBasicPostDelay(owner);
     }
 }
 
@@ -656,7 +657,7 @@ const SWORDMAN_CHARACTER_DATA = {
     id: 'SWORDMAN',
     fxColor: SWORDMAN_COLOR,
     name: '검사',
-    desc: '평타(0.4초): 앞쪽 부채꼴을 벱니다(15), 스킬 1(3초): 앞으로 빠르게 돌진하며 닿은 적을 벱니다(20), 스킬 2(6초): 다음 평타 3번이 강화되어 검기가 함께 날아갑니다. 강화된 동안 베기 피해는 9로 줄어듭니다(검기 12, 슬로우 30% 2초), 궁극기: 0.6초 동안 무적으로 기를 모은 뒤 앞으로 길게 돌진합니다. 닿은 적은 바로 베이고(15) 기절하며, 검을 넣는 순간 지나온 길에 9연속 참격이 들어갑니다(3.5x9, 최대 46.5)',
+    desc: '평타(0.4초): 앞쪽 부채꼴을 벱니다(15, 후딜 0.08초), 스킬 1(3초): 앞으로 빠르게 돌진하며 닿은 적을 벱니다(20), 스킬 2(6초): 다음 평타 3번이 강화되어 검기가 함께 날아갑니다. 강화된 동안 베기 피해는 9로 줄어듭니다(검기 12, 슬로우 30% 2초), 궁극기: 0.6초 동안 무적으로 기를 모은 뒤 앞으로 길게 돌진합니다. 닿은 적은 바로 베이고(15) 기절하며, 검을 넣는 순간 지나온 길에 9연속 참격이 들어갑니다(3.5x9, 최대 46.5)',
     apply: applySwordmanToPlayer,
     thumbnail: null,
 };
