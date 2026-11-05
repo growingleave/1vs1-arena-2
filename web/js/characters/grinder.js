@@ -589,8 +589,8 @@ class GrinderBasicAttack extends Skill {
 function applyGrinder(player) {
     player.spriteImage = GRINDER_IMAGE;
     // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
-    player.spriteSize = 41;
-    player.spriteAnchor = [0.496, 0.512];
+    player.spriteSize = 47; // 15% 키움
+    player.spriteAnchor = [0.496, 0.574];
     player.baseAtk = 20;
     player.maxHp = 300;
     player.maxUltGauge = 110; // 궁극기 게이지 통 (검사 100 기준)
