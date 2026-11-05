@@ -309,7 +309,9 @@ class Game {
             const target = getTarget(attack);
             if (target && !attack.hitPlayers.includes(target) && attack.collidesWith(target)) {
                 // 방어력 계산은 takeDamage 안에서 하고, 실제 들어간 피해만큼 궁극기 충전
-                const finalDamage = target.takeDamage(attack.damage);
+                // 보급 상자 공격력 증가 (power_up) 중이면 피해 증가
+                const pu = attack.owner && attack.owner.statusEffects && attack.owner.statusEffects.power_up;
+                const finalDamage = target.takeDamage(attack.damage * (pu ? 1 + pu.power / 100 : 1));
                 attack.hitPlayers.push(target);
                 // 궁극기 공격의 피해는 궁극기 게이지를 채우지 않는다
                 if (!attack.isUlt) attack.owner.addUltGauge(finalDamage * attack.owner.ultChargeMultiplier);
