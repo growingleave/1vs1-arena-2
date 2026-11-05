@@ -61,4 +61,4 @@
 - 모든 캐릭터 이펙트 교체 완료 (2026-11-01). 이후는 실제 크롬북 테스트·세부 조정.
 - 평타 후딜 BASIC_POST_DELAY 0.08초(common.js applyBasicPostDelay): 검사, 폭파광, 어쌔신 찌르기. 어쌔신 찌르기 11.2/쿨 450ms, 회전 베기는 16.8/350ms/후딜 없음.
 - 마법사/해커 몸 그림: tools/portrait_gen.js (원본 tools/src/portraits_src.png, 바깥 체크무늬만 지움, 128 정사각형).
-- 몸 그림 크기: player.spriteSize/spriteAnchor(히트박스 가운데에 올 그림 지점). 마법사 92 [0.617,0.773], 해커 74 [0.613,0.707] — 흰 몸이 히트박스 40에 맞음.
+- 몸 그림 크기: player.spriteSize/spriteAnchor(히트박스 가운데에 올 그림 지점). 마법사 56 [0.527,0.643], 해커 53 [0.473,0.623] — 그림 바닥 폭 = 히트박스 폭 40, 바닥 맞춤.

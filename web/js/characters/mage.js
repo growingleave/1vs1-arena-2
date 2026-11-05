@@ -676,9 +676,9 @@ function applyMageToPlayer(player) {
     player.baseAtk = 15;
     player.speed = 3.6;
     player.spriteImage = MAGE_IMAGE;
-    // 흰 몸(얼굴~옷)이 히트박스(40)에 맞게 크게 그림. 모자·머리·헤드폰은 밖으로 나가도 됨
-    player.spriteSize = 92;
-    player.spriteAnchor = [0.617, 0.773];
+    // 그림 바닥 폭이 히트박스 폭(40)과 같고, 바닥이 히트박스 바닥에 닿게 그림
+    player.spriteSize = 56;
+    player.spriteAnchor = [0.527, 0.643];
     player.drawDotTemplate = drawMageStaff;
     player.bodyStyle = mageBodyStyle;
     player.preDrawHooks.push((ctx) => drawMageFloatUnder.call(player, ctx));
