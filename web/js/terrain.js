@@ -245,6 +245,13 @@ class IcePatch {
 // ==========================================
 // 눈보라 (반복 이벤트): 경고 문구 + 화톳불 켜짐 → 안전 범위 표시 → 눈보라(범위 밖이면 슬로우+피해) → 대기
 // ==========================================
+// 화톳불·눈발 그림 (tools/blizzard_gen.js)
+const SNOW_BRAZIER_OFF = loadImage('assets/snow_brazier_off.png'); // 48x48, 가운데 (24,27)
+const SNOW_BRAZIER_ON = loadImage('assets/snow_brazier_on.png');
+const SNOW_FIRE_IMAGES = [0, 1, 2, 3].map((i) => loadImage(`assets/snow_fire_${i}.png`)); // 32x48, 바닥 가운데 (16,44) — 'lighter'
+const SNOW_TILE_NEAR = loadImage('assets/snow_tile_near.png'); // 256x256 이어 붙이는 눈발
+const SNOW_TILE_FAR = loadImage('assets/snow_tile_far.png');
+
 class BlizzardEvent {
     constructor(torchPositions, { safeRadius = 130, stormTickDamage = 6, stormSlowPower = 35,
                                   intervalRange = [18.0, 26.0], announceDuration = 2.5,
@@ -263,26 +270,11 @@ class BlizzardEvent {
         this.animT = 0;
         this.tickTimers = new Map(); // 플레이어 → 다음 피해까지 쌓인 시간
 
-        // 눈발 (그림 전용, 항상 같은 배치)
-        const rng = seededRng('blizzard_snow');
-        this.flakes = [];
-        for (let i = 0; i < 24; i++) {
-            this.flakes.push({ x: rng(0, WIDTH), y: rng(0, HEIGHT), vx: rng(-70, -30), vy: rng(160, 240), len: rng(6, 12) });
-        }
     }
 
     update(dtSec) {
         if (this.timer === null) this.timer = this.intervalRange[0] + gameRandom() * (this.intervalRange[1] - this.intervalRange[0]);
         this.animT += dtSec;
-
-        if (this.state === 'storm') {
-            for (const f of this.flakes) {
-                f.x += f.vx * dtSec;
-                f.y += f.vy * dtSec;
-                if (f.y > HEIGHT) f.y -= HEIGHT;
-                if (f.x < 0) f.x += WIDTH;
-            }
-        }
 
         this.timer -= dtSec;
         if (this.timer > 0) return;
@@ -327,36 +319,54 @@ class BlizzardEvent {
 
     draw(ctx) {
         const lit = this.state !== 'idle';
+        const t = this.animT;
         for (const [tx, ty] of this.torches) {
+            // 안전 범위: 가장자리로 갈수록 옅어지는 따뜻한 빛 + 천천히 도는 점선 테두리
             if (this.state === 'prepare' || this.state === 'storm') {
-                drawCircle(ctx, tx, ty, this.safeRadius, `rgba(255, 170, 60, ${55 / 255})`);
-                drawCircle(ctx, tx, ty, this.safeRadius - 1.5, null, `rgba(255, 190, 90, ${130 / 255})`, 3);
+                const R = this.safeRadius, pulse = 0.85 + 0.15 * Math.sin(t * 3);
+                const gr = ctx.createRadialGradient(tx, ty, 10, tx, ty, R);
+                gr.addColorStop(0, `rgba(255, 170, 80, ${0.22 * pulse})`); gr.addColorStop(0.75, `rgba(255, 140, 60, ${0.1 * pulse})`); gr.addColorStop(1, 'rgba(255, 140, 60, 0)');
+                ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(tx, ty, R, 0, Math.PI * 2); ctx.fill();
+                ctx.save(); ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 20;
+                ctx.strokeStyle = 'rgba(255, 190, 110, 0.55)'; ctx.lineWidth = 2.5;
+                ctx.beginPath(); ctx.arc(tx, ty, R - 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
             }
-            // 화톳불: 꺼져 있으면 돌무더기, 켜지면 흔들리는 불꽃
-            ctx.fillStyle = 'rgb(70, 60, 55)';
-            ctx.fillRect(tx - 10, ty - 10, 20, 20);
-            ctx.strokeStyle = 'rgb(40, 35, 32)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(tx - 9, ty - 9, 18, 18);
+            // 화톳불 (꺼짐: 눈 덮인 돌 고리 / 켜짐: 달아오른 숯 + 흔들리는 불꽃)
+            const base = lit ? SNOW_BRAZIER_ON : SNOW_BRAZIER_OFF;
+            if (isImageReady(base)) ctx.drawImage(base, tx - 24, ty - 27, 48, 48);
+            else { ctx.fillStyle = 'rgb(70, 60, 55)'; ctx.fillRect(tx - 10, ty - 10, 20, 20); }
             if (lit) {
-                const flameH = 20 + ((Math.sin(this.animT * 9) + 1) / 2) * 8;
-                fillPolygon(ctx, [[tx - 8, ty - 6], [tx + 8, ty - 6], [tx, ty - 6 - flameH]], 'rgb(255, 140, 30)');
-                fillPolygon(ctx, [[tx - 4, ty - 8], [tx + 4, ty - 8], [tx, ty - 8 - flameH * 0.55]], 'rgb(255, 220, 90)');
+                const img = SNOW_FIRE_IMAGES[Math.floor(t * 10) % 4];
+                if (isImageReady(img)) {
+                    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+                    const k = 1 + 0.06 * Math.sin(t * 13);
+                    ctx.drawImage(img, tx - 16 * k, ty - 44 * k, 32 * k, 48 * k);
+                    ctx.restore();
+                }
             }
         }
+        // 눈보라 직전(준비)에는 먼 눈만 살짝, 눈보라 중에는 뿌연 하늘 + 먼 눈 + 가까운 눈 (바람 방향으로 흐름)
+        if (this.state === 'prepare' || this.state === 'storm') {
+            const fadeIn = this.state === 'storm' ? Math.min(1, (this.stormDuration - this.timer) / 0.6) : 0;
+            const fadeOut = this.state === 'storm' ? Math.min(1, this.timer / 0.6) : 1;
+            const k = this.state === 'storm' ? Math.min(fadeIn, fadeOut) : 0;
+            if (k > 0) {
+                ctx.fillStyle = `rgba(200, 218, 238, ${0.16 * k})`;
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            }
+            this.drawSnowLayer(ctx, SNOW_TILE_FAR, -60, 140, this.state === 'storm' ? 0.9 * Math.max(k, 0.3) : 0.35);
+            if (k > 0) this.drawSnowLayer(ctx, SNOW_TILE_NEAR, -150, 300, 0.75 * k);
+        }
+    }
 
-        if (this.state === 'storm') {
-            ctx.fillStyle = `rgba(215, 230, 245, ${35 / 255})`;
-            ctx.fillRect(0, 0, WIDTH, HEIGHT);
-            ctx.strokeStyle = 'rgb(245, 250, 255)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            for (const f of this.flakes) {
-                ctx.moveTo(f.x, f.y);
-                ctx.lineTo(f.x + 5, f.y - f.len);
-            }
-            ctx.stroke();
-        }
+    // 이어 붙인 눈발 무늬를 (vx, vy) 속도로 흘려 그림 (패턴은 한 번만 만든다)
+    drawSnowLayer(ctx, img, vx, vy, alpha) {
+        if (!isImageReady(img) || alpha <= 0) return;
+        if (!img.pattern) img.pattern = ctx.createPattern(img, 'repeat');
+        const ox = ((this.animT * vx) % 256 + 256) % 256, oy = ((this.animT * vy) % 256 + 256) % 256;
+        ctx.save(); ctx.globalAlpha = alpha; ctx.translate(ox - 256, oy - 256);
+        ctx.fillStyle = img.pattern; ctx.fillRect(0, 0, WIDTH + 256, HEIGHT + 256);
+        ctx.restore();
     }
 
     drawOverlay(ctx) {
