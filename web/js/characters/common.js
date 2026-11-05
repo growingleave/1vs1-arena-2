@@ -164,3 +164,7 @@ function drawChargePips(ctx, player, n, max, color) {
         else { ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; ctx.lineWidth = 1; ctx.stroke(); }
     }
 }
+
+// 평타 후딜(초): 공격이 나간 뒤 잠깐 멈춤 (무투가 평타 선딜과 같은 길이). 검사·폭파광·어쌔신 찌르기에 쓴다
+const BASIC_POST_DELAY = 0.08;
+function applyBasicPostDelay(owner) { owner.castTimer = Math.max(owner.castTimer || 0, BASIC_POST_DELAY); }

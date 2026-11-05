@@ -207,7 +207,7 @@ function addAssassinCharge(owner) {
 class AssassinThrustAttack {
     constructor(owner, direction) {
         this.owner = owner;
-        this.damage = owner.baseAtk;
+        this.damage = owner.baseAtk * 0.8; // 너프: 14 → 11.2
         this.createdTime = Time.now;
         this.lifespan = 130;
         this.hitPlayers = [];
@@ -291,15 +291,18 @@ class AssassinSpinAttack {
     draw() {}
 }
 class AssassinBasicSkill extends Skill {
-    constructor() { super('Thrust / Spin Slash', 350, ['melee']); }
+    // 찌르기 쿨 450ms(너프, 원래 350) + 후딜. 회전 베기는 원래대로 350ms, 후딜 없음
+    constructor() { super('Thrust / Spin Slash', 450, ['melee']); }
 
     use(owner, direction, attacks) {
-        this.lastUsed = Time.now;
         if ((owner.assassinCharge || 0) > 0) {
+            this.lastUsed = Time.now - 100; // 회전 베기는 쿨 350ms 그대로
             owner.assassinCharge -= 1; // 차지 하나당 회전 베기 한 번
             attacks.push(new AssassinSpinAttack(owner));
         } else {
+            this.lastUsed = Time.now;
             attacks.push(new AssassinThrustAttack(owner, direction));
+            applyBasicPostDelay(owner);
         }
     }
 }
@@ -763,7 +766,7 @@ const ASSASSIN_CHARACTER_DATA = {
     id: 'ASSASSIN',
     fxColor: '#c080ff',
     name: '어쌔신',
-    desc: '평타(0.35초): 단검으로 앞을 찌릅니다(14), 강화 평타: 차지가 있으면 찌르기 대신 주위를 한 바퀴 벱니다(16.8, 반경 60), 스킬 1(1.5초): 아주 짧게 대쉬하고 차지를 1개 얻습니다(최대 3개), 스킬 2(8초): 갈고리를 던집니다. 벽에 박히면 그쪽으로 날아가고, 상대에 박히면 1초 기절시키고 상대에게 날아갑니다, 궁극기: 0.5초 은신(무적) 후 앞쪽에 거대한 X자 참격을 긋습니다(42). 차지도 1개 얻습니다',
+    desc: '평타(0.45초): 단검으로 앞을 찌릅니다(11.2, 후딜 0.08초), 강화 평타(0.35초): 차지가 있으면 찌르기 대신 주위를 한 바퀴 벱니다(16.8, 반경 60), 스킬 1(1.5초): 아주 짧게 대쉬하고 차지를 1개 얻습니다(최대 3개), 스킬 2(8초): 갈고리를 던집니다. 벽에 박히면 그쪽으로 날아가고, 상대에 박히면 1초 기절시키고 상대에게 날아갑니다, 궁극기: 0.5초 은신(무적) 후 앞쪽에 거대한 X자 참격을 긋습니다(42). 차지도 1개 얻습니다',
     apply: applyAssassinToPlayer,
     thumbnail: null,
 };
