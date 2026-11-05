@@ -143,6 +143,7 @@ class Player {
         if (this.statusEffects.bleed) texts.push('출혈');
         if (this.statusEffects.confuse) texts.push('혼란');
         if (this.statusEffects.ghost) texts.push('망령화');
+        if (this.statusEffects.power_up) texts.push('공격력 증가');
         if (this.statusEffects.defense_mod) texts.push(this.defense < 100 ? '방어력 증가' : '무적');
         return texts;
     }

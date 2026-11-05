@@ -374,3 +374,151 @@ class BlizzardEvent {
         }
     }
 }
+
+// ==========================================
+// 보급 상자: 일정 시간마다 하늘에서 낙하산 상자가 떨어진다. 먼저 닿은 사람이 무작위 보급을 받는다
+//   보통: 체력 회복 40% / 궁극기 40% / 공격력 증가 20% (확률)
+//   궁극기가 꽉 찼으면: 체력 60% / 공격력 40%,  체력이 꽉 찼으면: 궁극기 60% / 공격력 40%,  둘 다 꽉 찼으면 공격력
+// 위치·종류는 gameRandom()으로만 정한다 (온라인 동기화). 만들 때는 난수를 쓰지 않는다 (미리보기)
+// ==========================================
+const SUPPLY_CRATE_IMAGE = loadImage('assets/supply_crate.png'); // 96x96 나무 상자
+const SUPPLY_CHUTE_IMAGE = loadImage('assets/supply_chute.png'); // 120x84 낙하산, 줄이 모이는 곳 = 아래 가운데
+const SUPPLY = {
+    firstDelay: 8,      // 전투 시작 후 첫 상자까지(초)
+    interval: 15,       // 상자를 먹은 뒤 다음 상자까지(초)
+    fallTime: 1.6,      // 떨어지는 시간(초). 이 동안 바닥에 그림자로 위치를 알려줌
+    size: 40,           // 상자 크기 (판정 = 이 네모)
+    heal: 40,           // 체력 회복량
+    ultRatio: 0.3,      // 궁극기 게이지 통의 30%
+    atkPower: 20,       // 공격력 +20%
+    atkDuration: 8,     // 공격력 증가 시간(초)
+};
+
+class SupplyDropEvent {
+    constructor(area = new Rect(90, 90, 1280 - 180, 720 - 180)) {
+        this.area = area;
+        this.state = 'idle';
+        this.timer = null; // 첫 update에서 정함
+        this.animT = 0;
+        this.x = 0; this.y = 0;
+        this.popups = []; // 화면용: 받은 보급 글자 { x, y, text, color, t }
+    }
+
+    pickPosition() {
+        const a = this.area, half = SUPPLY.size / 2;
+        for (let attempt = 0; attempt < 30; attempt++) {
+            const x = a.left + gameRandom() * a.w, y = a.top + gameRandom() * a.h;
+            const r = new Rect(Math.round(x - half - 16), Math.round(y - half - 16), SUPPLY.size + 32, SUPPLY.size + 32);
+            if (CURRENT_WALLS.some((w) => w.rect.colliderect(r))) continue;
+            return [Math.round(x), Math.round(y)];
+        }
+        return [640, 180];
+    }
+
+    update(dtSec) {
+        if (this.timer === null) this.timer = SUPPLY.firstDelay;
+        this.animT += dtSec;
+        this.popups = this.popups.filter((p) => this.animT - p.t < 1.4);
+        if (this.state === 'landed') return;
+        this.timer -= dtSec;
+        if (this.timer > 0) return;
+        if (this.state === 'idle') {
+            [this.x, this.y] = this.pickPosition();
+            this.state = 'falling';
+            this.timer = SUPPLY.fallTime;
+        } else if (this.state === 'falling') {
+            this.state = 'landed';
+            if (typeof Vfx !== 'undefined' && Vfx.spawn && typeof HitSparkVFX !== 'undefined') {
+                Vfx.spawn(new HitSparkVFX(this.x, this.y + SUPPLY.size / 2, { color: '#d79a52', angle: -Math.PI / 2, count: 10, size: 18 }));
+            }
+        }
+    }
+
+    crateRect() {
+        const h = SUPPLY.size / 2;
+        return new Rect(this.x - h, this.y - h, SUPPLY.size, SUPPLY.size);
+    }
+
+    // 먼저 닿은 사람이 받는다 (같은 틱이면 P1 먼저)
+    applyDamage(players) {
+        if (this.state !== 'landed') return;
+        const r = this.crateRect();
+        for (const p of players) {
+            if (!p || p.hp <= 0 || !p.rect.colliderect(r)) continue;
+            this.give(p);
+            this.state = 'idle';
+            this.timer = SUPPLY.interval;
+            return;
+        }
+    }
+
+    give(p) {
+        const ultFull = p.ultGauge >= p.maxUltGauge, hpFull = p.hp >= p.maxHp;
+        let table;
+        if (ultFull && hpFull) table = [['atk', 1]];
+        else if (ultFull) table = [['heal', 0.6], ['atk', 0.4]];
+        else if (hpFull) table = [['ult', 0.6], ['atk', 0.4]];
+        else table = [['heal', 0.4], ['ult', 0.4], ['atk', 0.2]];
+        let roll = gameRandom(), kind = table[table.length - 1][0];
+        for (const [k, w] of table) { if (roll < w) { kind = k; break; } roll -= w; }
+
+        let text, color;
+        if (kind === 'heal') {
+            p.hp = Math.min(p.maxHp, p.hp + SUPPLY.heal);
+            text = `+${SUPPLY.heal} 체력`; color = '#50dc64';
+        } else if (kind === 'ult') {
+            p.addUltGauge(p.maxUltGauge * SUPPLY.ultRatio);
+            text = `궁극기 +${Math.round(SUPPLY.ultRatio * 100)}%`; color = '#3c96e6';
+        } else {
+            p.statusEffects.power_up = { duration: SUPPLY.atkDuration, power: SUPPLY.atkPower };
+            text = `공격력 +${SUPPLY.atkPower}% (${SUPPLY.atkDuration}초)`; color = '#ff7a3a';
+        }
+        this.popups.push({ x: p.rect.centerx, y: p.rect.top - 28, text, color, t: this.animT });
+    }
+
+    drawCrate(ctx, x, y) {
+        const s = SUPPLY.size + 8;
+        if (isImageReady(SUPPLY_CRATE_IMAGE)) ctx.drawImage(SUPPLY_CRATE_IMAGE, x - s / 2, y - s / 2, s, s);
+        else { ctx.fillStyle = '#b07038'; ctx.fillRect(x - s / 2, y - s / 2, s, s); }
+    }
+
+    draw(ctx) {
+        if (this.state === 'falling') {
+            const k = Math.max(0, this.timer) / SUPPLY.fallTime; // 1 → 0 (땅에 가까워짐)
+            // 바닥 그림자: 떨어질수록 진하고 작아짐
+            ctx.fillStyle = `rgba(0, 0, 0, ${0.25 + 0.35 * (1 - k)})`;
+            ctx.beginPath(); ctx.ellipse(this.x, this.y + SUPPLY.size / 2 - 2, 22 + 14 * k, 8 + 5 * k, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = `rgba(255, 210, 90, ${0.5 + 0.4 * Math.sin(this.animT * 10)})`; ctx.lineWidth = 2;
+            ctx.strokeRect(this.x - SUPPLY.size / 2, this.y - SUPPLY.size / 2, SUPPLY.size, SUPPLY.size);
+            // 하늘에서 내려오는 상자 + 낙하산 (살짝 흔들림)
+            const cy = this.y - 420 * k, sway = Math.sin(this.animT * 3) * 6 * k;
+            ctx.save(); ctx.translate(this.x + sway, cy); ctx.rotate(sway * 0.02);
+            if (isImageReady(SUPPLY_CHUTE_IMAGE)) ctx.drawImage(SUPPLY_CHUTE_IMAGE, -45, -SUPPLY.size / 2 - 60, 90, 63);
+            this.drawCrate(ctx, 0, 0);
+            ctx.restore();
+        } else if (this.state === 'landed') {
+            // 은은하게 빛나는 테두리
+            const a = 0.35 + 0.25 * Math.sin(this.animT * 4);
+            ctx.save(); ctx.globalCompositeOperation = 'lighter';
+            const g = ctx.createRadialGradient(this.x, this.y, 8, this.x, this.y, 44);
+            g.addColorStop(0, `rgba(255, 210, 90, ${a})`); g.addColorStop(1, 'rgba(255, 210, 90, 0)');
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(this.x, this.y, 44, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+            this.drawCrate(ctx, this.x, this.y + Math.sin(this.animT * 4) * 1.5);
+        }
+    }
+
+    // 받은 보급 글자는 캐릭터 위에 보이게 맨 위에 그림
+    drawOverlay(ctx) {
+        for (const p of this.popups) {
+            const t = (this.animT - p.t) / 1.4;
+            drawText(ctx, p.text, p.x, p.y - 24 * t, 18, p.color, { bold: true, align: 'center', alpha: Math.max(0, 1 - t * t) });
+        }
+    }
+
+    // 미리보기: 상자 아이콘만
+    drawPreview(ctx, px, py, scale) {
+        const s = 40 * scale * 2;
+        if (isImageReady(SUPPLY_CRATE_IMAGE)) ctx.drawImage(SUPPLY_CRATE_IMAGE, px + 640 * scale - s / 2, py + 180 * scale - s / 2, s, s);
+    }
+}

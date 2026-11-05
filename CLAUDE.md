@@ -62,3 +62,4 @@
 - 평타 후딜 BASIC_POST_DELAY 0.08초(common.js applyBasicPostDelay): 검사, 폭파광, 어쌔신 찌르기. 어쌔신 찌르기 11.2/쿨 450ms, 회전 베기는 16.8/350ms/후딜 없음.
 - 마법사/해커 몸 그림: tools/portrait_gen.js (원본 tools/src/portraits_src.png, 바깥 체크무늬만 지움, 128 정사각형).
 - 몸 그림: tools/portrait_gen.js (원본 tools/src/portraits_src.png, portraits2_src.png). 9명(마법사·해커·검사·궁수·무투가·어쌔신·뱀파이어·분쇄자·샌즈) 같은 배율(원본 1px=0.1285), 바닥=히트박스 바닥. 출력된 spriteSize/spriteAnchor를 각 apply에 적음. 마법사·해커 외 7명은 1.15배 키움(ay=1-20/size).
+- 기본맵(클래식 아레나): 좌우 한 칸 벽·상하 얇은 벽 제거, 구슬 대신 보급 상자(terrain.js SupplyDropEvent, 수치는 SUPPLY). 첫 상자 8초, 먹은 뒤 15초마다. 확률 보통 체력40/궁40/공20, 궁 풀이면 체력60/공40, 풀피면 궁60/공40. 체력 +40, 궁 +통의 30%, 공격력 +20% 8초(status power_up, game.updateAttacks에서 곱함). 그림 tools/supply_gen.js.

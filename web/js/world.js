@@ -214,22 +214,13 @@ const MAPS = [
             // 우하단 ㄱ자
             new Wall(970, 410, 50, 220),
             new Wall(970, 400, 200, 50),
-            // 화면 상/하단 중앙 엄폐 기둥
-            new Wall(590, 30, 100, 30),
-            new Wall(590, 660, 100, 30),
-            // 좌우 측면 엄폐 기둥
-            new Wall(40, 340, 40, 40),
-            new Wall(1200, 340, 40, 40),
             // 중앙 대각선 엄폐 블록
             new Wall(430, 330, 60, 60),
             new Wall(790, 330, 60, 60),
         ],
-        buildPickups: () => [
-            new Pickup(200, 200, 'heal'),
-            new Pickup(960, 175, 'ult'),
-            new Pickup(320, 550, 'ult'),
-            new Pickup(1080, 520, 'heal'),
-        ],
+        // 회복·궁극기 구슬 대신 보급 상자 (terrain.js SupplyDropEvent)
+        buildPickups: () => [],
+        buildEvents: () => [new SupplyDropEvent()],
     },
     {
         name: '용암 구덩이',
