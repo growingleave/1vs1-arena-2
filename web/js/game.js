@@ -41,6 +41,9 @@ function createLoadoutOrb(n) {
 }
 
 // 선택창 카드 배치 (구역 안 기준)
+// 히든 캐릭터: 선택창에서 커맨드(이동키 위 위 아래 아래 왼 오 왼 오)를 치면 그 사람 선택창에 나타난다
+const HIDDEN_CHARACTERS = [8]; // DIO
+const HIDDEN_COMMAND = 'UUDDLRLR';
 const SELECT_COLS = 4, SELECT_CARD_W = 132, SELECT_CARD_H = 62, SELECT_GAP = 8;
 const SELECT_GRID_X = Math.round((LOADOUT_SIDE_W - (SELECT_COLS * SELECT_CARD_W + (SELECT_COLS - 1) * SELECT_GAP)) / 2);
 const SELECT_GRID_Y = 58;
@@ -157,6 +160,7 @@ class Game {
 
         this.p1CharIdx = 0;
         this.p2CharIdx = 1;
+        this.hiddenUnlocked = [false, false]; // P1/P2 각자 히든 캐릭터 해금 (게임을 껐다 켜면 다시 숨김)
         this.selectedMapIdx = 0;
 
         this.walls = this.loadoutWalls;
@@ -218,17 +222,31 @@ class Game {
     }
 
     // 선택창 키 조작 (방향키: 고르기, 평타 키: 훈련장으로)
+    // 선택창에 보이는 캐릭터 번호 목록 (히든은 해금한 사람에게만)
+    visibleCharacters(n) {
+        return CHARACTER_REGISTRY.map((_, i) => i).filter((i) => !HIDDEN_CHARACTERS.includes(i) || this.hiddenUnlocked[n - 1]);
+    }
+
     handleSelectKey(n, code) {
         const side = this.sides[n - 1];
         const ctl = n === 1 ? P1_CONTROLS : P2_CONTROLS;
-        const count = CHARACTER_REGISTRY.length;
-        let c = side.cursor;
+        // 히든 커맨드: 최근 이동키 8개
+        const dir = { [ctl.up]: 'U', [ctl.down]: 'D', [ctl.left]: 'L', [ctl.right]: 'R' }[code];
+        side.cmd = ((side.cmd || '') + (dir || '-')).slice(-HIDDEN_COMMAND.length);
+        if (side.cmd === HIDDEN_COMMAND && !this.hiddenUnlocked[n - 1]) {
+            this.hiddenUnlocked[n - 1] = true;
+            side.cursor = HIDDEN_CHARACTERS[0];
+            side.unlockTime = Time.now;
+            return;
+        }
+        const list = this.visibleCharacters(n), count = list.length;
+        let c = Math.max(0, list.indexOf(side.cursor));
         if (code === ctl.left) c = (c - 1 + count) % count;
         else if (code === ctl.right) c = (c + 1) % count;
         else if (code === ctl.up) c = c - SELECT_COLS >= 0 ? c - SELECT_COLS : Math.min(count - 1, c + SELECT_COLS * Math.floor((count - 1 - c) / SELECT_COLS));
         else if (code === ctl.down) c = c + SELECT_COLS < count ? c + SELECT_COLS : c % SELECT_COLS;
         else if (code === ctl.skills[0]) { this.confirmSelection(n); return; }
-        side.cursor = c;
+        side.cursor = list[c];
     }
 
     startBattle() {
@@ -550,11 +568,15 @@ class Game {
         ctx.fillStyle = '#15151b'; ctx.fillRect(ox, 0, LOADOUT_SIDE_W, HEIGHT);
         ctx.strokeStyle = color; ctx.globalAlpha = 0.5; ctx.lineWidth = 4; ctx.strokeRect(ox + 4, 4, LOADOUT_SIDE_W - 8, HEIGHT - 8); ctx.globalAlpha = 1;
         drawText(ctx, `P${n} 캐릭터 선택`, ox + LOADOUT_SIDE_W / 2, 18, 24, color, { bold: true, align: 'center' });
+        if (side.unlockTime && Time.now - side.unlockTime < 2500) {
+            drawText(ctx, '히든 캐릭터 해금!', ox + LOADOUT_SIDE_W - 22, 24, 15, COLOR_GOLD, { bold: true, align: 'right', alpha: Math.floor((Time.now - side.unlockTime) / 200) % 2 ? 0.5 : 1 });
+        }
 
         // 카드
-        CHARACTER_REGISTRY.forEach((data, i) => {
-            const x = ox + SELECT_GRID_X + (i % SELECT_COLS) * (SELECT_CARD_W + SELECT_GAP);
-            const y = SELECT_GRID_Y + Math.floor(i / SELECT_COLS) * (SELECT_CARD_H + SELECT_GAP);
+        this.visibleCharacters(n).forEach((i, pos) => {
+            const data = CHARACTER_REGISTRY[i];
+            const x = ox + SELECT_GRID_X + (pos % SELECT_COLS) * (SELECT_CARD_W + SELECT_GAP);
+            const y = SELECT_GRID_Y + Math.floor(pos / SELECT_COLS) * (SELECT_CARD_H + SELECT_GAP);
             const sel = i === side.cursor;
             const fx = data.fxColor || COLOR_GRAY;
             ctx.fillStyle = sel ? '#2c2c3a' : COLOR_CARD_BG;
