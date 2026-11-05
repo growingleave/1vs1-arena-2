@@ -60,3 +60,4 @@
 - 소리: 피격 소리만 (core.js `HitSound`, `web/assets/hit.ogg` → `sh tools/hit_sound_build.sh` → `web/js/hit_sound_data.js`). 스킬 효과음은 없앰. 배경음악: `web/js/bgm.js` + `web/assets/bgm.ogg` (반복, 첫 키 입력 때 시작, M 키로 끄기/켜기).
 - 모든 캐릭터 이펙트 교체 완료 (2026-11-01). 이후는 실제 크롬북 테스트·세부 조정.
 - 평타 후딜 BASIC_POST_DELAY 0.08초(common.js applyBasicPostDelay): 검사, 폭파광, 어쌔신 찌르기. 어쌔신 찌르기 11.2/쿨 450ms, 회전 베기는 16.8/350ms/후딜 없음.
+- 마법사/해커 몸 그림: tools/portrait_gen.js (원본 tools/src/portraits_src.png, 바깥 체크무늬만 지움, 128 정사각형).
