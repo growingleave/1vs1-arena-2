@@ -227,6 +227,9 @@ const MAPS = [
     },
     {
         name: '용암 구덩이',
+        // 미리 구운 바닥·벽 그림 (tools/arena_maps_gen.js). 벽·빙판을 옮기면 다시 구워야 한다
+        floorImage: loadImage('assets/arena_lava_floor.webp'),
+        wallImage: loadImage('assets/arena_lava_walls.png'),
         bgColor: '#230e0c',
         buildWalls: () => coloredWalls('#3c231e', [ // 그을린 화산암
             // 모서리 바위
@@ -241,21 +244,19 @@ const MAPS = [
             [430, 500, 50, 50], [480, 450, 50, 50],
             [800, 500, 50, 50], [750, 450, 50, 50],
         ]),
-        buildPickups: () => [
-            new Pickup(150, 150, 'heal'),
-            new Pickup(1130, 150, 'ult'),
-            new Pickup(150, 570, 'ult'),
-            new Pickup(1130, 570, 'heal'),
-        ],
+        buildPickups: () => [], // 구슬 대신 보급 상자
         buildHazards: () => [new LavaPit(640, 360, 90, 10)],
         // 화면 가장자리와 가운데 용암 구덩이 근처는 피해서 떨어진다
         buildEvents: () => [new LavaFallEvent(new Rect(140, 140, 1280 - 280, 720 - 280), {
             radius: 70, tickDamage: 10, intervalRange: [2.0, 4.0], warningDuration: 1.3, activeDuration: 6.0,
             avoidZones: [[640, 360, 170]], dropsPerWave: 2,
-        })],
+        }), new SupplyDropEvent(undefined, { avoidZones: [[640, 360, 190]] })], // 보급 상자는 가운데 용암 구덩이를 피함
     },
     {
         name: '설원',
+        // 미리 구운 바닥·벽 그림 (tools/arena_maps_gen.js). 벽·빙판을 옮기면 다시 구워야 한다
+        floorImage: loadImage('assets/arena_snow_floor.webp'),
+        wallImage: loadImage('assets/arena_snow_walls.png'),
         bgColor: '#121a26',
         buildWalls: () => coloredWalls('#b4cddc', [ // 옅은 청빙색
             // 모서리 얼음 무더기
@@ -270,22 +271,17 @@ const MAPS = [
             // 상/하단 중앙 진입로 엄폐 얼음
             [600, 40, 80, 30], [600, 650, 80, 30],
         ]),
-        buildPickups: () => [
-            new Pickup(200, 360, 'heal'),
-            new Pickup(1080, 360, 'ult'),
-            new Pickup(640, 140, 'ult'),
-            new Pickup(640, 580, 'heal'),
-        ],
+        buildPickups: () => [], // 구슬 대신 보급 상자
         // 가운데 두 기둥 바깥쪽에 세로로 긴 큰 빙판 (밟으면 미끄러진다, 피해 없음)
         buildHazards: () => [
-            new IcePatch(new Rect(280, 120, 240, 480), 0.05),
-            new IcePatch(new Rect(760, 120, 240, 480), 0.05),
+            new IcePatch(new Rect(280, 120, 240, 480), 0.05, true), // true: 그림은 바닥에 구워져 있음
+            new IcePatch(new Rect(760, 120, 240, 480), 0.05, true),
         ],
         // 화톳불: 네 모서리 빈 공간 + 가운데
         buildEvents: () => [new BlizzardEvent(
             [[200, 200], [1080, 200], [200, 520], [1080, 520], [640, 360]],
             { safeRadius: 130, stormTickDamage: 15, stormSlowPower: 35, intervalRange: [10.0, 15.0],
               announceDuration: 2.5, prepareDuration: 4.0, stormDuration: 7.0 },
-        )],
+        ), new SupplyDropEvent()],
     },
 ];
