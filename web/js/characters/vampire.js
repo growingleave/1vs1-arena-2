@@ -21,7 +21,7 @@ const VAMP_EMPTY_IMAGE = (() => { const c = document.createElement('canvas'); c.
 
 const VAMP = {
     // 평타: 느리지만 세게. 0.18초 동안 창을 뒤로 당겨 모았다가(선딜레이) 팍 찌르고(0.06초) 판정은 0.11초 동안, 천천히 뒤로 뺌
-    spear: { cooldown: 1000, damage: 1.2, length: 107, width: 34, windup: 180, hitTime: 110, life: 450, selfDamage: 10, bleedTime: 4, bleedPower: 5 },
+    spear: { cooldown: 1000, damage: 1.2, length: 135, width: 34, windup: 180, hitTime: 110, life: 450, selfDamage: 10, bleedTime: 4, bleedPower: 5 },
     // 박쥐 물기: 두 턱이 0.09초에 걸쳐 다가와 닫히는 순간 판정
     bite: { cooldown: 1400, radius: 90, arc: 90, damage: 0.5, heal: 10, bleedTime: 3, bleedPower: 4, closeTime: 90, life: 260 },
     drainCooldown: 3000,
@@ -364,12 +364,12 @@ class VampireSpearAttack {
     draw(ctx) {
         const all = Time.now - this.createdTime, W = VAMP.spear.windup, L = VAMP.spear.length;
         const ms = all - W; // 찌르기 시작부터
-        // 뻗은 정도: 선딜레이 동안 뒤로 당김(0.25→0) → 0.06초에 확 뻗고 → 0.11초까지 버티고 → 천천히 뒤로
+        // 뻗은 정도: 선딜레이 동안 살짝 뒤로 당김(0.55→0.4) → 0.06초에 확 뻗고 → 0.11초까지 버티고 → 조금만 물리며 사라짐(1→0.65)
         let ext;
-        if (ms < 0) { const u = all / W; ext = 0.25 * (1 - u * u); }
-        else if (ms < 60) ext = 1 - Math.pow(1 - ms / 60, 3);
+        if (ms < 0) { const u = all / W; ext = 0.55 - 0.15 * u * u; }
+        else if (ms < 60) ext = 0.4 + 0.6 * (1 - Math.pow(1 - ms / 60, 3));
         else if (ms < 110) ext = 1;
-        else { const u = (ms - 110) / (VAMP.spear.life - 110); ext = 1 - u * u * (3 - 2 * u); }
+        else { const u = (ms - 110) / (VAMP.spear.life - 110); ext = 1 - 0.35 * u * u * (3 - 2 * u); }
         const r = this.owner.rect, [dx, dy] = this.dir, ang = Math.atan2(dy, dx);
         const tip = 20 + L * (0.25 + 0.75 * ext);
         const tremble = ms < 0 ? Math.sin(all * 0.9) * 1.5 * (all / W) : 0; // 모으는 동안 떨림
@@ -400,7 +400,7 @@ class VampireSpearAttack {
         }
         // 창
         const len = 190, h = len * 63 / 324;
-        ctx.globalAlpha = all > this.lifespan - 90 ? (this.lifespan - all) / 90 : 1;
+        ctx.globalAlpha = all > this.lifespan - 200 ? (this.lifespan - all) / 200 : 1;
         if (isImageReady(VAMP_SPEAR_IMAGE)) ctx.drawImage(VAMP_SPEAR_IMAGE, tip - len, -h / 2 + tremble, len, h);
         else { ctx.fillStyle = VAMP_COLOR; ctx.fillRect(tip - len, -4, len, 8); }
         ctx.restore();
@@ -692,7 +692,7 @@ const VAMPIRE_CHARACTER_DATA = {
     id: 'VAMPIRE',
     fxColor: VAMP_COLOR,
     name: '뱀파이어',
-    desc: '평타(1초): 0.18초 동안 창에 피를 모았다가 앞을 길게 팍 찌릅니다(14.4, 길이 107) + 강한 출혈(초당 5, 4초). 출혈은 걸 때마다 따로 쌓입니다(최대 6중첩). 쓸 때마다 내 체력 10 감소(이걸로는 죽지 않음), 스킬 1(3초): 상대의 출혈을 모두 없애고 남은 출혈 피해만큼 내 체력을 회복합니다(상대가 출혈 중일 때만), 스킬 2(8초): 박쥐로 변신하거나 해제합니다(최대 5초). 판정이 작아지고 이동속도 +40%·벽 통과, 대신 받는 피해 +30%이고 평타와 스킬 2만 쓸 수 있습니다. 쿨타임은 해제할 때부터, 박쥐 평타(1.4초): 앞쪽 90도 부채꼴을 물어 피해(6)를 주고 체력 10 회복 + 출혈(초당 4, 3초), 궁극기: 앞쪽 45도 긴 부채꼴에 피 웅덩이가 퍼지고(0.35초, 이동 불가) 피의 가시가 솟아 피해(24) + 평타 출혈 3중첩(초당 5 x3, 4초). 내 체력 45 감소(이걸로는 죽지 않음)',
+    desc: '평타(1초): 0.18초 동안 창에 피를 모았다가 앞을 길게 팍 찌릅니다(14.4, 길이 135) + 강한 출혈(초당 5, 4초). 출혈은 걸 때마다 따로 쌓입니다(최대 6중첩). 쓸 때마다 내 체력 10 감소(이걸로는 죽지 않음), 스킬 1(3초): 상대의 출혈을 모두 없애고 남은 출혈 피해만큼 내 체력을 회복합니다(상대가 출혈 중일 때만), 스킬 2(8초): 박쥐로 변신하거나 해제합니다(최대 5초). 판정이 작아지고 이동속도 +40%·벽 통과, 대신 받는 피해 +30%이고 평타와 스킬 2만 쓸 수 있습니다. 쿨타임은 해제할 때부터, 박쥐 평타(1.4초): 앞쪽 90도 부채꼴을 물어 피해(6)를 주고 체력 10 회복 + 출혈(초당 4, 3초), 궁극기: 앞쪽 45도 긴 부채꼴에 피 웅덩이가 퍼지고(0.35초, 이동 불가) 피의 가시가 솟아 피해(24) + 평타 출혈 3중첩(초당 5 x3, 4초). 내 체력 45 감소(이걸로는 죽지 않음)',
     apply: applyVampire,
     thumbnail: VAMPIRE_IMAGE,
 };

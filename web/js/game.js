@@ -239,6 +239,7 @@ class Game {
         this.hazards = map.buildHazards ? map.buildHazards() : [];
         this.mapEvents = map.buildEvents ? map.buildEvents() : [];
         this.battleBgColor = map.bgColor || COLOR_BG;
+        this.battleMap = map;
         this.attacks = [];
         this.state = 'BATTLE';
     }
@@ -644,6 +645,7 @@ class Game {
 
         ctx.fillStyle = map.bgColor || '#0a0a0e';
         ctx.fillRect(px, py, pw, ph);
+        if (isImageReady(map.floorImage)) ctx.drawImage(map.floorImage, px, py, pw, ph);
 
         // 지형 미리보기: 고른 맵이 바뀔 때만 새로 만든다 (그림 전용이라 게임 결과와 무관)
         if (this.previewCache.idx !== this.selectedMapIdx) {
@@ -656,7 +658,8 @@ class Game {
         for (const hazard of this.previewCache.hazards) hazard.drawPreview(ctx, px, py, scale);
         for (const ev of this.previewCache.events) ev.drawPreview(ctx, px, py, scale);
 
-        for (const wall of map.buildWalls()) {
+        if (isImageReady(map.wallImage)) ctx.drawImage(map.wallImage, px, py, pw, ph);
+        else for (const wall of map.buildWalls()) {
             ctx.fillStyle = wall.color;
             ctx.fillRect(px + wall.rect.x * scale, py + wall.rect.y * scale, wall.rect.w * scale, wall.rect.h * scale);
         }
@@ -677,12 +680,21 @@ class Game {
     }
 
     renderBattle(ctx) {
-        clearScreen(ctx, this.battleBgColor);
+        const map = this.battleMap || {};
+        if (isImageReady(map.floorImage)) ctx.drawImage(map.floorImage, 0, 0, WIDTH, HEIGHT);
+        else clearScreen(ctx, this.battleBgColor);
 
         for (const hazard of this.hazards) hazard.draw(ctx);
         for (const ev of this.mapEvents) ev.draw(ctx);
         Vfx.drawGround(ctx);
-        for (const wall of this.walls) wall.draw(ctx);
+        if (isImageReady(map.wallImage)) {
+            // 벽 그림에서 벽(+그림자) 부분만 잘라 그림 (화면 전체를 그리는 것보다 가벼움)
+            for (const wall of this.walls) {
+                const r = wall.rect, x = Math.max(0, r.x - 2), y = Math.max(0, r.y - 2);
+                const w = Math.min(WIDTH - x, r.w + 16), h = Math.min(HEIGHT - y, r.h + 18);
+                ctx.drawImage(map.wallImage, x, y, w, h, x, y, w, h);
+            }
+        } else for (const wall of this.walls) wall.draw(ctx);
         for (const pickup of this.pickups) pickup.draw(ctx);
         this.player1.draw(ctx);
         this.player2.draw(ctx);

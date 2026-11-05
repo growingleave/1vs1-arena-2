@@ -63,3 +63,5 @@
 - 마법사/해커 몸 그림: tools/portrait_gen.js (원본 tools/src/portraits_src.png, 바깥 체크무늬만 지움, 128 정사각형).
 - 몸 그림: tools/portrait_gen.js (원본 tools/src/portraits_src.png, portraits2_src.png). 9명(마법사·해커·검사·궁수·무투가·어쌔신·뱀파이어·분쇄자·샌즈) 같은 배율(원본 1px=0.1285), 바닥=히트박스 바닥. 출력된 spriteSize/spriteAnchor를 각 apply에 적음. 마법사·해커 외 7명은 1.15배 키움(ay=1-20/size).
 - 기본맵(클래식 아레나): 좌우 한 칸 벽·상하 얇은 벽 제거, 구슬 대신 보급 상자(terrain.js SupplyDropEvent, 수치는 SUPPLY). 첫 상자 8초, 먹은 뒤 15초마다. 확률 보통 체력40/궁40/공20, 궁 풀이면 체력60/공40, 풀피면 궁60/공40. 체력 +40, 궁 +통의 30%, 공격력 +20% 8초(status power_up, game.updateAttacks에서 곱함). 그림 tools/supply_gen.js.
+- 기본맵 그림: tools/arena_classic_gen.js → arena_classic_floor.webp(바닥, 맨 먼저) + arena_classic_walls.png(벽, drawGround 다음에 벽 부분만 잘라 그림). 맵 정의 floorImage/wallImage. 벽 옮기면 다시 구움.
+- 해커 평타 판정: 몸 네모(+8px)가 스캔 삼각형에 닿으면 게이지. 뱀파이어 창 길이 135, 찌른 뒤 조금만 물림.

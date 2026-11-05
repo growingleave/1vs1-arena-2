@@ -199,6 +199,9 @@ const MAPS = [
     {
         name: '클래식 아레나',
         bgColor: COLOR_BG,
+        // 미리 구운 바닥·벽 그림 (tools/arena_classic_gen.js). 벽을 옮기면 다시 구워야 한다
+        floorImage: loadImage('assets/arena_classic_floor.webp'),
+        wallImage: loadImage('assets/arena_classic_walls.png'),
         buildWalls: () => [
             // 좌상단 ㄴ자
             new Wall(260, 90, 50, 220),
