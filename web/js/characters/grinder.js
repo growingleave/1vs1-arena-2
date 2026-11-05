@@ -1,3 +1,4 @@
+const GRINDER_IMAGE = loadImage('assets/grinder.png'); // 몸 그림
 // 분쇄자 (abilities/grinder.py를 옮김)
 
 // 그림 (tools/grinder_gen.js로 생성): 모두 흰 빛 그림 → 주황을 입혀 'lighter'로 (게임 이펙트 느낌)
@@ -586,6 +587,10 @@ class GrinderBasicAttack extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applyGrinder(player) {
+    player.spriteImage = GRINDER_IMAGE;
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
+    player.spriteSize = 41;
+    player.spriteAnchor = [0.496, 0.512];
     player.baseAtk = 20;
     player.maxHp = 300;
     player.maxUltGauge = 110; // 궁극기 게이지 통 (검사 100 기준)
@@ -606,5 +611,5 @@ const GRINDER_CHARACTER_DATA = {
     name: '분쇄자',
     desc: '평타(누르고 있기·최대 3초): 앞 좌우에 분쇄기 2개를 돌려 닿은 적에게 0.3초마다 피해를 줍니다(9). 쓰는 동안 내가 40% 느려집니다, 스킬 1(3.5초): 집게 그랩을 날려 맞은 적을 내 앞으로 끌어옵니다(24, 1초 이동 불가·0.5초 침묵, 그 뒤 0.5초 슬로우 50%), 스킬 2(6초): 0.3초 뒤 앞쪽을 유압 프레스로 내려찍습니다(32, 1초 기절), 궁극기: 앞쪽 30도 부채꼴로 고철 조각 15발을 난사합니다(5씩, 맞을 때마다 0.2초 경직)',
     apply: applyGrinder,
-    thumbnail: null,
+    thumbnail: GRINDER_IMAGE,
 };

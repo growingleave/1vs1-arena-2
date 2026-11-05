@@ -182,10 +182,11 @@ function fighterHitSpark(target, angle, count, size) {
 let fighterTinted = null;
 function fighterTintedSprite() {
     if (fighterTinted || !isImageReady(FIGHTER_IMAGE)) return fighterTinted;
-    const c = document.createElement('canvas'); c.width = 48; c.height = 48;
+    const W = FIGHTER_IMAGE.width, H = FIGHTER_IMAGE.height;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
-    x.drawImage(FIGHTER_IMAGE, 2, 2, 44, 44);
-    x.globalCompositeOperation = 'source-in'; x.fillStyle = FIGHTER_COLOR; x.fillRect(0, 0, 48, 48);
+    x.drawImage(FIGHTER_IMAGE, 0, 0);
+    x.globalCompositeOperation = 'source-in'; x.fillStyle = FIGHTER_COLOR; x.fillRect(0, 0, W, H);
     fighterTinted = c;
     return c;
 }
@@ -476,7 +477,7 @@ class FighterDashManager {
         const ghostImg = fighterTintedSprite();
         this.trail.forEach(([x, y], i) => {
             const a = (i + 1) / this.trail.length * 0.45;
-            if (ghostImg) { ctx.globalAlpha = a; ctx.drawImage(ghostImg, x - 24, y - 24, 48, 48); ctx.globalAlpha = 1; }
+            if (ghostImg) { const o = this.owner, s = o.spriteSize; ctx.globalAlpha = a; ctx.drawImage(ghostImg, x - o.spriteAnchor[0] * s, y - o.spriteAnchor[1] * s, s, s); ctx.globalAlpha = 1; }
             else { ctx.fillStyle = fighterRgba(a); ctx.beginPath(); ctx.roundRect(x - 18, y - 18, 36, 36, 8); ctx.fill(); }
         });
         ctx.restore();
@@ -790,6 +791,9 @@ function applyFighter(player) {
     player.hp = player.maxHp;
     player.speed = 4.3;
     player.spriteImage = FIGHTER_IMAGE;
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
+    player.spriteSize = 50;
+    player.spriteAnchor = [0.504, 0.6];
     player.abilities = [
         new FighterBasicSkill(),  // 평타
         new FighterChargeSkill(), // 스킬 1 (10개 충전)

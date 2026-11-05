@@ -65,7 +65,7 @@ function accDrawSilhouette(ctx, player, x, y, facingX, color, alpha) {
     ctx.globalAlpha = Math.min(1, alpha);
     ctx.translate(x, y);
     if (facingX < 0) ctx.scale(-1, 1);
-    ctx.drawImage(vfxTinted(player.spriteImage, color), -s / 2, -s / 2, s, s);
+    ctx.drawImage(vfxTinted(player.spriteImage, color), -player.spriteAnchor[0] * s, -player.spriteAnchor[1] * s, s, s);
     ctx.restore();
 }
 

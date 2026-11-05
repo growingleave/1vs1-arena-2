@@ -624,9 +624,9 @@ function applyHacker(player) {
     player.hp = player.maxHp;
     player.speed = 4.3;
     player.spriteImage = HACKER_IMAGE;
-    // 그림 바닥 폭이 히트박스 폭(40)과 같고, 바닥이 히트박스 바닥에 닿게 그림
-    player.spriteSize = 53;
-    player.spriteAnchor = [0.473, 0.623];
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
+    player.spriteSize = 52;
+    player.spriteAnchor = [0.477, 0.615];
     player.abilities = [
         new HackerBasicAttack(), // 평타 (스캔)
         new HackerSkill1(),      // 스킬 1 (데이터 큐브)

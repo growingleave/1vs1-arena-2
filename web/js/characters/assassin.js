@@ -1,3 +1,4 @@
+const ASSASSIN_IMAGE = loadImage('assets/assassin.png'); // 몸 그림
 // 어쌔신 (abilities/assassin.py를 옮김)
 
 const MAX_ASSASSIN_CHARGE = 3;
@@ -720,6 +721,10 @@ class AssassinUltSkill extends Skill {
 // 캐릭터 등록
 // ==========================================
 function applyAssassinToPlayer(player) {
+    player.spriteImage = ASSASSIN_IMAGE;
+    // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
+    player.spriteSize = 49;
+    player.spriteAnchor = [0.484, 0.592];
     player.maxHp = 225;
     player.maxUltGauge = 90; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;
@@ -768,5 +773,5 @@ const ASSASSIN_CHARACTER_DATA = {
     name: '어쌔신',
     desc: '평타(0.45초): 단검으로 앞을 찌릅니다(11.2, 후딜 0.08초), 강화 평타(0.35초): 차지가 있으면 찌르기 대신 주위를 한 바퀴 벱니다(16.8, 반경 60), 스킬 1(1.5초): 아주 짧게 대쉬하고 차지를 1개 얻습니다(최대 3개), 스킬 2(8초): 갈고리를 던집니다. 벽에 박히면 그쪽으로 날아가고, 상대에 박히면 1초 기절시키고 상대에게 날아갑니다, 궁극기: 0.5초 은신(무적) 후 앞쪽에 거대한 X자 참격을 긋습니다(42). 차지도 1개 얻습니다',
     apply: applyAssassinToPlayer,
-    thumbnail: null,
+    thumbnail: ASSASSIN_IMAGE,
 };
