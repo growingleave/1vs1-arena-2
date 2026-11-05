@@ -600,6 +600,9 @@ function applyAccelerator(player) {
     player.speed = 4.7;
     player.isUltActive = false;
     player.spriteImage = ACCELERATOR_IMAGE;
+    // 몸 그림 (tools/portrait_gen.js, 원본 배율이 달라 얼굴 크기를 다른 캐릭터에 맞춤). 바닥 = 히트박스 바닥
+    player.spriteSize = 56;
+    player.spriteAnchor = [0.484, 1 - 20 / 56];
 
     const timeSkill = new AcceleratorTimeSkill();
     timeSkill.owner = player;

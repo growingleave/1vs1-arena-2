@@ -15,6 +15,8 @@ const SOURCES = [
   { src: load('portraits2_src.png'), crops: {
       swordman: [90, 0, 586, 378], archer: [586, 0, 1080, 378], fighter: [1080, 0, 1566, 378], assassin: [1566, 0, 2020, 378],
       vampire: [200, 378, 680, 724], grinder: [720, 378, 1140, 724], sans: [1180, 378, 1600, 724] } },
+  // 그림 배율이 달라서 가속자 spriteSize는 얼굴 폭을 다른 캐릭터와 맞춰 따로 정함 (출력값 그대로 안 씀)
+  { src: load('portraits3_src.png'), crops: { accelerator: [515, 500, 1035, 965] } },
 ];
 const SIZE = 128;
 
