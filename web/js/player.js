@@ -39,6 +39,7 @@ class Player {
         this.abilities = [];
         this.spriteImage = null;   // 캐릭터 이미지 (없으면 색 사각형)
         this.spriteSize = 44;
+        this.spriteAnchor = [0.5, 0.5]; // 그림에서 히트박스 가운데에 올 지점 (비율)
         this.dotColor = COLOR_WHITE; // 방향 표시 점 색
         this.dotRadius = 5;
         this.drawDotTemplate = null; // 기본 점 대신 그릴 모양 (오른쪽을 바라보는 기준으로 그리는 함수)
@@ -273,7 +274,7 @@ class Player {
             ctx.translate(r.centerx, r.centery + (style ? style.offsetY : 0));
             if (style) ctx.globalAlpha = style.alpha;
             if (this.facing[0] < 0) ctx.scale(-1, 1);
-            ctx.drawImage(this.spriteImage, -s / 2, -s / 2, s, s);
+            ctx.drawImage(this.spriteImage, -this.spriteAnchor[0] * s, -this.spriteAnchor[1] * s, s, s);
             ctx.restore();
         } else {
             ctx.fillStyle = this.color;
