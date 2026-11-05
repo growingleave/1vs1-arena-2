@@ -6,10 +6,15 @@
 
 function stvT() { return Time.now / 1000; }
 
-// 맞을 때 걸리는 아주 짧은 슬로우(0.12초)는 그리지 않는다
-function stvRealSlow(p) {
-    const s = p.statusEffects.slow;
-    return s && (s.total === undefined || s.total > 0.2);
+// 화면에 보일 CC만 골라냄: 스스로 건 것(self)은 안 보임, 맞을 때 걸리는 아주 짧은 슬로우(0.12초)도 안 보임.
+// 기절(이동 불가 + 침묵)이면 별만 보이고 이동 불가·침묵·속박은 따로 안 그림
+function stvCC(p) {
+    const e = p.statusEffects;
+    const sl = e.slow && !e.slow.self && (e.slow.total === undefined || e.slow.total > 0.2) ? e.slow : null;
+    const si = e.silence && !e.silence.self ? e.silence : null;
+    const bi = e.bind && !e.bind.self ? e.bind : null;
+    const stun = !!(p.stunned && sl && sl.power >= 100 && si);
+    return { stun, root: !stun && sl && sl.power >= 100, slow: sl && sl.power < 100, silence: !stun && si, bind: !stun && bi };
 }
 
 function drawStatusUnder(ctx, p) {
@@ -42,8 +47,9 @@ function drawStatusUnder(ctx, p) {
         ctx.globalAlpha = 1;
     }
     // 슬로우 / 이동 불가 (기절이면 별만)
-    if (!p.stunned && stvRealSlow(p)) {
-        if (e.slow.power >= 100) {
+    const cc = stvCC(p);
+    if (cc.root || cc.slow) {
+        if (cc.root) {
             // 이동 불가: 발밑 갈색 덩굴 고리 + 가시
             ctx.strokeStyle = 'rgba(150, 110, 60, 0.9)'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.ellipse(cx, fy, 26, 9, 0, 0, Math.PI * 2); ctx.stroke();
@@ -58,7 +64,7 @@ function drawStatusUnder(ctx, p) {
         }
     }
     // 속박: 발밑 회색 사슬 고리 (작은 고리들이 천천히 돔)
-    if (e.bind) {
+    if (cc.bind) {
         ctx.strokeStyle = 'rgba(200, 205, 215, 0.9)'; ctx.lineWidth = 2;
         for (let i = 0; i < 10; i++) {
             const a = i * Math.PI / 5 + t * 0.8, x = cx + Math.cos(a) * 28, y = fy - 4 + Math.sin(a) * 10;
@@ -82,7 +88,8 @@ function drawStatusOver(ctx, p) {
     const e = p.statusEffects, r = p.rect, t = stvT(), cx = r.centerx;
     ctx.save();
     // 슬로우: 몸 위로 떨어지는 서리 조각
-    if (!p.stunned && stvRealSlow(p) && e.slow.power < 100) {
+    const cc = stvCC(p);
+    if (cc.slow) {
         ctx.fillStyle = 'rgba(120, 190, 255, 0.16)'; ctx.fillRect(r.x, r.y, r.w, r.h); // 몸이 살짝 푸르게
         ctx.fillStyle = 'rgba(200, 235, 255, 0.9)';
         for (let i = 0; i < 4; i++) {
@@ -129,7 +136,7 @@ function drawStatusOver(ctx, p) {
 
     // ---------- 머리 위 아이콘 (체력바 위) ----------
     const hy = r.top - 24;
-    if (p.stunned) {
+    if (cc.stun) {
         // 기절: 머리 위를 도는 노란 별 3개
         ctx.fillStyle = '#ffe14a'; ctx.strokeStyle = '#6a5000'; ctx.lineWidth = 1;
         for (let i = 0; i < 3; i++) {
@@ -140,7 +147,7 @@ function drawStatusOver(ctx, p) {
         }
     } else {
         const icons = [];
-        if (e.silence) icons.push('silence');
+        if (cc.silence) icons.push('silence');
         if (e.confuse) icons.push('confuse');
         icons.forEach((kind, i) => {
             const x = cx + (i - (icons.length - 1) / 2) * 22, y = hy + Math.sin(t * 4 + i) * 1.5;

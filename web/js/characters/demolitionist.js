@@ -461,8 +461,8 @@ class DemolitionistRecoilManager {
 
     update(walls) {
         if (Time.now - this.createdTime < this.dashDuration) {
-            slow(this.owner, 0.1, 100);
-            silence(this.owner, 0.1);
+            slow(this.owner, 0.1, 100, true);
+            silence(this.owner, 0.1, true);
             const ts = this.owner.timeScale;
             moveEntityWithWalls(this.owner, this.direction[0] * this.dashSpeed * ts, this.direction[1] * this.dashSpeed * ts, walls);
             // 발이 끌리며 남는 흙먼지 (화면 전용)
@@ -502,8 +502,8 @@ class DemolitionistSkill1PostDelay {
 
     update() {
         if (Time.now - this.createdTime < this.postDelay) {
-            slow(this.owner, 0.1, 100);
-            silence(this.owner, 0.1);
+            slow(this.owner, 0.1, 100, true);
+            silence(this.owner, 0.1, true);
         }
     }
 
@@ -566,7 +566,7 @@ class DemolitionistSkill2DashManager {
     update(walls) {
         const elapsed = Time.now - this.createdTime;
         if (elapsed < this.dashDuration) {
-            slow(this.owner, 0.1, 100);
+            slow(this.owner, 0.1, 100, true);
             const ts = this.owner.timeScale;
             moveEntityWithWalls(this.owner, this.direction[0] * this.dashSpeed * ts, this.direction[1] * this.dashSpeed * ts, walls);
         }
@@ -684,8 +684,8 @@ class DemolitionistUltDelayField {
     update() {
         // 3초간 무적 + 이동 불가 + 침묵
         defenseMod(this.owner, 0.2, 100);
-        slow(this.owner, 0.1, 100);
-        silence(this.owner, 0.1);
+        slow(this.owner, 0.1, 100, true);
+        silence(this.owner, 0.1, true);
 
         if (Time.now - this.startTime >= this.duration && !this.triggered) {
             this.triggered = true;

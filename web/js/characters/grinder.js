@@ -201,9 +201,9 @@ class GrinderGrabBullet {
 
     applyEffect(target) {
         this.attacks.push(new GrinderReverseKnockbackEffect(this.owner, target));
-        slow(target, 1.0, 100);
+        slow(target, 0.5, 100);   // 0.5초 기절 (이동 불가 + 침묵)
         silence(target, 0.5);
-        grinderScheduleAfterSlow(target, Time.now + 1000); // 기절(1초)이 끝나면 0.5초 동안 50% 슬로우
+        grinderScheduleAfterSlow(target, Time.now + 500); // 기절(0.5초)이 끝나면 0.5초 동안 50% 슬로우
         this.lifespan = 0;
         // 집게가 닫히며 물 때 불꽃
         const ang = Math.atan2(this.direction[1], this.direction[0]);
@@ -338,7 +338,7 @@ class GrinderSkill2 extends Skill {
 
     use(owner, direction, attacks) {
         this.lastUsed = Time.now;
-        slow(owner, 0.3, 100);
+        slow(owner, 0.3, 100, true);
         attacks.push(new GrinderSkill2Hitbox(owner, direction));
     }
 }
@@ -609,7 +609,7 @@ const GRINDER_CHARACTER_DATA = {
     id: 'GRINDER',
     fxColor: '#e0b060',
     name: '분쇄자',
-    desc: '평타(누르고 있기·최대 3초): 앞 좌우에 분쇄기 2개를 돌려 닿은 적에게 0.3초마다 피해를 줍니다(9). 쓰는 동안 내가 40% 느려집니다, 스킬 1(3.5초): 집게 그랩을 날려 맞은 적을 내 앞으로 끌어옵니다(24, 1초 이동 불가·0.5초 침묵, 그 뒤 0.5초 슬로우 50%), 스킬 2(6초): 0.3초 뒤 앞쪽을 유압 프레스로 내려찍습니다(32, 1초 기절), 궁극기: 앞쪽 30도 부채꼴로 고철 조각 15발을 난사합니다(5씩, 맞을 때마다 0.2초 경직)',
+    desc: '평타(누르고 있기·최대 3초): 앞 좌우에 분쇄기 2개를 돌려 닿은 적에게 0.3초마다 피해를 줍니다(9). 쓰는 동안 내가 40% 느려집니다, 스킬 1(3.5초): 집게 그랩을 날려 맞은 적을 내 앞으로 끌어옵니다(24, 0.5초 기절, 그 뒤 0.5초 슬로우 50%), 스킬 2(6초): 0.3초 뒤 앞쪽을 유압 프레스로 내려찍습니다(32, 1초 기절), 궁극기: 앞쪽 30도 부채꼴로 고철 조각 15발을 난사합니다(5씩, 맞을 때마다 0.2초 경직)',
     apply: applyGrinder,
     thumbnail: GRINDER_IMAGE,
 };

@@ -122,6 +122,8 @@ class Player {
                 power = Math.max(existing.power, power);
             }
             slow(this, duration, power);
+            // 이미 걸린 슬로우를 이어받은 거면 화면용 정보(처음 길이, 스스로 건 것인지)도 이어받음
+            if (existing && existing.power >= 50) { this.statusEffects.slow.total = existing.total; this.statusEffects.slow.self = existing.self; }
         }
         return finalDamage;
     }

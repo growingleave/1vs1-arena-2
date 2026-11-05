@@ -435,7 +435,7 @@ class DioRoadRollerManager {
         owner.ultChargeRate = 0.0;
         owner.invincible = true;
         owner.hidden = true;
-        silence(owner, 15.0);
+        silence(owner, 15.0, true);
         ghost(owner, 15.0);
     }
 
@@ -443,7 +443,7 @@ class DioRoadRollerManager {
         if (this.phase === 1) {
             this.phase = 2;
             this.phaseStartTime = Time.now;
-            slow(this.owner, 0.5, 100);
+            slow(this.owner, 0.5, 100, true);
         }
     }
 
@@ -463,7 +463,7 @@ class DioRoadRollerManager {
             if (elapsed >= 3000) {
                 this.phase = 2;
                 this.phaseStartTime = Time.now;
-                slow(this.owner, 0.5, 100);
+                slow(this.owner, 0.5, 100, true);
             }
         } else if (this.phase === 2) {
             this.damage = 0;

@@ -231,9 +231,9 @@ class MageSkyBombardment {
         owner.ultChargeRate = 0.0;
         owner.invincible = true;
         owner.hidden = true;
-        silence(owner, 15.0);
+        silence(owner, 15.0, true);
         ghost(owner, 15.0);
-        slow(owner, MAGE_ULT.rise / 1000, 100); // 떠오르는 동안 제자리
+        slow(owner, MAGE_ULT.rise / 1000, 100, true); // 떠오르는 동안 제자리
     }
 
     setPhase(phase) {
@@ -244,7 +244,7 @@ class MageSkyBombardment {
     startStrike() {
         this.setPhase('warn');
         this.bombs = [];
-        slow(this.owner, (MAGE_ULT.warn + MAGE_ULT.strike) / 1000, 100);
+        slow(this.owner, (MAGE_ULT.warn + MAGE_ULT.strike) / 1000, 100, true);
     }
 
     update() {

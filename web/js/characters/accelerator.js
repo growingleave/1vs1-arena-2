@@ -325,8 +325,8 @@ class AcceleratorTimeSkill extends Skill {
                 this.charge = 0.0;
                 this.isActive = false;
                 player.takeDamage(35.0);
-                slow(player, 1.5, 100);
-                silence(player, 1.5);
+                slow(player, 1.5, 100, true);
+                silence(player, 1.5, true);
                 Vfx.spawn(new AccClockBreakVFX(player));
             }
         } else {
