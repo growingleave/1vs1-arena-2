@@ -7,7 +7,7 @@ const ARROW_COLORS = { impact: '111, 180, 255', explosive: '255, 120, 40', slow:
 const ARROW_LABELS = { impact: '충격 화살', explosive: '폭파 화살', slow: '감속 화살' };
 
 // 그림 (tools/archer_gen.js로 생성, 물체 그림이라 보통으로)
-const ARCHER_BOW_IMAGE = loadImage('assets/archer_bow.png');       // 132x322 활 + 빛 테두리, 쏘는 방향 = 오른쪽, 손잡이 (87,161), 줄 고리 위 (31,12)·아래 (31,310), 보석 (88,126)
+const ARCHER_BOW_IMAGE = loadImage('assets/archer_bow.png');       // 132x322 갈색·초록 활 + 연두 빛 테두리, 쏘는 방향 = 오른쪽, 손잡이 (87,161), 줄 고리 위 (31,12)·아래 (31,310), 보석 (88,126)
 const ARCHER_BOW_GLOW_IMAGE = loadImage('assets/archer_bow_glow.png'); // 132x322 당길수록 활 전체가 빛나는 그림 ('lighter', 같은 좌표)
 const ARCHER_ARROW_IMAGES = {                                 // 120x24 화살, 오른쪽을 향함, 오늬 x 1, 촉 끝 x 118
     impact: loadImage('assets/archer_arrow_impact.png'),
@@ -54,7 +54,7 @@ function drawArcherBow(ctx, cx, cy, facing, drawRatio, alpha = 1) {
     // 시위 (당길수록 붉은 빛)
     if (glow > 0) {
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = `rgba(255, 60, 80, ${0.5 * glow * alpha})`; ctx.lineWidth = 4;
+        ctx.strokeStyle = `rgba(160, 240, 90, ${0.5 * glow * alpha})`; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(tip1[0], tip1[1]); ctx.lineTo(nock[0], nock[1]); ctx.lineTo(tip2[0], tip2[1]); ctx.stroke();
         ctx.restore();
     }
@@ -69,7 +69,7 @@ function drawArcherBow(ctx, cx, cy, facing, drawRatio, alpha = 1) {
         // 손잡이 보석 빛
         const r = 4 + 9 * drawRatio, bx = 1 * k, by = -35 * k;
         const g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
-        g.addColorStop(0, 'rgba(255, 200, 210, 0.9)'); g.addColorStop(1, 'rgba(255, 40, 60, 0)');
+        g.addColorStop(0, 'rgba(230, 255, 200, 0.9)'); g.addColorStop(1, 'rgba(140, 230, 70, 0)');
         ctx.globalAlpha = alpha * drawRatio; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();

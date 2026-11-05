@@ -258,14 +258,6 @@ class Player {
     drawBody(ctx) {
         const r = this.rect;
 
-        // 캐스팅 중 금색 테두리
-        if (this.castTimer > 0) {
-            const g = r.inflate(8, 8);
-            ctx.strokeStyle = COLOR_GOLD;
-            ctx.lineWidth = 2;
-            ctx.strokeRect(g.x + 1, g.y + 1, g.w - 2, g.h - 2);
-        }
-
         const style = this.bodyStyle ? this.bodyStyle(this) : null;
         if (isImageReady(this.spriteImage)) {
             // rect는 충돌 판정용이고, 화면에는 이미지만 그린다 (왼쪽을 보면 좌우반전)

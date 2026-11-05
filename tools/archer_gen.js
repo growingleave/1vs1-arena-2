@@ -1,5 +1,5 @@
 // 궁수 그림 생성 (미리 구워두는 용도). 결과는 게임용 1/2 크기 → web/assets/에 복사
-//   archer_bow.png 132x322 : 활 + 적붉은 빛 테두리 (세로로 섬, 쏘는 방향 = 오른쪽, 손잡이 가운데 (87,161), 줄 거는 고리 위 (31,12)·아래 (31,310), 줄은 게임에서 그림) — 보통
+//   archer_bow.png 132x322 : 갈색 나무 활 + 초록 장식 + 연두 빛 테두리 (세로로 섬, 쏘는 방향 = 오른쪽, 손잡이 가운데 (87,161), 줄 거는 고리 위 (31,12)·아래 (31,310), 줄은 게임에서 그림) — 보통
 //   archer_bow_glow.png 132x322 : 다 당겼을 때 활 전체가 빛나는 그림 (활과 같은 크기·좌표, 'lighter')
 //   archer_arrow_impact.png / _explosive / _frost / _homing  132x36 : 화살 + 종류 색 빛 테두리 (오른쪽을 향함, 오늬 x 7, 촉 끝 x 124, 가운데 y 18) — 보통
 //     충격(평타, 맞으면 밀쳐냄)·폭발·감속·유도(궁극기). 몸통·깃 모양은 같고 촉과 색만 다름
@@ -18,8 +18,8 @@ const OUT = process.argv[2] || __dirname;
     const OUTL = '#07070a';
     const bow = mk(240, 620), g = bow.getContext('2d'); const CY = 310;
     g.lineJoin = 'round'; g.lineCap = 'round';
-    const black = (x0, x1) => { const gr = g.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, '#3a3a44'); gr.addColorStop(0.45, '#1a1a20'); gr.addColorStop(1, '#0b0b0f'); return gr; };
-    const crimson = (x0, x1) => { const gr = g.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, '#e0333f'); gr.addColorStop(0.5, '#9e1220'); gr.addColorStop(1, '#5a0710'); return gr; };
+    const black = (x0, x1) => { const gr = g.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, '#a8743f'); gr.addColorStop(0.45, '#6e4521'); gr.addColorStop(1, '#3d230e'); return gr; }; // 갈색 나무
+    const crimson = (x0, x1) => { const gr = g.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, '#6fcf4a'); gr.addColorStop(0.5, '#2f8a2a'); gr.addColorStop(1, '#174d16'); return gr; }; // 초록
 
     // 위·아래 날개(림): 손잡이에서 줄 쪽(왼쪽)으로 휘어 가다가 끝이 다시 앞으로 살짝 젖혀짐. sy = 1 위, -1 아래
     const limb = (sy) => {
@@ -35,15 +35,15 @@ const OUT = process.argv[2] || __dirname;
       g.fillStyle = crimson(40, 120);
       g.beginPath(); g.moveTo(118, y(222)); g.bezierCurveTo(104, y(245), 84, y(262), 62, y(280)); g.lineTo(40, y(302)); g.lineTo(62, y(306)); g.lineTo(58, y(296)); g.bezierCurveTo(92, y(276), 118, y(254), 134, y(226)); g.closePath(); g.fill(); g.stroke();
       // 날개 옆 적붉은 줄무늬
-      g.strokeStyle = '#c41e2a'; g.lineWidth = 5;
+      g.strokeStyle = '#3a9a30'; g.lineWidth = 5;
       g.beginPath(); g.moveTo(160, y(110)); g.bezierCurveTo(162, y(165), 136, y(215), 104, y(242)); g.stroke();
-      g.strokeStyle = 'rgba(255,120,130,0.6)'; g.lineWidth = 1.5;
+      g.strokeStyle = 'rgba(190,240,140,0.6)'; g.lineWidth = 1.5;
       g.beginPath(); g.moveTo(158, y(112)); g.bezierCurveTo(160, y(165), 134, y(213), 102, y(240)); g.stroke();
       // 이음새 원판 (은색 + 적붉은 고리)
       const cx = 150, cy = y(168);
       g.fillStyle = '#b8bcc6'; g.strokeStyle = OUTL; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, 15, 0, Math.PI * 2); g.fill(); g.stroke();
-      g.fillStyle = '#9e1220'; g.beginPath(); g.arc(cx, cy, 9, 0, Math.PI * 2); g.fill(); g.stroke();
-      g.fillStyle = '#ff5a66'; g.beginPath(); g.arc(cx - 2, cy - 2, 3, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#2f8a2a'; g.beginPath(); g.arc(cx, cy, 9, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#c8f59a'; g.beginPath(); g.arc(cx - 2, cy - 2, 3, 0, Math.PI * 2); g.fill();
       // 줄 거는 고리
       g.fillStyle = '#b8bcc6'; g.beginPath(); g.arc(50, y(298), 4, 0, Math.PI * 2); g.fill(); g.stroke();
     };
@@ -57,22 +57,22 @@ const OUT = process.argv[2] || __dirname;
     g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 2; for (let i = -26; i <= 26; i += 8) { g.beginPath(); g.moveTo(146, CY + i); g.lineTo(178, CY + i + 4); g.stroke(); }
     // 화살 받침 + 빛나는 붉은 보석
     g.fillStyle = '#c9ccd4'; g.strokeStyle = OUTL; g.lineWidth = 3; g.beginPath(); g.roundRect(126, CY - 52, 26, 14, 4); g.fill(); g.stroke();
-    const gem = g.createRadialGradient(164, CY - 70, 0, 164, CY - 70, 14); gem.addColorStop(0, '#ffd0d4'); gem.addColorStop(0.35, '#ff2a3a'); gem.addColorStop(1, '#5a0710');
+    const gem = g.createRadialGradient(164, CY - 70, 0, 164, CY - 70, 14); gem.addColorStop(0, '#f0ffd8'); gem.addColorStop(0.35, '#8fe050'); gem.addColorStop(1, '#1f5a12');
     g.fillStyle = gem; g.beginPath(); g.moveTo(164, CY - 84); g.lineTo(174, CY - 70); g.lineTo(164, CY - 56); g.lineTo(154, CY - 70); g.closePath(); g.fill(); g.stroke();
-    g.fillStyle = 'rgba(255,60,70,0.35)'; g.beginPath(); g.arc(164, CY - 70, 20, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(170,240,100,0.35)'; g.beginPath(); g.arc(164, CY - 70, 20, 0, Math.PI * 2); g.fill();
     // 몸체 은색 테두리 선
     g.strokeStyle = 'rgba(200,205,215,0.55)'; g.lineWidth = 2; g.beginPath(); g.moveTo(176, CY - 92); g.quadraticCurveTo(190, CY, 176, CY + 92); g.stroke();
     // 어두운 배경에서도 윤곽이 보이게: 활 실루엣을 적붉게 칠해 번지게 한 빛 테두리를 뒤에 깐다 (가장자리 여백 12px)
     const PAD = 12, rim = mk(bow.width + PAD * 2, bow.height + PAD * 2), rx = rim.getContext('2d');
     const sil = mk(bow.width, bow.height), sx = sil.getContext('2d');
-    sx.drawImage(bow, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#ff3a48'; sx.fillRect(0, 0, sil.width, sil.height);
+    sx.drawImage(bow, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#9ef060'; sx.fillRect(0, 0, sil.width, sil.height);
     for (const [bl, a] of [[7, 0.9], [3, 0.9]]) { rx.filter = `blur(${bl}px)`; rx.globalAlpha = a; rx.drawImage(sil, PAD, PAD); }
     rx.filter = 'none'; rx.globalAlpha = 1; rx.drawImage(bow, PAD, PAD);
     const bowH = half(rim);
     // 다 당겼을 때 활 전체가 빛나는 그림: 실루엣을 밝은 적붉은 빛으로 번지게 ('lighter'로 겹쳐 그림, 활 그림과 같은 크기·좌표)
     const gl = mk(rim.width, rim.height), gx = gl.getContext('2d');
     const silB = mk(bow.width, bow.height), sb = silB.getContext('2d');
-    sb.drawImage(bow, 0, 0); sb.globalCompositeOperation = 'source-in'; sb.fillStyle = '#ff6070'; sb.fillRect(0, 0, silB.width, silB.height);
+    sb.drawImage(bow, 0, 0); sb.globalCompositeOperation = 'source-in'; sb.fillStyle = '#b8f580'; sb.fillRect(0, 0, silB.width, silB.height);
     for (const [bl, a] of [[10, 1], [4, 0.8], [0, 0.45]]) { gx.filter = bl ? `blur(${bl}px)` : 'none'; gx.globalAlpha = a; gx.drawImage(silB, PAD, PAD); }
     const bowGlow = half(gl);
 
