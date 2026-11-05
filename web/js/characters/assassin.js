@@ -723,8 +723,8 @@ class AssassinUltSkill extends Skill {
 function applyAssassinToPlayer(player) {
     player.spriteImage = ASSASSIN_IMAGE;
     // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
-    player.spriteSize = 49;
-    player.spriteAnchor = [0.484, 0.592];
+    player.spriteSize = 56; // 15% 키움
+    player.spriteAnchor = [0.484, 0.643];
     player.maxHp = 225;
     player.maxUltGauge = 90; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;

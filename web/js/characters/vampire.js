@@ -636,8 +636,8 @@ class VampireUltSkill extends Skill {
 function applyVampire(player) {
     player.spriteImage = VAMPIRE_IMAGE;
     // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
-    player.spriteSize = 48;
-    player.spriteAnchor = [0.508, 0.583];
+    player.spriteSize = 55; // 15% 키움
+    player.spriteAnchor = [0.508, 0.636];
     player.maxHp = 230;
     player.maxUltGauge = 110; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;

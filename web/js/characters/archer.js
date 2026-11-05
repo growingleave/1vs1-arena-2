@@ -492,8 +492,8 @@ class ArcherUltSkill extends Skill {
 function applyArcher(player) {
     player.spriteImage = ARCHER_IMAGE;
     // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
-    player.spriteSize = 51;
-    player.spriteAnchor = [0.563, 0.608];
+    player.spriteSize = 59; // 15% 키움
+    player.spriteAnchor = [0.563, 0.661];
     player.maxHp = 245;
     player.maxUltGauge = 90; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;

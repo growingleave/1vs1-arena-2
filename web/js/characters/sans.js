@@ -432,8 +432,8 @@ function applySans(player) {
     player.lastDodgeTime = -99999;
     player.spriteImage = SANS_IMAGE;
     // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
-    player.spriteSize = 43;
-    player.spriteAnchor = [0.504, 0.535];
+    player.spriteSize = 49; // 15% 키움
+    player.spriteAnchor = [0.504, 0.592];
 
     // 특성: 맞을 때 20% 확률로 완전 회피 + 슬로우/침묵 정화 + 0.2초 무적
     const baseTakeDamage = player.takeDamage.bind(player);

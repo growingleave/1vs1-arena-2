@@ -634,8 +634,8 @@ class SwordmanUltSkill extends Skill {
 function applySwordmanToPlayer(player) {
     player.spriteImage = SWORDMAN_IMAGE;
     // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
-    player.spriteSize = 57;
-    player.spriteAnchor = [0.574, 0.649];
+    player.spriteSize = 66; // 15% 키움
+    player.spriteAnchor = [0.574, 0.697];
     player.maxHp = 260;
     player.maxUltGauge = 100; // 궁극기 게이지 통 (검사 100 기준)
     player.hp = player.maxHp;

@@ -792,8 +792,8 @@ function applyFighter(player) {
     player.speed = 4.3;
     player.spriteImage = FIGHTER_IMAGE;
     // 몸 그림: 바닥이 히트박스 바닥에 닿고, 모든 캐릭터가 같은 배율 (tools/portrait_gen.js 출력값)
-    player.spriteSize = 50;
-    player.spriteAnchor = [0.504, 0.6];
+    player.spriteSize = 57; // 15% 키움
+    player.spriteAnchor = [0.504, 0.649];
     player.abilities = [
         new FighterBasicSkill(),  // 평타
         new FighterChargeSkill(), // 스킬 1 (10개 충전)
