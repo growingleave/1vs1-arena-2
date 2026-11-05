@@ -42,7 +42,7 @@ class SansBoneChipsVFX {
 function sansPostDelay(owner, sec) {
     const e = owner.statusEffects.slow;
     if (e && e.duration >= sec) return;
-    slow(owner, sec, 100);
+    slow(owner, sec, 100, true);
 }
 
 // 흰 빛 점 (한 번 만들어 재사용)
@@ -358,8 +358,8 @@ class SansMegaLaserBeam extends BeamLaser {
         this.interval = 100;
         this.lastDamageTick = 0;
         const lockSec = (SANS_ULT_WINDUP_MS + SANS_ULT_FIRE_MS) / 1000 + 0.6;
-        silence(owner, lockSec);
-        slow(owner, lockSec, 100);
+        silence(owner, lockSec, true);
+        slow(owner, lockSec, 100, true);
         Vfx.spawn(new SansBlasterVFX(this, { scale: 280, shake: 6 })); // 거대 해골·빔 그림은 이펙트가 그린다
     }
 

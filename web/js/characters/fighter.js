@@ -441,8 +441,8 @@ class FighterDashManager {
     update(walls) {
         if (Time.now - this.createdTime < this.dashDuration) {
             // 돌진 중에는 이동키·다른 스킬 잠금
-            slow(this.owner, 0.1, 100);
-            silence(this.owner, 0.1);
+            slow(this.owner, 0.1, 100, true);
+            silence(this.owner, 0.1, true);
             const ts = this.owner.timeScale;
             moveEntityWithWalls(this.owner, this.direction[0] * this.dashSpeed * ts, this.direction[1] * this.dashSpeed * ts, walls);
         }
@@ -591,8 +591,8 @@ class FighterUltManager {
         if (this.strikesDone < 3) {
             // 무적 + 제자리 + 다른 스킬 잠금
             defenseMod(this.owner, 0.1, 100);
-            slow(this.owner, 0.1, 100);
-            silence(this.owner, 0.1);
+            slow(this.owner, 0.1, 100, true);
+            silence(this.owner, 0.1, true);
             this.posX = this.owner.rect.centerx;
             this.posY = this.owner.rect.centery;
             // 조준 중에만 방향 돌리기 (오른쪽 = 시계 방향, 왼쪽 = 반시계 방향)

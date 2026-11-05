@@ -5,8 +5,9 @@
 // ==========================================
 
 // 슬로우: power 만큼 이동속도 비율 감소 (power가 100 이상이면 이동 불가)
-function slow(target, duration, power) {
-    target.statusEffects.slow = { duration, power, total: duration }; // total: 화면용 (맞을 때 걸리는 아주 짧은 슬로우는 이펙트 안 그림)
+// self = true: 스스로 건 것(돌진 중 고정 등). 화면 이펙트를 그리지 않는다 (효과는 같음)
+function slow(target, duration, power, self = false) {
+    target.statusEffects.slow = { duration, power, total: duration, self }; // total: 화면용 (맞을 때 걸리는 아주 짧은 슬로우는 이펙트 안 그림)
 }
 
 // 속도 증가: power 만큼 이동속도 비율 증가
@@ -15,13 +16,13 @@ function speedUp(target, duration, power) {
 }
 
 // 속박: 돌진 키워드 스킬 사용 불가
-function bind(target, duration) {
-    target.statusEffects.bind = { duration };
+function bind(target, duration, self = false) {
+    target.statusEffects.bind = { duration, self };
 }
 
 // 침묵: 모든 스킬 사용 불가
-function silence(target, duration) {
-    target.statusEffects.silence = { duration };
+function silence(target, duration, self = false) {
+    target.statusEffects.silence = { duration, self };
 }
 
 // 시간 감속: 쿨타임 속도 지연 및 timeScale 감소

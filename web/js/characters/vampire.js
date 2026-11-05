@@ -579,7 +579,7 @@ class VampireUltAttack {
         this.damage = owner.baseAtk * VAMP.ult.damage;
         this.createdTime = Time.now;
         this.lifespan = VAMP.ult.delay + 200;
-        slow(owner, VAMP.ult.delay / 1000 + 0.15, 100); // 선딜레이 동안 제자리
+        slow(owner, VAMP.ult.delay / 1000 + 0.15, 100, true); // 선딜레이 동안 제자리
         this.hitPlayers = [];
         this.canPenetrateWalls = true;
         this.noFizzle = true;

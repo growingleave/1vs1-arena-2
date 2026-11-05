@@ -277,7 +277,7 @@ class SwordmanDashAttack {
     }
 
     update(walls) {
-        slow(this.owner, 0.1, 100);
+        slow(this.owner, 0.1, 100, true);
         const timeScale = this.owner.timeScale;
         moveEntityWithWalls(this.owner,
             this.direction[0] * this.dashSpeed * timeScale,
@@ -472,7 +472,7 @@ class SwordmanUltDashAttack {
 
     update(walls) {
         if (this.phase !== 'dash') return;
-        slow(this.owner, 0.1, 100);
+        slow(this.owner, 0.1, 100, true);
         const timeScale = this.owner.timeScale;
         moveEntityWithWalls(this.owner,
             this.direction[0] * this.dashSpeed * timeScale,

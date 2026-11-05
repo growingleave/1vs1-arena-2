@@ -326,8 +326,8 @@ class AssassinMoveManager {
 
     update(walls) {
         if (Time.now - this.createdTime < this.duration) {
-            slow(this.owner, 0.1, 100);
-            silence(this.owner, 0.1);
+            slow(this.owner, 0.1, 100, true);
+            silence(this.owner, 0.1, true);
             const ts = this.owner.timeScale;
             moveEntityWithWalls(this.owner, this.direction[0] * this.dashSpeed * ts, this.direction[1] * this.dashSpeed * ts, walls);
         }
@@ -403,8 +403,8 @@ class AssassinHookGrappleToTarget {
             return;
         }
 
-        slow(this.owner, 0.1, 100);
-        silence(this.owner, 0.1);
+        slow(this.owner, 0.1, 100, true);
+        silence(this.owner, 0.1, true);
         const ts = this.owner.timeScale;
         moveEntityWithWalls(this.owner, (dx / dist) * this.dashSpeed * ts, (dy / dist) * this.dashSpeed * ts, walls);
     }
@@ -682,7 +682,7 @@ class AssassinStealthManager {
         owner.invincible = true;
         owner.isInvisible = true;
         assassinGasBurst(owner, 8); // 화면 전용: 사라질 때 가스가 퍽
-        silence(owner, (this.duration + ULT_SLASH_PHASE_DURATION * 2) / 1000);
+        silence(owner, (this.duration + ULT_SLASH_PHASE_DURATION * 2) / 1000, true);
     }
 
     update() {}
