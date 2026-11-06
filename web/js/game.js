@@ -42,10 +42,10 @@ function createLoadoutOrb(n) {
 
 // 선택창 카드 배치 (구역 안 기준)
 // 히든 캐릭터: 선택창에서 커맨드(이동키 위 위 아래 아래 왼 오 왼 오)를 치면 그 사람 선택창에 나타난다
-const HIDDEN_CHARACTERS = [8]; // DIO
+const HIDDEN_CHARACTERS = []; // 지금은 없음 (DIO는 다시 공개). 번호를 넣으면 커맨드로 해금
 const HIDDEN_COMMAND = 'UUDDLRLR';
 // 선택창에서 아예 안 보이는 캐릭터 (코드·그림 파일은 남겨 둠). 폭파광: 디자인을 아직 못 구함
-const DISABLED_CHARACTERS = [4];
+const DISABLED_CHARACTERS = []; // 폭파광 다시 공개
 const SELECT_COLS = 4, SELECT_CARD_W = 132, SELECT_CARD_H = 62, SELECT_GAP = 8;
 const SELECT_GRID_X = Math.round((LOADOUT_SIDE_W - (SELECT_COLS * SELECT_CARD_W + (SELECT_COLS - 1) * SELECT_GAP)) / 2);
 const SELECT_GRID_Y = 58;
@@ -235,7 +235,7 @@ class Game {
         // 히든 커맨드: 최근 이동키 8개
         const dir = { [ctl.up]: 'U', [ctl.down]: 'D', [ctl.left]: 'L', [ctl.right]: 'R' }[code];
         side.cmd = ((side.cmd || '') + (dir || '-')).slice(-HIDDEN_COMMAND.length);
-        if (side.cmd === HIDDEN_COMMAND && !this.hiddenUnlocked[n - 1]) {
+        if (HIDDEN_CHARACTERS.length && side.cmd === HIDDEN_COMMAND && !this.hiddenUnlocked[n - 1]) {
             this.hiddenUnlocked[n - 1] = true;
             side.cursor = HIDDEN_CHARACTERS[0];
             side.unlockTime = Time.now;
