@@ -73,3 +73,4 @@
 - 히든 캐릭터: DIO(HIDDEN_CHARACTERS, game.js). 선택창에서 이동키 위위아래아래왼오왼오 → 그 사람 선택창에 DIO 등장(hiddenUnlocked, 새로고침하면 다시 숨김).
 - 용암·설원 맵 그림: tools/arena_maps_gen.js (바닥 webp + 벽 png, 빙판은 바닥에 구움 → IcePatch baked). 두 맵도 구슬 대신 보급 상자(용암은 가운데 반경 190 피함). 눈 피로 줄이려 전체 톤 낮춤, 용암 원 색도 어둡게.
 - 설원 화톳불·눈보라 그림: tools/blizzard_gen.js (화톳불 꺼짐/켜짐, 불꽃 4장, 이어 붙이는 눈발 무늬 2장을 패턴으로 흘림).
+- 폭파광(4)은 DISABLED_CHARACTERS로 선택창에서 숨김 (파일은 남김, 그림 생기면 빼면 됨).

@@ -44,6 +44,8 @@ function createLoadoutOrb(n) {
 // 히든 캐릭터: 선택창에서 커맨드(이동키 위 위 아래 아래 왼 오 왼 오)를 치면 그 사람 선택창에 나타난다
 const HIDDEN_CHARACTERS = [8]; // DIO
 const HIDDEN_COMMAND = 'UUDDLRLR';
+// 선택창에서 아예 안 보이는 캐릭터 (코드·그림 파일은 남겨 둠). 폭파광: 디자인을 아직 못 구함
+const DISABLED_CHARACTERS = [4];
 const SELECT_COLS = 4, SELECT_CARD_W = 132, SELECT_CARD_H = 62, SELECT_GAP = 8;
 const SELECT_GRID_X = Math.round((LOADOUT_SIDE_W - (SELECT_COLS * SELECT_CARD_W + (SELECT_COLS - 1) * SELECT_GAP)) / 2);
 const SELECT_GRID_Y = 58;
@@ -224,7 +226,7 @@ class Game {
     // 선택창 키 조작 (방향키: 고르기, 평타 키: 훈련장으로)
     // 선택창에 보이는 캐릭터 번호 목록 (히든은 해금한 사람에게만)
     visibleCharacters(n) {
-        return CHARACTER_REGISTRY.map((_, i) => i).filter((i) => !HIDDEN_CHARACTERS.includes(i) || this.hiddenUnlocked[n - 1]);
+        return CHARACTER_REGISTRY.map((_, i) => i).filter((i) => !DISABLED_CHARACTERS.includes(i) && (!HIDDEN_CHARACTERS.includes(i) || this.hiddenUnlocked[n - 1]));
     }
 
     handleSelectKey(n, code) {
