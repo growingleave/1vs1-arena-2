@@ -216,7 +216,7 @@ class DioStandField {
     constructor(owner, direction, attacks) {
         this.owner = owner;
         this.attacks = attacks;
-        this.damage = owner.baseAtk * 0.4; // 계속 때리는 대신 한 대는 약하게
+        this.damage = owner.baseAtk * 2 / 3; // 잽 한 대 10 (원래 6)
         this.createdTime = Time.now;
         this.hitPlayers = [];
         this.forceExpire = false;
@@ -402,7 +402,7 @@ class DioSkill2 extends Skill {
 
         const target = owner.opponent;
         if (target) {
-            const duration = 3.0;
+            const duration = 5.0; // 시간 정지 5초 (원래 3초)
             timeSlow(target, duration, 100.0);
             slow(target, duration, 100.0);
             silence(target, duration);
@@ -568,7 +568,7 @@ const DIO_CHARACTER_DATA = {
     id: 'DIO',
     fxColor: '#ffd84a',
     name: 'DIO',
-    desc: '평타(0.48초): 앞에 스탠드를 소환해 그 자리에서 0.24초마다 잽을 날립니다(6씩). 다시 쓰면 새 자리로 옮깁니다, 스킬 1(1.5초마다 충전·최대 5개): 칼을 던집니다(12). 시간 정지 중에는 공중에 멈췄다가 시간이 흐르면 날아갑니다, 스킬 2(12초): 3초 동안 상대의 시간을 멈추고(이동·스킬 불가) 칼을 5개 채웁니다. 멈춘 상대가 공격에 맞으면 바로 풀립니다, 궁극기: 하늘로 날아올라(무적, 벽 통과) 3초 동안 자유롭게 움직이다가 다시 누르거나 시간이 다 되면 0.5초 뒤 로드롤러로 내리찍습니다(30, 반경 85)',
+    desc: '평타(0.48초): 앞에 스탠드를 소환해 그 자리에서 0.24초마다 잽을 날립니다(10씩). 다시 쓰면 새 자리로 옮깁니다, 스킬 1(1.5초마다 충전·최대 5개): 칼을 던집니다(12). 시간 정지 중에는 공중에 멈췄다가 시간이 흐르면 날아갑니다, 스킬 2(12초): 5초 동안 상대의 시간을 멈추고(이동·스킬 불가) 칼을 5개 채웁니다. 멈춘 상대가 공격에 맞으면 바로 풀립니다, 궁극기: 하늘로 날아올라(무적, 벽 통과) 3초 동안 자유롭게 움직이다가 다시 누르거나 시간이 다 되면 0.5초 뒤 로드롤러로 내리찍습니다(30, 반경 85)',
     apply: applyDio,
     thumbnail: DIO_IMAGE,
 };
