@@ -2,7 +2,7 @@
 //
 // 하는 일
 // 1. web/ 폴더의 게임 파일을 그대로 보여준다 (이 서버 주소로 접속하면 바로 플레이 가능)
-// 2. 방 만들기 / 방 코드로 들어가기
+// 2. 방 목록(방 이름·잠금 표시) / 방 만들기(이름, 비밀번호 선택) / 목록에서 골라 들어가기 / 방 코드로 들어가기
 // 3. 두 명이 모이면 먼저 기기끼리 직접 연결(WebRTC)을 시도하도록 연결 정보를 전달해 준다.
 //    - 직접 연결 성공: 방을 만든 기기가 틱을 만들어 상대에게 보낸다. 서버는 상태 비교와 나가기 알림만 한다.
 //    - 직접 연결 실패: 서버가 1초에 60번 "이번 틱에 두 사람이 누르고 있는 키"를 모아서 두 사람에게 보낸다.
@@ -32,6 +32,15 @@ const RELAY_ONLY = process.env.RELAY_ONLY === '1'; // 방장이 연결 결과를
 // 방 코드에 헷갈리는 글자(I, O, 0, 1 등)는 쓰지 않는다
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 4;
+
+// 방 목록 관련 (멀티존 방식)
+const PROTOCOL_VERSION = 2;          // 게임 파일(net.js)과 같아야 함. 다르면 새로고침 안내
+const ROOM_NAME_MAX = 16;
+const ROOM_PASSWORD_MAX = 12;
+const MAX_ROOMS_PER_IP = 3;          // 한 곳(같은 공인 IP)에서 동시에 만들 수 있는 방 수 (방 도배 막기)
+const WAITING_ROOM_MAX_MS = 30 * 60 * 1000; // 30분 동안 아무도 안 들어오면 방을 닫음 (유령 방 정리)
+// 아주 간단한 금지어 (완벽하지 않음). 들어 있으면 그 부분을 *로 바꾼다
+const BAD_WORDS = ['시발', '씨발', 'ㅅㅂ', 'ㅆㅂ', '병신', 'ㅂㅅ', '좆', '지랄', '개새', '꺼져', '미친놈', '미친년', 'fuck', 'shit', 'bitch', 'sex', '섹스', '느금', '니애미', '애미', '애비'];
 
 // 플레이어 자리별로 보낼 수 있는 키. 다른 사람 캐릭터를 조종하지 못하게 서버에서 걸러낸다.
 // (게임 안의 P1/P2 키 배치 = 크롬북 버전과 같다)
@@ -101,9 +110,73 @@ function send(ws, msg) {
     if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
 }
 
-function createRoom(ws) {
+// 방 이름 정리: 보이지 않는 글자 제거, 공백 정리, 길이 제한, 금지어 가리기
+function cleanRoomName(raw, code) {
+    let name = String(raw || '').normalize('NFC').replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '');
+    name = name.replace(/\s+/g, ' ').trim();
+    name = [...name].slice(0, ROOM_NAME_MAX).join('');
+    const squashed = name.toLowerCase().replace(/[\s._\-*~!@#$%^&()]/g, '');
+    for (const w of BAD_WORDS) {
+        if (squashed.includes(w)) name = name.replace(new RegExp(w.split('').join('[\\s._\\-*~!@#$%^&()]*'), 'gi'), '*'.repeat(w.length));
+    }
+    return name || `방 ${code}`;
+}
+
+function hashPassword(password, salt) {
+    return crypto.createHash('sha256').update(salt + ':' + password).digest('hex');
+}
+
+function roomState(room) {
+    if (room.started) return 'playing';
+    if (room.players[1]) return 'full';
+    return 'waiting';
+}
+
+// 목록 화면을 보고 있는 연결들에게 방 목록을 보낸다 (바뀔 때마다, 0.2초에 한 번까지)
+const watchers = new Set();
+let listTimer = null;
+function roomListMessage() {
+    const list = [];
+    for (const room of rooms.values()) list.push({ id: room.code, name: room.name, locked: !!room.passwordHash, state: roomState(room), age: Date.now() - room.createdAt });
+    list.sort((a, b) => (a.state === 'waiting' ? 0 : 1) - (b.state === 'waiting' ? 0 : 1) || a.age - b.age);
+    return JSON.stringify({ t: 'rooms', rooms: list.slice(0, 50) });
+}
+function broadcastRooms() {
+    if (listTimer) return;
+    listTimer = setTimeout(() => {
+        listTimer = null;
+        const msg = roomListMessage();
+        for (const ws of watchers) if (ws.readyState === ws.OPEN) ws.send(msg);
+    }, 200);
+}
+
+function countRoomsFromIp(ip) {
+    let n = 0;
+    for (const room of rooms.values()) if (room.hostIp === ip) n++;
+    return n;
+}
+
+function versionOk(ws, msg) {
+    if (msg.v === PROTOCOL_VERSION) return true;
+    send(ws, { t: 'error', message: '게임 버전이 서버와 달라요. 페이지를 새로고침(Ctrl+R) 해 주세요.' });
+    return false;
+}
+
+function createRoom(ws, msg = {}) {
+    if (countRoomsFromIp(ws.ip) >= MAX_ROOMS_PER_IP) {
+        send(ws, { t: 'error', message: `같은 곳에서 만든 방이 너무 많아요 (최대 ${MAX_ROOMS_PER_IP}개). 안 쓰는 방을 닫아 주세요.` });
+        return;
+    }
+    const code = makeRoomCode();
+    const password = String(msg.password || '').slice(0, ROOM_PASSWORD_MAX);
+    const salt = crypto.randomBytes(8).toString('hex');
     const room = {
-        code: makeRoomCode(),
+        code,
+        name: cleanRoomName(msg.name, code),
+        passwordHash: password ? hashPassword(password, salt) : null,
+        salt,
+        hostIp: ws.ip,
+        createdAt: Date.now(),
         players: [ws, null],
         held: [new Set(), new Set()],  // 자리별로 지금 누르고 있는 키
         downs: [[], []],               // 자리별로 이번 틱에 새로 누른 키
@@ -117,24 +190,54 @@ function createRoom(ws) {
     rooms.set(room.code, room);
     ws.room = room;
     ws.slot = 0;
-    send(ws, { t: 'created', code: room.code });
+    send(ws, { t: 'created', code: room.code, name: room.name, locked: !!room.passwordHash });
     console.log(`[방 ${room.code}] 생성 (방 ${rooms.size}개)`);
+    broadcastRooms();
 }
 
-function joinRoom(ws, rawCode) {
+// 비밀번호를 여러 번 틀리면 잠깐 못 넣게 한다 (연결마다·IP마다)
+const pwFails = new Map(); // ip -> { count, until, first }
+function passwordBlocked(ip) {
+    const f = pwFails.get(ip);
+    return f && Date.now() < f.until ? Math.ceil((f.until - Date.now()) / 1000) : 0;
+}
+function notePasswordFail(ip) {
+    const now = Date.now();
+    let f = pwFails.get(ip);
+    if (!f || now - f.first > 60000) f = { count: 0, until: 0, first: now };
+    f.count += 1;
+    f.until = now + (f.count >= 5 ? 30000 : 1500); // 1분 안에 5번 틀리면 30초, 아니면 1.5초
+    pwFails.set(ip, f);
+}
+
+function joinRoom(ws, rawCode, rawPassword) {
     const code = String(rawCode || '').trim().toUpperCase();
     const room = rooms.get(code);
     if (!room) {
-        send(ws, { t: 'error', message: '그런 방이 없어요. 코드를 다시 확인해 주세요.' });
+        send(ws, { t: 'error', message: '그런 방이 없어요. 이미 닫혔거나 코드가 틀렸어요.' });
         return;
     }
     if (room.players[1]) {
-        send(ws, { t: 'error', message: '이미 두 명이 들어간 방이에요.' });
+        send(ws, { t: 'error', message: '방이 꽉 찼어요. 다른 사람이 먼저 들어갔어요.' });
         return;
+    }
+    if (room.passwordHash) {
+        const wait = passwordBlocked(ws.ip);
+        if (wait) {
+            send(ws, { t: 'error', code: 'badpw', message: `비밀번호를 너무 많이 틀렸어요. ${wait}초 뒤에 다시 해 주세요.` });
+            return;
+        }
+        const pw = String(rawPassword || '').slice(0, ROOM_PASSWORD_MAX);
+        if (!pw || hashPassword(pw, room.salt) !== room.passwordHash) {
+            notePasswordFail(ws.ip);
+            send(ws, { t: 'error', code: 'badpw', message: pw ? '비밀번호가 틀렸어요.' : '비밀번호가 있는 방이에요. 비밀번호를 입력해 주세요.' });
+            return;
+        }
     }
     room.players[1] = ws;
     ws.room = room;
     ws.slot = 1;
+    broadcastRooms();
 
     if (RELAY_ONLY) {
         startRoom(room, 'relay');
@@ -154,6 +257,7 @@ function startRoom(room, mode) {
     room.startTime = performance.now();
     const seed = crypto.randomInt(0x7fffffff);
     room.players.forEach((ws, slot) => send(ws, { t: 'start', code: room.code, slot, seed, mode }));
+    broadcastRooms();
     console.log(`[방 ${room.code}] 대전 시작 (${mode === 'p2p' ? '기기끼리 직접 연결' : '서버 경유'})`);
 }
 
@@ -175,6 +279,7 @@ function closeRoom(room, leaver) {
         }
     }
     console.log(`[방 ${room.code}] 닫힘 (방 ${rooms.size}개)`);
+    broadcastRooms();
 }
 
 function handleInput(ws, msg) {
@@ -243,7 +348,10 @@ pumpLoop();
 // ------------------------------------------
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+    // 접속한 곳 (Render 같은 곳에선 앞단 프록시가 x-forwarded-for에 진짜 주소를 넣어 준다)
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    ws.ip = fwd || req.socket.remoteAddress || '?';
     ws.room = null;
     ws.slot = -1;
     ws.isAlive = true;
@@ -261,8 +369,10 @@ wss.on('connection', (ws) => {
         else if (msg.t === 'sum') handleChecksum(ws, msg);
         else if (msg.t === 'signal') relaySignal(ws, msg);
         else if (msg.t === 'mode' && ws.room && ws.slot === 0) startRoom(ws.room, msg.mode === 'p2p' ? 'p2p' : 'relay');
-        else if (msg.t === 'create' && !ws.room) createRoom(ws);
-        else if (msg.t === 'join' && !ws.room) joinRoom(ws, msg.code);
+        else if (msg.t === 'list') { if (versionOk(ws, msg)) { watchers.add(ws); send(ws, JSON.parse(roomListMessage())); } }
+        else if (msg.t === 'unlist') watchers.delete(ws);
+        else if (msg.t === 'create' && !ws.room) { if (versionOk(ws, msg)) createRoom(ws, msg); }
+        else if (msg.t === 'join' && !ws.room) { if (versionOk(ws, msg)) joinRoom(ws, msg.code, msg.password); }
         else if (msg.t === 'leave' && ws.room) {
             const room = ws.room;
             ws.room = null;
@@ -271,9 +381,22 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('close', () => {
+        watchers.delete(ws);
         if (ws.room) closeRoom(ws.room, ws);
     });
 });
+
+// 오래 아무도 안 들어온 방 닫기 + 오래된 비밀번호 실패 기록 지우기
+setInterval(() => {
+    const now = Date.now();
+    for (const room of [...rooms.values()]) {
+        if (!room.started && !room.players[1] && now - room.createdAt > WAITING_ROOM_MAX_MS) {
+            send(room.players[0], { t: 'error', message: '30분 동안 아무도 들어오지 않아서 방을 닫았어요.' });
+            closeRoom(room, null);
+        }
+    }
+    for (const [ip, f] of pwFails) if (now - f.first > 120000 && now > f.until) pwFails.delete(ip);
+}, 30000);
 
 // 응답 없는 연결 정리 (와이파이가 끊긴 기기 등)
 setInterval(() => {

@@ -61,7 +61,7 @@ const measure = async (page, label) => page.evaluate(async () => {
     }
     const [host, guest] = pages;
     await host.waitForTimeout(800);
-    await host.click('#btn-create');
+    await host.click('#btn-create'); await host.click('#btn-create-ok');
     await host.waitForFunction(() => Net.code && Net.code.length === 4, null, { timeout: 15000 });
     const code = await host.evaluate(() => Net.code);
     await guest.fill('#room-code', code); await guest.click('#btn-join');
