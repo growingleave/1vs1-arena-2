@@ -66,6 +66,9 @@ const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 // 방장이 상대 입력을 받을 때, 상대 자리(P2) 키만 받아들인다
 const GUEST_ALLOWED_KEYS = new Set(Object.values(SLOT_GAME_KEYS[1]));
 
+// 서버(server/server.js PROTOCOL_VERSION)와 같아야 함. 서버를 바꾸면 같이 올린다
+const NET_PROTOCOL_VERSION = 2;
+
 function p2pAllowed() {
     return !urlSwitchOff('p2p') && typeof RTCPeerConnection !== 'undefined';
 }
@@ -172,6 +175,7 @@ const Net = {
         }
         this.status = 'connecting';
         this.lastError = '';
+        this.lastErrorCode = '';
         let ws;
         try {
             ws = new WebSocket(url);
@@ -198,12 +202,13 @@ const Net = {
         };
     },
 
-    createRoom() {
-        this.connect(() => this.send({ t: 'create' }));
+    createRoom(name = '', password = '') {
+        this.roomName = name;
+        this.connect(() => this.send({ t: 'create', v: NET_PROTOCOL_VERSION, name, password }));
     },
 
-    joinRoom(code) {
-        this.connect(() => this.send({ t: 'join', code }));
+    joinRoom(code, password = '') {
+        this.connect(() => this.send({ t: 'join', v: NET_PROTOCOL_VERSION, code, password }));
     },
 
     leave() {
@@ -256,6 +261,8 @@ const Net = {
         if (msg.t === 'created') {
             this.status = 'waiting';
             this.code = msg.code;
+            this.roomName = msg.name || '';
+            this.roomLocked = !!msg.locked;
         } else if (msg.t === 'peer') {
             this.status = 'linking';
             this.slot = msg.slot;
@@ -290,6 +297,7 @@ const Net = {
             this.endMatch('상대가 방을 나갔어요.');
         } else if (msg.t === 'error') {
             this.fail(msg.message);
+            this.lastErrorCode = msg.code || '';
         }
     },
 

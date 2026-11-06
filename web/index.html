@@ -13,16 +13,38 @@
 
         <!-- 시작 화면의 온라인 메뉴 -->
         <div id="lobby" hidden>
+            <!-- 방 목록 (멀티존 방식): 방을 눌러 들어가기 -->
             <div class="menu">
-                <div class="title">온라인 대전 <small>(다른 기기와 함께)</small></div>
+                <div class="title">온라인 대전 <small>방을 눌러 들어가세요 (↑↓ + ENTER도 돼요)</small></div>
+                <div id="room-list" class="room-list"></div>
                 <div class="row">
                     <button id="btn-create" type="button">방 만들기</button>
                     <span class="or">또는</span>
                     <input id="room-code" type="text" placeholder="방 코드" maxlength="4" autocomplete="off" spellcheck="false">
-                    <button id="btn-join" type="button">방 들어가기</button>
+                    <button id="btn-join" type="button" class="sub">코드로 들어가기</button>
                 </div>
                 <div class="keys">온라인 조작: 이동 방향키 · 평타 Q · 스킬 W, E · 궁극기 R · 준비 SPACE</div>
                 <div class="server"></div>
+            </div>
+            <!-- 방 만들기 -->
+            <div class="form create-form" hidden>
+                <div class="title">방 만들기</div>
+                <input id="room-name" type="text" placeholder="방 이름 (최대 16자)" maxlength="16" autocomplete="off" spellcheck="false">
+                <input id="room-pw" type="password" placeholder="비밀번호 (없으면 비워 두기 · 최대 12자)" maxlength="12" autocomplete="new-password">
+                <div class="hint">비밀번호는 친구끼리만 들어오게 하는 용도예요. 진짜 계정 비밀번호는 쓰지 마세요.</div>
+                <div class="row">
+                    <button id="btn-create-ok" type="button">만들기</button>
+                    <button id="btn-create-cancel" type="button" class="sub">취소</button>
+                </div>
+            </div>
+            <!-- 비밀번호 있는 방에 들어가기 -->
+            <div class="form pw-form" hidden>
+                <div class="title">🔒 <span class="pw-room"></span></div>
+                <input id="join-pw" type="password" placeholder="비밀번호" maxlength="12" autocomplete="off">
+                <div class="row">
+                    <button id="btn-pw-ok" type="button">들어가기</button>
+                    <button id="btn-pw-cancel" type="button" class="sub">취소</button>
+                </div>
             </div>
             <div class="busy" hidden>
                 <div class="busy-text"></div>

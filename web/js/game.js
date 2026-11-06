@@ -474,14 +474,14 @@ class Game {
 
     renderTitle(ctx) {
         clearScreen(ctx, COLOR_BG);
-        drawText(ctx, '1v1 TOP-DOWN ARENA', WIDTH / 2, HEIGHT / 2 - 100, 40, COLOR_WHITE, { bold: true, align: 'center' });
-        drawText(ctx, '웹 버전 (JavaScript)', WIDTH / 2, HEIGHT / 2 - 50, 18, COLOR_GOLD, { bold: true, align: 'center' });
-        drawText(ctx, `[1] ${CONTROL_SCHEMES.laptop.label}`, WIDTH / 2, HEIGHT / 2, 24, COLOR_WHITE, { bold: true, align: 'center' });
-        drawText(ctx, `[2] ${CONTROL_SCHEMES.chromebook.label}`, WIDTH / 2, HEIGHT / 2 + 40, 24, COLOR_WHITE, { bold: true, align: 'center' });
+        drawText(ctx, '1v1 TOP-DOWN ARENA', WIDTH / 2, HEIGHT / 2 - 250, 40, COLOR_WHITE, { bold: true, align: 'center' });
+        drawText(ctx, '웹 버전 (JavaScript)', WIDTH / 2, HEIGHT / 2 - 200, 18, COLOR_GOLD, { bold: true, align: 'center' });
+        drawText(ctx, `[1] ${CONTROL_SCHEMES.laptop.label}`, WIDTH / 2, HEIGHT / 2 - 150, 24, COLOR_WHITE, { bold: true, align: 'center' });
+        drawText(ctx, `[2] ${CONTROL_SCHEMES.chromebook.label}`, WIDTH / 2, HEIGHT / 2 - 110, 24, COLOR_WHITE, { bold: true, align: 'center' });
         if (Math.floor(Time.now / 500) % 2 === 0) {
-            drawText(ctx, '사용 중인 기기에 맞는 번호를 눌러 시작하세요', WIDTH / 2, HEIGHT / 2 + 100, 16, COLOR_GRAY, { align: 'center' });
+            drawText(ctx, '사용 중인 기기에 맞는 번호를 눌러 시작하세요', WIDTH / 2, HEIGHT / 2 - 82, 14, COLOR_GRAY, { align: 'center' });
         }
-        drawText(ctx, `M: 배경음악 ${Bgm.muted ? '켜기' : '끄기'}`, WIDTH / 2, HEIGHT - 40, 14, COLOR_GRAY, { align: 'center' });
+        drawText(ctx, `M: 배경음악 ${Bgm.muted ? '켜기' : '끄기'}`, WIDTH - 16, 14, 14, COLOR_GRAY, { align: 'right' }); // 아래쪽은 온라인 메뉴가 가림
     }
 
     renderLoadout(ctx) {

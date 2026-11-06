@@ -74,3 +74,4 @@
 - 설원 화톳불·눈보라 그림: tools/blizzard_gen.js (화톳불 꺼짐/켜짐, 불꽃 4장, 이어 붙이는 눈발 무늬 2장을 패턴으로 흘림).
 
 - 히든/숨김 장치(game.js HIDDEN_CHARACTERS·DISABLED_CHARACTERS)는 지금 비어 있음 (DIO·폭파광 공개). DIO 잽 10, 시간 정지 5초.
+- 온라인 방 목록(멀티존 방식): server.js 'list'/'rooms'(바뀔 때 0.2초 묶어서 보냄), 'create'{name,password}, 'join'{code,password}. 비밀번호는 sha256+salt, 틀리면 1.5초·1분 5번이면 30초 제한(IP별). 한 IP 방 3개까지, 대기 30분 넘으면 닫음, 금지어 *. 클라이언트 lobby.js가 시작 화면에서 목록 연결을 따로 엶. 서버·클라 NET_PROTOCOL_VERSION(=2) 같아야 함. 테스트: PORT=3123 npm start 후 PORT=3123 node tools/tests/lobby_test.js.

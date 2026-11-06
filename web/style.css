@@ -93,7 +93,101 @@ body {
     background: #ffe55c;
 }
 
-#room-code {
+#lobby button.sub {
+    background: #4a4a58;
+    color: #fff;
+}
+
+#lobby button.sub:hover {
+    background: #5c5c6c;
+}
+
+/* 방 목록 */
+#lobby .room-list {
+    height: 11.5em;
+    overflow-y: auto;
+    margin: 0 0 0.8em;
+    padding: 0.3em;
+    background: #141419;
+    border: 1px solid #3a3a48;
+    border-radius: 0.5em;
+    text-align: left;
+}
+
+#lobby .room-list .empty {
+    color: #888;
+    text-align: center;
+    padding: 3.6em 0;
+}
+
+#lobby .room {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.6em;
+    margin: 0 0 0.25em;
+    padding: 0.45em 0.8em;
+    background: #23232d;
+    color: #fff;
+    font-weight: normal;
+    border: 2px solid transparent;
+    border-radius: 0.4em;
+    text-align: left;
+}
+
+#lobby .room:hover,
+#lobby .room.sel {
+    background: #2e2e3c;
+    border-color: #ffd700;
+}
+
+#lobby .room[disabled] {
+    opacity: 0.45;
+    cursor: default;
+    border-color: transparent;
+}
+
+#lobby .room .lock {
+    width: 1.3em;
+    text-align: center;
+}
+
+#lobby .room .name {
+    flex: 1;
+    font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#lobby .room .state {
+    font-size: 0.8em;
+    color: #8fe08f;
+}
+
+#lobby .room .state.playing,
+#lobby .room .state.full {
+    color: #c8c8d0;
+}
+
+/* 방 만들기 · 비밀번호 */
+#lobby .form input {
+    display: block;
+    width: 70%;
+    margin: 0 auto 0.6em;
+}
+
+#lobby .form .hint {
+    font-size: 0.75em;
+    color: #aaa;
+    margin-bottom: 0.7em;
+}
+
+#lobby .form .title span {
+    color: #ffd700;
+}
+
+#room-code, #room-name, #room-pw, #join-pw {
     font: inherit;
     font-weight: bold;
     width: 6em;
@@ -107,7 +201,14 @@ body {
     text-transform: uppercase;
 }
 
-#room-code:focus {
+#room-name, #room-pw, #join-pw {
+    letter-spacing: normal;
+    text-transform: none;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+#room-code:focus, #room-name:focus, #room-pw:focus, #join-pw:focus {
     outline: none;
     border-color: #ffd700;
 }
